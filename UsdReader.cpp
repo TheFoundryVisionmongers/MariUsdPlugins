@@ -17,6 +17,7 @@
 #include <time.h>
 
 using namespace std;
+PXR_NAMESPACE_USING_DIRECTIVE
 
 UsdReader::UsdReader(const char* pFileName, 
                                  MriGeoReaderHost &pHost) :

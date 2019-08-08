@@ -9,6 +9,7 @@
 
 #include <float.h>
 using namespace std;
+PXR_NAMESPACE_USING_DIRECTIVE
 
 std::vector<std::string> GeoData::_requireGeomPathSubstring;
 std::vector<std::string> GeoData::_ignoreGeomPathSubstring;

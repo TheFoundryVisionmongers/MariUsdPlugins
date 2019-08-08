@@ -9,6 +9,7 @@
 #include <sstream>
 
 using namespace std;
+PXR_NAMESPACE_USING_DIRECTIVE
 
 //-----------------------------------------------------------------------------
 // Plug-in function suite definitions
