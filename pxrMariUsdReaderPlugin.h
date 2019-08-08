@@ -10,7 +10,11 @@
 #include "MariHostConfig.h"
 
 /// Returns the list of plug-ins in this library
-extern "C" FnPlugin *getPlugins(unsigned int *pNumPlugins);
+extern "C"
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+FnPlugin *getPlugins(unsigned int *pNumPlugins);
 
 
 /// Loads a geometry file
