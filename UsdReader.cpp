@@ -6,7 +6,7 @@
 #include "pxr/base/arch/systemInfo.h"
 #include "pxr/base/tf/stringUtils.h"
 
-#include "pxr/usd/usd/treeIterator.h"
+#include "pxr/usd/usd/primRange.h"
 #include "pxr/usd/usd/stageCache.h"
 #include "pxr/usd/usd/stageCacheContext.h"
 #include "pxr/usd/usdGeom/mesh.h"
@@ -73,9 +73,9 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
     if (!stage)
         return MRI_GPR_FAILED;
    
-    UsdTreeIterator primIt = stage->Traverse();
+    UsdPrimRange primRange = stage->Traverse();
 
-    if (!primIt) 
+    if (!primRange)
     {
         _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
@@ -84,7 +84,7 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
     }
 
     int size = 0;
-    while (primIt) 
+    for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
     {
         if (GeoData::IsValidNode((*primIt))) 
         {
@@ -128,9 +128,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         return MRI_GPR_FILE_OPEN_FAILED;
     
     /////// LOOP THROUGH ALL PATHS ////////
-    UsdTreeIterator primIt = stage->Traverse();
+    UsdPrimRange primRange = stage->Traverse();
 
-    if (!primIt) 
+    if (!primRange)
     {
         _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
@@ -142,7 +142,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     bool loadThisModel = false, someModelLoaded = false;
     ModelData currentModelData;
     
-    while (primIt) 
+    for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
     {
 
 
