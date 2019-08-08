@@ -42,7 +42,7 @@ UsdReader::_OpenUsdStage()
         isAbsPath ? TfGetPathName(_fileName) : ArchGetCwd(); 
     ArResolver& resolver = ArGetResolver();
     ArResolverContext pathResolverContext = 
-        resolver.CreateDefaultContextForDirectory(contextPath);
+        resolver.CreateDefaultContextForAsset(contextPath);
     
     static UsdStageCache stageCache;
     UsdStageCacheContext ctx(stageCache);
