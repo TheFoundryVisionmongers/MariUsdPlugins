@@ -26,7 +26,7 @@ public:
 
     // initialize the count
     ModelData(){}
-    explicit ModelData(UsdPrim prim, std::string wantedUvSet = "");
+    explicit ModelData(PXR_NS::UsdPrim prim, std::string wantedUvSet = "");
 
     ModelData& operator = (const ModelData& other);
     std::map<std::string, std::string> GetMetadata() const;

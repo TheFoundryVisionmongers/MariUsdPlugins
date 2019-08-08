@@ -20,10 +20,10 @@ public:
 
         typedef std::map<std::string, int> UVSet;
 
-        static void GetUvSets(UsdPrim const &prim, UVSet &retval);
+        static void GetUvSets(PXR_NS::UsdPrim const &prim, UVSet &retval);
 
         // Valid nodes are meshes, and subdivs, included in a "Geom" group
-        static bool IsValidNode(UsdPrim const &prim);
+        static bool IsValidNode(PXR_NS::UsdPrim const &prim);
 
         // Check the geometry path against a "required" and "ignore" 
         // list of substrings.
@@ -36,11 +36,11 @@ public:
         
         
         // create geoData
-        GeoData(UsdPrim const &prim, 
+        GeoData(PXR_NS::UsdPrim const &prim,
                 std::string uvSet, // requested uvSet 
                 std::vector<int> frames,
                 bool keepCentered,
-                UsdPrim const &model,
+                PXR_NS::UsdPrim const &model,
                 const MriGeoReaderHost& host,
                 std::vector<std::string>& log);
         

@@ -40,7 +40,7 @@ class UsdReader
                 std::vector<int> &frames);
 
         static void _GetVariantSelectionsList(const std::string &variantsString, 
-                std::vector<SdfPath> &variants);
+                std::vector<PXR_NS::SdfPath> &variants);
 
         static FILE * _GetMetadataFile();
         static FILE * _GetLogFile();
@@ -52,7 +52,7 @@ class UsdReader
                 std::string& requestedModelName, 
                 std::vector<std::string>& requestedGprimNames,
                 std::string& UVSet,
-                std::vector<SdfPath>& variantSelections,
+                std::vector<PXR_NS::SdfPath>& variantSelections,
                 std::string& poseVariantSet,
                 std::string& poseVariant,
                 std::string& modelingVariantSet,
@@ -76,7 +76,7 @@ class UsdReader
         int _startTime;
 
     private:
-        UsdStageRefPtr _OpenUsdStage();
+        PXR_NS::UsdStageRefPtr _OpenUsdStage();
         FILE *_OpenLogFile();
         
 };
