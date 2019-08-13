@@ -33,11 +33,16 @@ add_library(
     ${CMAKE_CURRENT_LIST_DIR}/MariHostConfig.h
 )
 
-# TODO: need to find a better way to specify the Mari SDK
+if (MARI_BUILD)
+    set(MARI_SDK_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/MriCAPI/include)
+else()
+    # TODO: change this for the local build on your machine
+    set(MARI_SDK_INCLUDE_DIR D:/dev/Mari4.1/Apps/Mari/objects/win-64-x86-release-14.0.24210-dynamic/Bundle/SDK/include)
+endif()
 target_include_directories(
     USDImport
     PRIVATE
-    D:/dev/Mari4.1/Apps/Mari/objects/win-64-x86-release-14.0.24210-dynamic/Bundle/SDK/include
+    ${MARI_SDK_INCLUDE_DIR}
 )
 
 target_compile_options(
@@ -54,20 +59,37 @@ target_link_libraries(
     usdGeom
 )
 
-install(
-    TARGETS
-    USDImport
-    DESTINATION
-    ${CMAKE_INSTALL_PREFIX}
-)
+if (MARI_BUILD)
+    install(
+        TARGETS
+        USDImport
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/Bundle/capiplugins
+    )
 
-# TODO: these need to go beside the main executable, not the plugin
-#FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
-#install(
-#    FILES
-#    ${USD_dlls}
-#    $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.dll>
-#    $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.dll>
-#    DESTINATION
-#    ${CMAKE_INSTALL_PREFIX}
-#)
+    if (WIN32)
+        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
+        install(
+            FILES
+            ${USD_dlls}
+            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.dll>
+            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.dll>
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+        )
+    endif()
+
+    install(
+        DIRECTORY
+        ${USD_ROOT}/lib/usd
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+    )
+else()
+    install(
+        TARGETS
+        USDImport
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}
+    )
+endif()
