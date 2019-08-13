@@ -60,15 +60,15 @@ target_link_libraries(
 )
 
 if (MARI_BUILD)
-    install(
-        TARGETS
-        USDImport
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/Bundle/capiplugins
-    )
-
     if (WIN32)
+        install(
+            TARGETS
+            USDImport
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/Bundle/capiplugins
+        )
         FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
+        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dll")
         install(
             FILES
             ${USD_dlls}
@@ -77,34 +77,57 @@ if (MARI_BUILD)
             DESTINATION
             ${CMAKE_INSTALL_PREFIX}/Bundle/bin
         )
+        install(
+            DIRECTORY
+            ${USD_ROOT}/lib/usd
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+        )
     elseif(UNIX AND NOT APPLE)
+        install(
+            TARGETS
+            USDImport
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/capiplugins
+        )
         FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
+        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.so*")
         install(
             FILES
             ${USD_dlls}
-            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.so>
-            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.so>
+            ${TBB_dlls}
             DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+            ${CMAKE_INSTALL_PREFIX}/lib
+        )
+        install(
+            DIRECTORY
+            ${USD_ROOT}/lib/usd
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/lib
         )
     else()
+        install(
+            TARGETS
+            USDImport
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/capiplugins
+        )
         FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dylib")
+        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dylib")
         install(
             FILES
             ${USD_dlls}
-            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.dylib>
-            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.dylib>
+            ${TBB_dlls}
             DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+            ${CMAKE_INSTALL_PREFIX}/lib
+        )
+        install(
+            DIRECTORY
+            ${USD_ROOT}/lib/usd
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/lib
         )
     endif()
-
-    install(
-        DIRECTORY
-        ${USD_ROOT}/lib/usd
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
-    )
 else()
     install(
         TARGETS
