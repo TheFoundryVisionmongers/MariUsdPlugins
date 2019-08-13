@@ -77,6 +77,26 @@ if (MARI_BUILD)
             DESTINATION
             ${CMAKE_INSTALL_PREFIX}/Bundle/bin
         )
+    elseif(UNIX AND NOT APPLE)
+        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
+        install(
+            FILES
+            ${USD_dlls}
+            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.so>
+            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.so>
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+        )
+    else()
+        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dylib")
+        install(
+            FILES
+            ${USD_dlls}
+            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.dylib>
+            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.dylib>
+            DESTINATION
+            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+        )
     endif()
 
     install(
