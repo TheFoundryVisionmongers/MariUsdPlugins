@@ -48,7 +48,7 @@ target_include_directories(
 target_compile_options(
     USDImport
     PRIVATE
-    -DMARI_VERSION=41
+    -DMARI_VERSION=46
     -DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
     $<$<CXX_COMPILER_ID:MSVC>:-WX -W4 -DNOMINMAX -DWIN32_LEAN_AND_MEAN /FIiso646.h -wd4244 -wd4305 -wd4800 -wd4100 -wd4267 -wd4018 -wd4996 -wd4701>
 )
