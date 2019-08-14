@@ -1,3 +1,4 @@
+# Note: macOS untested due to failing Mari builds of the 4.6 branches
 cmake_minimum_required(VERSION 3.13)
 
 project(
