@@ -1,5 +1,5 @@
 # Note: macOS untested due to failing Mari builds of the 4.6 branches
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.11)
 
 project(
     mariUsdImport
@@ -74,8 +74,7 @@ if (MARI_BUILD)
         install(
             FILES
             ${USD_dlls}
-            $<$<CONFIG:Debug>:${TBB_DIR}/../lib/tbb_debug.dll>
-            $<$<CONFIG:Release>:${TBB_DIR}/../lib/tbb.dll>
+            ${TBB_dlls}
             DESTINATION
             ${CMAKE_INSTALL_PREFIX}/Bundle/bin
         )
