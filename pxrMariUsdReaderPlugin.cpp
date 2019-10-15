@@ -25,7 +25,8 @@ MriGeoPluginResult load(MriGeoEntityHandle Entity,
     // Check the extension
     if((!TfStringEndsWith(pFileName, ".usd")) &&
        (!TfStringEndsWith(pFileName, ".usda")) &&
-       (!TfStringEndsWith(pFileName, ".usdc"))) {
+       (!TfStringEndsWith(pFileName, ".usdc")) &&
+       (!TfStringEndsWith(pFileName, ".usdz"))) {
         host.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
         return MRI_GPR_FAILED;
     }
@@ -47,12 +48,13 @@ MriGeoPluginResult load(MriGeoEntityHandle Entity,
 // Register the supported formats
 MriFileFormatDesc *supportedFormats(int *pNumFormatsOut)
 {
-    static MriFileFormatDesc formats[3] = { 
+    static MriFileFormatDesc formats[4] = {
         {"usd", "USD poseCache file (ASCII or binary)."},
         {"usda", "ASCII USD poseCache file."},
-        {"usdc", "binary USD poseCache file."}
+        {"usdc", "binary USD poseCache file."},
+        {"usdz", "zipped USD poseCache file."}
     };
-    *pNumFormatsOut = 3;
+    *pNumFormatsOut = 4;
     return formats;
 }
 
@@ -71,7 +73,8 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     // Check the extension
     if((!TfStringEndsWith(pFileName, ".usd")) &&
        (!TfStringEndsWith(pFileName, ".usda")) &&
-       (!TfStringEndsWith(pFileName, ".usdc"))) {
+       (!TfStringEndsWith(pFileName, ".usdc")) &&
+       (!TfStringEndsWith(pFileName, ".usdz"))) {
         host.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
         return MRI_GPR_FAILED;
     }
