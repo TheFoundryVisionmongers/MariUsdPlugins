@@ -106,14 +106,14 @@ MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
     vector<int> frames;
-    std::string frameString, requestedModelName, UVSet = "map1";
-    vector<std::string> requestedGprimNames;
+    std::string frameString, UVSet = "map1";
+    vector<std::string> requestedModelNames,requestedGprimNames;
     vector<SdfPath> variantSelections;
     bool keepCentered = false;
     bool includeInvisible = false;
 
     /////// GET PARAMETERS ////////
-    _GetMariAttributes(Entity, frames, frameString, requestedModelName,
+    _GetMariAttributes(Entity, frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections, 
                        keepCentered, includeInvisible);
     
@@ -168,13 +168,10 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         ModelData thisModelData (*primIt, UVSet);
         if (thisModelData) 
         {
-            if (someModelLoaded)
-                break;
-
             // do we want to load any good model, 
             // or this is the one we requested?
-            loadThisModel = (requestedModelName == "_FirstFound") or
-                (requestedModelName == thisModelData.instanceName);
+            std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
+            loadThisModel = it!=requestedModelNames.end();
 
             // Keep metadata for this model
             if (loadThisModel) 
@@ -291,6 +288,16 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     }
     else
     {
+        std::string requestedModelName;
+        for(const std::string& name: requestedModelNames)
+        {
+            if(requestedModelNames.size()>0)
+            {
+                requestedModelName.append(",");
+            }
+            requestedModelName.append(name);
+        }
+
         _host.trace("[%s] No valid geometry with uv set %s found in %s",
             _pluginName, UVSet.c_str(), _fileName);
         _host.trace("[%s] Was looking for %s", 
@@ -480,7 +487,7 @@ void
 UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     vector<int>& frames,
                                     std::string& frameString,
-                                    std::string& requestedModelName,
+                                    vector<string>& requestedModelNames,
                                     vector<string>& requestedGprimNames,
                                     std::string& UVSet,
                                     vector<SdfPath>& variantSelections,
@@ -507,10 +514,13 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                 frames[iFrame]);
 
     // detect requested model name
+    std::string modelNamesString;
     if (_host.getAttribute(Entity, "modelName", &Value) == MRI_UPR_SUCCEEDED)
-        requestedModelName = Value.m_pString;
-    _host.trace("[%s] requested model name %s", _pluginName,
-        requestedModelName.c_str());
+        modelNamesString = Value.m_pString;
+    requestedModelNames = TfStringTokenize(modelNamesString, ",");
+
+    _host.trace("[%s] requested modelName %s", _pluginName,
+                modelNamesString.c_str());
 
     // detect requested gprim names
     std::string gprimNamesString;

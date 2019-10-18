@@ -49,7 +49,7 @@ class UsdReader
         
         void _GetMariAttributes(MriGeoEntityHandle &Entity, std::vector<int>& frames,
                 std::string& frameString,
-                std::string& requestedModelName, 
+                std::vector<std::string>& requestedModelNames,
                 std::vector<std::string>& requestedGprimNames,
                 std::string& UVSet,
                 std::vector<PXR_NS::SdfPath>& variantSelections,
