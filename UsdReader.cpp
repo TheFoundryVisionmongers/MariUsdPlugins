@@ -109,16 +109,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     std::string frameString, requestedModelName, UVSet = "map1";
     vector<std::string> requestedGprimNames;
     vector<SdfPath> variantSelections;
-    std::string poseVariantSetName, poseVariantName;
-    std::string modelingVariantSetName, modelingVariantName;
     bool keepCentered = false;
     bool includeInvisible = false;
 
     /////// GET PARAMETERS ////////
     _GetMariAttributes(Entity, frames, frameString, requestedModelName,
                        requestedGprimNames, UVSet, variantSelections, 
-                       poseVariantSetName, poseVariantName, 
-                       modelingVariantSetName, modelingVariantName, 
                        keepCentered, includeInvisible);
     
     /////// READ FILE /////////
@@ -185,32 +181,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             {
                 currentModel = *primIt;
                 currentModelData = thisModelData;
-                // XXX Are PoseVariants and ModelVariants concepts and conventions internal to Pixar?
-                // DEPRECATED: this functionality is replaced by the variants parameter handled above.
-                if (!poseVariantSetName.empty()) 
-                {
-                    _host.trace("WARNING: the poseVariant parameters are deprected");
-                    UsdVariantSet vs = primIt->GetVariantSet(poseVariantSetName);
-                    _host.trace("set PoseVariantSelection to %s", poseVariantName.c_str());
-                    
-                    if (vs && vs.IsValid() && vs.HasAuthoredVariant(poseVariantName) )
-                    {
-                        vs.SetVariantSelection(poseVariantName);
-                        _host.trace("SUCCESS set PoseVariantSelection to %s", poseVariantName.c_str());
-                    }
-                }
-                if (!modelingVariantSetName.empty()) 
-                {
-                    _host.trace("WARNING: the modelingVariant parameters are deprected");
-                    UsdVariantSet vs = primIt->GetVariantSet(modelingVariantSetName);
-                    _host.trace("set ModelingVariantSelection to %s", modelingVariantName.c_str());
-                    
-                    if (vs && vs.IsValid() && vs.HasAuthoredVariant(modelingVariantName) )
-                    {
-                        vs.SetVariantSelection(modelingVariantName);
-                        _host.trace("SUCCESS set ModelingVariantSelection to %s", modelingVariantName.c_str());
-                    }
-                }
             }
 
             // if this node is a model, it is not a gprim: continue to next.
@@ -514,10 +484,6 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     vector<string>& requestedGprimNames,
                                     std::string& UVSet,
                                     vector<SdfPath>& variantSelections,
-                                    std::string& poseVariantSet,
-                                    std::string& poseVariant,
-                                    std::string& modelingVariantSet,
-                                    std::string& modelingVariant,
                                     bool& keepCentered,
                                     bool& includeInvisible)
 {
@@ -530,32 +496,6 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
 // ignore comment on uvSet
     }
     _host.trace("[%s] Using uv set %s", _pluginName, UVSet.c_str());
-
-    if (_host.getAttribute(Entity, "poseVariantSet", &Value) == MRI_UPR_SUCCEEDED)
-    {
-        poseVariantSet = Value.m_pString;
-    }
-    _host.trace("[%s] Using poseVariantSet %s", _pluginName, poseVariantSet.c_str());
-
-    if (_host.getAttribute(Entity, "poseVariant", &Value) == MRI_UPR_SUCCEEDED)
-    {
-        poseVariant = Value.m_pString;
-    }
-    _host.trace("[%s] Using poseVariant %s", _pluginName, poseVariant.c_str());
-
-    if (_host.getAttribute(Entity, "modelingVariantSet", &Value) == MRI_UPR_SUCCEEDED)
-    {
-        modelingVariantSet = Value.m_pString;
-    }
-    _host.trace("[%s] Using modelingVariantSet %s", _pluginName, modelingVariantSet.c_str());
-
-    if (_host.getAttribute(Entity, "modelingVariant", &Value) == MRI_UPR_SUCCEEDED)
-    {
-        modelingVariant = Value.m_pString;
-    }
-    _host.trace("[%s] Using modelingVariant %s", _pluginName, modelingVariant.c_str());
-
-
 
     // detect requested frames
     if (_host.getAttribute(Entity, "frameNumbers", &Value) ==

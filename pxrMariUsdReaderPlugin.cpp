@@ -108,38 +108,6 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
         "variants", 
         &variantsValue);
 
-    // Pose Variant Set - DEPRECATED
-    MriAttributeValue poseVariantSetValue;
-    poseVariantSetValue.m_Type = MRI_ATTR_STRING;
-    poseVariantSetValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "poseVariantSet", 
-        &poseVariantSetValue);
-
-    // Pose Variant - DEPRECATED
-    MriAttributeValue poseVariantValue;
-    poseVariantValue.m_Type = MRI_ATTR_STRING;
-    poseVariantValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "poseVariant", 
-        &poseVariantValue);
-
-    // Modeling Variant Set - DEPRECATED
-    MriAttributeValue modelingVariantSetValue;
-    modelingVariantSetValue.m_Type = MRI_ATTR_STRING;
-    modelingVariantSetValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "modelingVariantSet", 
-        &modelingVariantSetValue);
-
-    // Modeling Variant - DEPRECATED
-    MriAttributeValue modelingVariantValue;
-    modelingVariantValue.m_Type = MRI_ATTR_STRING;
-    modelingVariantValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "modelingVariant", 
-        &modelingVariantValue);
-
     // Model option 
     MriAttributeValue ModelValue;
     ModelValue.m_Type = MRI_ATTR_STRING;

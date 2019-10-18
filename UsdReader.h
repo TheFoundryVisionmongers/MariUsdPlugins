@@ -53,10 +53,6 @@ class UsdReader
                 std::vector<std::string>& requestedGprimNames,
                 std::string& UVSet,
                 std::vector<PXR_NS::SdfPath>& variantSelections,
-                std::string& poseVariantSet,
-                std::string& poseVariant,
-                std::string& modelingVariantSet,
-                std::string& modelingVariant,
                 bool& keepCentered,
                 bool& includeInvisible);
 
