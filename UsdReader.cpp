@@ -270,7 +270,15 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             if (handle.empty()) {
                 handle = primIt->GetPath().GetText();
             }
-            _MakeGeoEntity(Geom, Entity, 
+
+            //TODO This should go somewhere else
+            _host.setEntityType(Entity, MRI_SET_ENTITY);
+
+            MriGeoEntityHandle ChildEntity;
+            _host.createChildGeoEntity(Entity, _fileName, &ChildEntity);
+            _host.setEntityName(ChildEntity, currentModelData.instanceName.c_str());
+
+            _MakeGeoEntity(Geom, ChildEntity,
                 handle, frames);
 
             // found some acceptable geometry

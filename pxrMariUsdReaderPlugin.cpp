@@ -159,7 +159,7 @@ FnPluginStatus setHost(const FnPluginHost *pHost)
 #if MARI_VERSION < 30
             MRI_GEO_READER_API_VERSION);
 #else
-            3000);
+            3001);
 #endif
 
     if (pHostSuite == NULL)

@@ -4,7 +4,7 @@
 #if MARI_VERSION < 30
 typedef MriGeoReaderHostV2 MriGeoReaderHost;
 #else
-typedef MriGeoReaderHostV3 MriGeoReaderHost;
+typedef MriGeoReaderHostV4 MriGeoReaderHost;
 #endif
 
 #endif
