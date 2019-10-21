@@ -111,7 +111,7 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     // Model option 
     MriAttributeValue ModelValue;
     ModelValue.m_Type = MRI_ATTR_STRING;
-    ModelValue.m_pString = "_FirstFound";
+    ModelValue.m_pString = "";
     host.setAttribute(SettingsHandle,
         "modelName", 
         &ModelValue);

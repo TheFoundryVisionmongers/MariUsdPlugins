@@ -40,6 +40,9 @@ ModelData::operator = (const ModelData& other)
     modelPath = other.modelPath;
     uvSet = other.uvSet;
 
+    mprim = other.mprim;
+    gprims = other.gprims;
+
     return *this;
 }
 

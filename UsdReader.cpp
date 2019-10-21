@@ -134,9 +134,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     }
     
     // variables used to coordinate which model should be loaded
-    UsdPrim currentModel;
-    bool loadThisModel = false, someModelLoaded = false;
-    ModelData currentModelData;
+    bool loadThisModel = false;
+    ModelData* currentModelData = nullptr;
+    std::vector<ModelData*> modelDataList;
     
     for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
     {
@@ -170,14 +170,27 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         {
             // do we want to load any good model, 
             // or this is the one we requested?
-            std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
-            loadThisModel = it!=requestedModelNames.end();
+            if(requestedModelNames.size()==0)
+            {
+                // if requestedModelName=="", load all models
+                loadThisModel = true;
+            }
+            else
+            {
+                std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
+                loadThisModel = it!=requestedModelNames.end();
+            }
 
             // Keep metadata for this model
             if (loadThisModel) 
             {
-                currentModel = *primIt;
-                currentModelData = thisModelData;
+                currentModelData = new ModelData(thisModelData);
+                modelDataList.push_back(currentModelData);
+            }
+            else
+            {
+                // Reset currentModelData to null so that the gprims belonging to this model will not get loaded
+                currentModelData = nullptr;
             }
 
             // if this node is a model, it is not a gprim: continue to next.
@@ -244,57 +257,78 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             continue;
         }
 
-        // Create a mari-compatible geometry
-        GeoData Geom(*primIt, UVSet, 
-                     frames, keepCentered, currentModel, _host, _log);
-        if (Geom) 
+        if (currentModelData)
         {
-
-            _host.trace("[%s] %s, found importable mesh", 
-                        _pluginName, path.GetName().c_str());
-
-            // detect handle id
-            std::string handle = "";
-            UsdGeomGprim gprim(*primIt);
-            if (gprim) {
-                TfToken gprimHandleIdToken ("__gprimHandleid"); 
-                UsdGeomPrimvar primvar = gprim.GetPrimvar(gprimHandleIdToken); 
-                if (not primvar) {
-                    TfToken handleIdToken("__handleId"); 
-                    primvar = gprim.GetPrimvar(handleIdToken); 
-                }
-                VtValue value;
-                primvar.ComputeFlattened(&value);
-                handle = TfStringify(value); 
-            }
-            if (handle.empty()) {
-                handle = primIt->GetPath().GetText();
-            }
-
-            //TODO This should go somewhere else
-            _host.setEntityType(Entity, MRI_SET_ENTITY);
-
-            MriGeoEntityHandle ChildEntity;
-            _host.createChildGeoEntity(Entity, _fileName, &ChildEntity);
-            _host.setEntityName(ChildEntity, currentModelData.instanceName.c_str());
-
-            _MakeGeoEntity(Geom, ChildEntity,
-                handle, frames);
-
-            // found some acceptable geometry
-            someModelLoaded = true;
+            currentModelData->gprims.push_back(*primIt);
         }
 
         ++primIt;
     }
 
-    // Save on metadata file
-    if (someModelLoaded)
+    bool createChildren = modelDataList.size()>1;
+
+    if (createChildren)
     {
-        _SaveMetadata( Entity, currentModelData);
-        return MRI_GPR_SUCCEEDED;
+        _host.setEntityType(Entity, MRI_SET_ENTITY);
     }
-    else
+
+    for (ModelData* modelData: modelDataList)
+    {
+        if (modelData->gprims.size()==0)
+        {
+            // No gprim i.e. geometry data
+            continue;
+        }
+
+        MriGeoEntityHandle entityToPopulate = Entity;
+        if (createChildren)
+        {
+            MriGeoEntityHandle childEntity;
+            _host.createChildGeoEntity(Entity, _fileName, &childEntity);
+            _host.setEntityName(childEntity, modelData->instanceName.c_str());
+
+            entityToPopulate = childEntity; 
+        }
+
+        for (auto prim: modelData->gprims)
+        {
+            // Create a mari-compatible geometry
+            GeoData Geom(prim, UVSet,
+                         frames, keepCentered, modelData->mprim, _host, _log);
+            if (Geom)
+            {
+
+                _host.trace("[%s] %s, found importable mesh",
+                            _pluginName, prim.GetPath().GetName().c_str());
+
+                // detect handle id
+                std::string handle = "";
+                UsdGeomGprim gprim(prim);
+                if (gprim) {
+                    TfToken gprimHandleIdToken ("__gprimHandleid");
+                    UsdGeomPrimvar primvar = gprim.GetPrimvar(gprimHandleIdToken);
+                    if (not primvar) {
+                        TfToken handleIdToken("__handleId");
+                        primvar = gprim.GetPrimvar(handleIdToken);
+                    }
+                    VtValue value;
+                    primvar.ComputeFlattened(&value);
+                    handle = TfStringify(value);
+                }
+                if (handle.empty()) {
+                    handle = prim.GetPath().GetText();
+                }
+
+                _MakeGeoEntity(Geom, entityToPopulate,
+                    handle, frames);
+            }
+        }
+
+        // Save on metadata file
+        _SaveMetadata( Entity, *modelData);
+    }
+
+    if (modelDataList.size()==0)
     {
         std::string requestedModelName;
         for(const std::string& name: requestedModelNames)
@@ -317,6 +351,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
         return MRI_GPR_FAILED;
     }
+
+    return MRI_GPR_SUCCEEDED;
 }
 
 

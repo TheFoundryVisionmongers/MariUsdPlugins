@@ -24,6 +24,9 @@ public:
     std::string modelPath;
     std::string uvSet;
 
+    PXR_NS::UsdPrim mprim;
+    std::vector<PXR_NS::UsdPrim> gprims;
+
     // initialize the count
     ModelData(){}
     explicit ModelData(PXR_NS::UsdPrim prim, std::string wantedUvSet = "");
