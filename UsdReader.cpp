@@ -617,33 +617,17 @@ UsdReader::_SaveMetadata(
     }
 }
 
-
-// _log is a vector of error and warning strings that gets appended to during the 
-// Load phase.
-// When we've finished loading, we write the string into a magic file that gets
-// displayed by the python UsdReader UI code.
-// This seems to be the easiest way to provide GUI feedback that there was
-// an error while importing geometry, since we don't have access to the GUI 
-// when we're loading.
-// Perhaps there is a more elegant way of doing this? XXX
-FILE * 
-UsdReader::_OpenLogFile()
+std::string UsdReader::GetLog()
 {
-    string tmpDir = (getenv( "TMPDIR" )!=NULL ? getenv("TMPDIR") :
-                         ".");
-    string fileName = tmpDir + "/MariUsdReaderLog.txt";
-    return fopen(fileName.c_str(), "w");
-}
-
-void
-UsdReader::CloseLog()
-{
-    std::vector<std::string>::iterator it;
-    FILE *f = _OpenLogFile();
-    if (f) {
-        for (it = _log.begin(); it != _log.end(); it++) {
-            fputs(it->c_str(), f); fputs("\n", f);
-        }
-        fclose(f);
+    // This code block performs typical join() operation
+    std::ostringstream os;
+    std::copy(_log.begin(), _log.end(), std::ostream_iterator<std::string>(os,"\n"));
+    std::string result = os.str();
+    if(result.size()>0)
+    {
+        result.erase(result.size()-1);
     }
+
+    return result;
 }
+

@@ -15,6 +15,8 @@ PXR_NAMESPACE_USING_DIRECTIVE
 // Plug-in function suite definitions
 //-----------------------------------------------------------------------------
 
+std::string sUsdLog;
+
 MriGeoPluginResult load(MriGeoEntityHandle Entity, 
         const char *pFileName, 
         const char **ppMessagesOut)
@@ -36,7 +38,8 @@ MriGeoPluginResult load(MriGeoEntityHandle Entity,
     reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, 
                                                         host));
     MriGeoPluginResult res = reader->Load(Entity);
-    reader->CloseLog();
+    sUsdLog = reader->GetLog();
+    *ppMessagesOut = sUsdLog.c_str();
     return res;
     
 

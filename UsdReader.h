@@ -23,7 +23,7 @@ class UsdReader
 
         UsdReader(const char* pFileName, MriGeoReaderHost &pHost);
 
-        void CloseLog();
+        std::string GetLog();
 
         
         MriGeoPluginResult Load(MriGeoEntityHandle &pEntity);
