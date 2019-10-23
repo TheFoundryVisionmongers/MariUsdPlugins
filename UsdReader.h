@@ -23,7 +23,7 @@ class UsdReader
 
         UsdReader(const char* pFileName, MriGeoReaderHost &pHost);
 
-        void CloseLog();
+        std::string GetLog();
 
         
         MriGeoPluginResult Load(MriGeoEntityHandle &pEntity);
@@ -47,9 +47,12 @@ class UsdReader
         void _ParseUVs(MriUserItemHandle SettingsHandle, 
                 GeoData::UVSet uvs, int size);
         
-        void _GetMariAttributes(MriGeoEntityHandle &Entity, std::vector<int>& frames,
+        void _GetMariAttributes(MriGeoEntityHandle &Entity,
+                std::string& loadOption,
+                std::string& mergeOption,
+                std::vector<int>& frames,
                 std::string& frameString,
-                std::string& requestedModelName, 
+                std::vector<std::string>& requestedModelNames,
                 std::vector<std::string>& requestedGprimNames,
                 std::string& UVSet,
                 std::vector<PXR_NS::SdfPath>& variantSelections,

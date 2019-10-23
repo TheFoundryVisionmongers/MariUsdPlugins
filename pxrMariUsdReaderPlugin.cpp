@@ -15,6 +15,8 @@ PXR_NAMESPACE_USING_DIRECTIVE
 // Plug-in function suite definitions
 //-----------------------------------------------------------------------------
 
+std::string sUsdLog;
+
 MriGeoPluginResult load(MriGeoEntityHandle Entity, 
         const char *pFileName, 
         const char **ppMessagesOut)
@@ -36,7 +38,8 @@ MriGeoPluginResult load(MriGeoEntityHandle Entity,
     reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, 
                                                         host));
     MriGeoPluginResult res = reader->Load(Entity);
-    reader->CloseLog();
+    sUsdLog = reader->GetLog();
+    *ppMessagesOut = sUsdLog.c_str();
     return res;
     
 
@@ -83,21 +86,44 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, 
                                                         host));
 
-    MriGeoPluginResult res = reader->GetSettings(SettingsHandle);
+    // Load option
+    MriAttributeValue LoadValue;
+    LoadValue.m_Type = MRI_ATTR_STRING_LIST;
+    LoadValue.m_pString = "First Found\nAll Models\nSpecified Models in Model Names";
+    host.setAttribute(SettingsHandle,
+        "Load",
+        &LoadValue);
 
+    // Merge option
+    MriAttributeValue MergeValue;
+    MergeValue.m_Type = MRI_ATTR_STRING_LIST;
+    MergeValue.m_pString = "Merge Models\nKeep Models Separate";
+    host.setAttribute(SettingsHandle,
+        "Merge Type",
+        &MergeValue);
+
+    // Model option
+    MriAttributeValue ModelValue;
+    ModelValue.m_Type = MRI_ATTR_STRING;
+    ModelValue.m_pString = "";
+    host.setAttribute(SettingsHandle,
+        "Model Names",
+        &ModelValue);
+
+    MriGeoPluginResult res = reader->GetSettings(SettingsHandle);
 
     // frame number
     MriAttributeValue FrameNumberValue;
     FrameNumberValue.m_Type = MRI_ATTR_STRING;
     FrameNumberValue.m_pString = "1";
-    host.setAttribute(SettingsHandle, "frameNumbers", &FrameNumberValue);
+    host.setAttribute(SettingsHandle, "Frame Numbers", &FrameNumberValue);
     
     // Gprim Names
     MriAttributeValue GprimValue;
     GprimValue.m_Type = MRI_ATTR_STRING;
     GprimValue.m_pString = "";
     host.setAttribute(SettingsHandle,
-        "gprimNames", 
+        "Gprim Names",
         &GprimValue);
 
     // Variants
@@ -105,28 +131,20 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     variantsValue.m_Type = MRI_ATTR_STRING;
     variantsValue.m_pString = "";
     host.setAttribute(SettingsHandle,
-        "variants", 
+        "Variants",
         &variantsValue);
-
-    // Model option 
-    MriAttributeValue ModelValue;
-    ModelValue.m_Type = MRI_ATTR_STRING;
-    ModelValue.m_pString = "_FirstFound";
-    host.setAttribute(SettingsHandle,
-        "modelName", 
-        &ModelValue);
 
     // Keep centered
     MriAttributeValue KeepCenteredValue;
     KeepCenteredValue.m_Type = MRI_ATTR_BOOL;
     KeepCenteredValue.m_Int = 0;
-    host.setAttribute(SettingsHandle, "keepCentered", &KeepCenteredValue);
+    host.setAttribute(SettingsHandle, "Keep Centered", &KeepCenteredValue);
 
     // Include Invisible
     MriAttributeValue IncludeInvisibleValue;
     IncludeInvisibleValue.m_Type = MRI_ATTR_BOOL;
     IncludeInvisibleValue.m_Int = 0;
-    host.setAttribute(SettingsHandle, "includeInvisible", &IncludeInvisibleValue);
+    host.setAttribute(SettingsHandle, "Include Invisible", &IncludeInvisibleValue);
 
     return res;
 }
@@ -159,7 +177,7 @@ FnPluginStatus setHost(const FnPluginHost *pHost)
 #if MARI_VERSION < 30
             MRI_GEO_READER_API_VERSION);
 #else
-            3000);
+            3001);
 #endif
 
     if (pHostSuite == NULL)

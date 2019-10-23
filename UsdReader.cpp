@@ -106,17 +106,23 @@ MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
     vector<int> frames;
-    std::string frameString, requestedModelName, UVSet = "map1";
-    vector<std::string> requestedGprimNames;
+    std::string loadOption, mergeOption, frameString, UVSet = "map1";
+    vector<std::string> requestedModelNames,requestedGprimNames;
     vector<SdfPath> variantSelections;
     bool keepCentered = false;
     bool includeInvisible = false;
 
     /////// GET PARAMETERS ////////
-    _GetMariAttributes(Entity, frames, frameString, requestedModelName,
+    _GetMariAttributes(Entity,
+                       loadOption, mergeOption,
+                       frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections, 
                        keepCentered, includeInvisible);
-    
+
+    bool loadFirstOnly = loadOption=="First Found";
+    bool loadAll = loadOption=="All Models";
+    bool keepSeparate = mergeOption=="Keep Models Separate";
+
     /////// READ FILE /////////
     UsdStageRefPtr stage = _OpenUsdStage();
 
@@ -134,9 +140,10 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     }
     
     // variables used to coordinate which model should be loaded
-    UsdPrim currentModel;
-    bool loadThisModel = false, someModelLoaded = false;
-    ModelData currentModelData;
+    bool loadThisModel = false;
+    bool oneModelLoaded = false;
+    ModelData* currentModelData = nullptr;
+    std::vector<ModelData*> modelDataList;
     
     for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
     {
@@ -168,19 +175,34 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         ModelData thisModelData (*primIt, UVSet);
         if (thisModelData) 
         {
-            if (someModelLoaded)
+            if(oneModelLoaded && loadFirstOnly)
+            {
+                // loaded one model already, so this is the second model. break now
                 break;
+            }
 
-            // do we want to load any good model, 
-            // or this is the one we requested?
-            loadThisModel = (requestedModelName == "_FirstFound") or
-                (requestedModelName == thisModelData.instanceName);
+            if(loadAll || loadFirstOnly)
+            {
+                // load this model because "All" or "First Found" is requested
+                loadThisModel = true;
+            }
+            else
+            {
+                // otherwise, load this model only if it's specified in "Model Names"
+                std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
+                loadThisModel = it!=requestedModelNames.end();
+            }
 
             // Keep metadata for this model
             if (loadThisModel) 
             {
-                currentModel = *primIt;
-                currentModelData = thisModelData;
+                currentModelData = new ModelData(thisModelData);
+                modelDataList.push_back(currentModelData);
+            }
+            else
+            {
+                // Reset currentModelData to null so that the gprims belonging to this model will not get loaded
+                currentModelData = nullptr;
             }
 
             // if this node is a model, it is not a gprim: continue to next.
@@ -247,50 +269,101 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             continue;
         }
 
-        // Create a mari-compatible geometry
-        GeoData Geom(*primIt, UVSet, 
-                     frames, keepCentered, currentModel, _host, _log);
-        if (Geom) 
+        if (currentModelData)
         {
-
-            _host.trace("[%s] %s, found importable mesh", 
-                        _pluginName, path.GetName().c_str());
-
-            // detect handle id
-            std::string handle = "";
-            UsdGeomGprim gprim(*primIt);
-            if (gprim) {
-                TfToken gprimHandleIdToken ("__gprimHandleid"); 
-                UsdGeomPrimvar primvar = gprim.GetPrimvar(gprimHandleIdToken); 
-                if (not primvar) {
-                    TfToken handleIdToken("__handleId"); 
-                    primvar = gprim.GetPrimvar(handleIdToken); 
-                }
-                VtValue value;
-                primvar.ComputeFlattened(&value);
-                handle = TfStringify(value); 
-            }
-            if (handle.empty()) {
-                handle = primIt->GetPath().GetText();
-            }
-            _MakeGeoEntity(Geom, Entity, 
-                handle, frames);
-
-            // found some acceptable geometry
-            someModelLoaded = true;
+            currentModelData->gprims.push_back(*primIt);
+            oneModelLoaded = true;
         }
 
         ++primIt;
     }
 
-    // Save on metadata file
-    if (someModelLoaded)
+    int modelCount = 0;
+    for (ModelData* modelData: modelDataList)
     {
-        _SaveMetadata( Entity, currentModelData);
-        return MRI_GPR_SUCCEEDED;
+        if (modelData->gprims.size()>0)
+        {
+            ++modelCount;
+        }
     }
-    else
+
+    bool createChildren = modelCount>1 && keepSeparate;
+
+    if (createChildren)
     {
+        _host.setEntityType(Entity, MRI_SET_ENTITY);
+    }
+
+    for (ModelData* modelData: modelDataList)
+    {
+        if (modelData->gprims.size()==0)
+        {
+            // No gprim i.e. no geometry data
+            continue;
+        }
+
+        MriGeoEntityHandle entityToPopulate = Entity;
+        if (createChildren)
+        {
+            MriGeoEntityHandle childEntity;
+            _host.createChildGeoEntity(Entity, _fileName, &childEntity);
+            _host.setEntityName(childEntity, modelData->instanceName.c_str());
+
+            entityToPopulate = childEntity; 
+        }
+
+        for (auto prim: modelData->gprims)
+        {
+            // Create a mari-compatible geometry
+            GeoData Geom(prim, UVSet,
+                         frames, keepCentered, modelData->mprim, _host, _log);
+            if (Geom)
+            {
+
+                _host.trace("[%s] %s, found importable mesh",
+                            _pluginName, prim.GetPath().GetName().c_str());
+
+                // detect handle id
+                std::string handle = "";
+                UsdGeomGprim gprim(prim);
+                if (gprim) {
+                    TfToken gprimHandleIdToken ("__gprimHandleid");
+                    UsdGeomPrimvar primvar = gprim.GetPrimvar(gprimHandleIdToken);
+                    if (not primvar) {
+                        TfToken handleIdToken("__handleId");
+                        primvar = gprim.GetPrimvar(handleIdToken);
+                    }
+                    VtValue value;
+                    primvar.ComputeFlattened(&value);
+                    handle = TfStringify(value);
+                }
+                if (handle.empty()) {
+                    handle = prim.GetPath().GetText();
+                }
+
+                _MakeGeoEntity(Geom, entityToPopulate,
+                    handle, frames);
+            }
+        }
+
+        // Save on metadata file
+        _SaveMetadata( Entity, *modelData);
+    }
+
+    MriGeoPluginResult result = MRI_GPR_SUCCEEDED;
+
+    if (modelDataList.size()==0)
+    {
+        std::string requestedModelName;
+        for(const std::string& name: requestedModelNames)
+        {
+            if(requestedModelNames.size()>0)
+            {
+                requestedModelName.append(",");
+            }
+            requestedModelName.append(name);
+        }
+
         _host.trace("[%s] No valid geometry with uv set %s found in %s",
             _pluginName, UVSet.c_str(), _fileName);
         _host.trace("[%s] Was looking for %s", 
@@ -300,8 +373,16 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         _log.push_back("Was looking for " + requestedModelName);
 
 
-        return MRI_GPR_FAILED;
+        result = MRI_GPR_FAILED;
     }
+
+    // clean up
+    for(ModelData* modelData: modelDataList)
+    {
+        delete modelData;
+    }
+
+    return result;
 }
 
 
@@ -473,23 +554,47 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
     MriAttributeValue UVValue;
     UVValue.m_Type = MRI_ATTR_STRING_LIST;
     UVValue.m_pString = choices.c_str();
-    _host.setAttribute(SettingsHandle, "uvSet", &UVValue);
+    _host.setAttribute(SettingsHandle, "UV Set", &UVValue);
 }
 
 void
 UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
+                                    std::string& loadOption,
+                                    std::string& mergeOption,
                                     vector<int>& frames,
                                     std::string& frameString,
-                                    std::string& requestedModelName,
+                                    vector<string>& requestedModelNames,
                                     vector<string>& requestedGprimNames,
                                     std::string& UVSet,
                                     vector<SdfPath>& variantSelections,
                                     bool& keepCentered,
                                     bool& includeInvisible)
 {
-    // detect requested UV set
     MriAttributeValue Value;
-    if (_host.getAttribute(Entity, "uvSet", &Value) == MRI_UPR_SUCCEEDED)
+
+    // detect requested load option
+    if (_host.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
+        loadOption = Value.m_pString;
+    _host.trace("[%s] requested Load Option %s", _pluginName,
+                loadOption.c_str());
+
+    // detect requested merge option
+    if (_host.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
+        mergeOption = Value.m_pString;
+    _host.trace("[%s] requested Merge Option %s", _pluginName,
+                mergeOption.c_str());
+
+    // detect requested model name
+    std::string modelNamesString;
+    if (_host.getAttribute(Entity, "Model Names", &Value) == MRI_UPR_SUCCEEDED)
+        modelNamesString = Value.m_pString;
+    requestedModelNames = TfStringTokenize(modelNamesString, ",");
+
+    _host.trace("[%s] requested modelNames %s", _pluginName,
+                modelNamesString.c_str());
+
+    // detect requested UV set
+    if (_host.getAttribute(Entity, "UV Set", &Value) == MRI_UPR_SUCCEEDED)
     {
         UVSet = Value.m_pString;
         UVSet = UVSet.substr(0, UVSet.find(" "));   
@@ -498,19 +603,13 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     _host.trace("[%s] Using uv set %s", _pluginName, UVSet.c_str());
 
     // detect requested frames
-    if (_host.getAttribute(Entity, "frameNumbers", &Value) ==
+    if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
             MRI_UPR_SUCCEEDED)
         frameString = Value.m_pString;
     _GetFrameList(frameString, frames);
     for (int iFrame = 0; iFrame<frames.size(); ++iFrame)
         _host.trace("[%s] requested frame number %i", _pluginName, 
                 frames[iFrame]);
-
-    // detect requested model name
-    if (_host.getAttribute(Entity, "modelName", &Value) == MRI_UPR_SUCCEEDED)
-        requestedModelName = Value.m_pString;
-    _host.trace("[%s] requested model name %s", _pluginName,
-        requestedModelName.c_str());
 
     // detect requested gprim names
     std::string gprimNamesString;
@@ -563,33 +662,17 @@ UsdReader::_SaveMetadata(
     }
 }
 
-
-// _log is a vector of error and warning strings that gets appended to during the 
-// Load phase.
-// When we've finished loading, we write the string into a magic file that gets
-// displayed by the python UsdReader UI code.
-// This seems to be the easiest way to provide GUI feedback that there was
-// an error while importing geometry, since we don't have access to the GUI 
-// when we're loading.
-// Perhaps there is a more elegant way of doing this? XXX
-FILE * 
-UsdReader::_OpenLogFile()
+std::string UsdReader::GetLog()
 {
-    string tmpDir = (getenv( "TMPDIR" )!=NULL ? getenv("TMPDIR") :
-                         ".");
-    string fileName = tmpDir + "/MariUsdReaderLog.txt";
-    return fopen(fileName.c_str(), "w");
-}
-
-void
-UsdReader::CloseLog()
-{
-    std::vector<std::string>::iterator it;
-    FILE *f = _OpenLogFile();
-    if (f) {
-        for (it = _log.begin(); it != _log.end(); it++) {
-            fputs(it->c_str(), f); fputs("\n", f);
-        }
-        fclose(f);
+    // This code block performs typical join() operation
+    std::ostringstream os;
+    std::copy(_log.begin(), _log.end(), std::ostream_iterator<std::string>(os,"\n"));
+    std::string result = os.str();
+    if(result.size()>0)
+    {
+        result.erase(result.size()-1);
     }
+
+    return result;
 }
+
