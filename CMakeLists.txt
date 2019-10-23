@@ -19,7 +19,7 @@ if (WIN32)
     # Include for Mari CAPI SDK
     set (MARI_SDK_INCLUDE_DIR D:/Working/Mari4.6/test_release/FnBundle/Bundle/SDK/include)
 else()
-    set (CHECKOUT_ROOT "/d/Working/Mari4.6")
+    set (CHECKOUT_ROOT "/home/rajiv/Working/Mari4.7")
 
     set (USD_ROOT "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/usd")
     set (TBB_DIR "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/tbb/cmake")
