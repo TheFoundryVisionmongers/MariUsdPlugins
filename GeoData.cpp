@@ -460,8 +460,6 @@ GeoData::_BuildMariGeoData(const int frame,
 
             indexVertex = vertIndices[iIndexFaceVarying];
 
-            host.trace("\t\t\tindexVertex = %i/%i", 
-                        indexVertex, points.size());
             if (indexVertex < 0 || indexVertex >= points.size()) {
                 // host.trace("\t\t\t\tbad! force to 0");
                 indexVertex = 0;
@@ -487,12 +485,7 @@ GeoData::_BuildMariGeoData(const int frame,
                 
                 // uvs
                 if(uvSet.length() > 0) {
-                    host.trace("\t\t\tUVs %i", _numFaceVertices);
-                    host.trace("\t\t\tuvIndex %d", iIndexFaceVarying);
-                    host.trace("\t\t\t(%f, %f)",
-                               uu[faceVaryingUU ? iIndexFaceVarying : indexVertex],
-                               vv[faceVaryingVV ? iIndexFaceVarying : indexVertex]);
-                    _uvs[iIndexFaceVarying*2] = 
+                    _uvs[iIndexFaceVarying*2] =
                         uu[faceVaryingUU ? iIndexFaceVarying : indexVertex];
                     _uvs[iIndexFaceVarying*2+1] = 
                         vv[faceVaryingVV ? iIndexFaceVarying : indexVertex];
