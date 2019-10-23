@@ -1,4 +1,3 @@
-# Note: macOS untested due to failing Mari builds of the 4.6 branches
 cmake_minimum_required(VERSION 3.11)
 
 project(
@@ -8,13 +7,25 @@ project(
     LANGUAGES CXX
 )
 
-if(NOT USD_ROOT)
-    message(FATAL_ERROR "USD_ROOT has not been specified")
+# Set essential dependencies roots
+set(USD_ROOT /home/rajiv/Working/Mari4.7/Thirdparty/USD/19.05/linux/release/usd)
+set(TBB_DIR /home/rajiv/Working/Mari4.7/Thirdparty/USD/19.05/linux/release/tbb/cmake)
+set(BOOST_INCLUDEDIR /home/rajiv/Working/Mari4.7/Thirdparty/Boost/1.61.0/bin/include)
+set(BOOST_LIBRARYDIR /home/rajiv/Working/Mari4.7/Thirdparty/Boost/1.61.0/bin/linux-64-x86-release-480-cxx11/lib)
+
+# Set cmake install path
+set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
+file (MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX})
+message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+if(WIN32)
+    file(TO_CMAKE_PAT
+        H "${USD_ROOT}" USD_ROOT)
 endif()
 
-if(WIN32)
-    file(TO_CMAKE_PATH "${USD_ROOT}" USD_ROOT)
-endif()
+# Use C++ 11
+set (CMAKE_CXX_STANDARD "11" CACHE STRING "" FORCE)
+set (CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
+set (CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "" FORCE)
 
 include(${USD_ROOT}/pxrConfig.cmake)
 find_package(TBB CONFIG REQUIRED)
@@ -34,12 +45,10 @@ add_library(
     ${CMAKE_CURRENT_LIST_DIR}/MariHostConfig.h
 )
 
-if (MARI_BUILD)
-    set(MARI_SDK_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/src/MriCAPI/include)
-else()
-    # TODO: change this for the local build on your machine
-    set(MARI_SDK_INCLUDE_DIR D:/dev/Mari4.1/Apps/Mari/objects/win-64-x86-release-14.0.24210-dynamic/Bundle/SDK/include)
-endif()
+# Include for Mari CAPI SDK
+#set(MARI_SDK_INCLUDE_DIR D:/dev/Mari4.1/Apps/Mari/objects/win-64-x86-release-14.0.24210-dynamic/Bundle/SDK/include)
+set(MARI_SDK_INCLUDE_DIR /home/rajiv/Working/Mari4.7/test_debug/FnBundle/SDK/include)
+
 target_include_directories(
     USDImport
     PRIVATE
@@ -61,79 +70,72 @@ target_link_libraries(
     usdGeom
 )
 
-if (MARI_BUILD)
-    if (WIN32)
-        install(
-            TARGETS
-            USDImport
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/Bundle/capiplugins
-        )
-        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
-        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dll")
-        install(
-            FILES
-            ${USD_dlls}
-            ${TBB_dlls}
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
-        )
-        install(
-            DIRECTORY
-            ${USD_ROOT}/lib/usd
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/Bundle/bin
-        )
-    elseif(UNIX AND NOT APPLE)
-        install(
-            TARGETS
-            USDImport
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/capiplugins
-        )
-        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
-        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.so*")
-        install(
-            FILES
-            ${USD_dlls}
-            ${TBB_dlls}
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/lib
-        )
-        install(
-            DIRECTORY
-            ${USD_ROOT}/lib/usd
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/lib
-        )
-    else()
-        install(
-            TARGETS
-            USDImport
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/capiplugins
-        )
-        FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dylib")
-        FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dylib")
-        install(
-            FILES
-            ${USD_dlls}
-            ${TBB_dlls}
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/lib
-        )
-        install(
-            DIRECTORY
-            ${USD_ROOT}/lib/usd
-            DESTINATION
-            ${CMAKE_INSTALL_PREFIX}/lib
-        )
-    endif()
-else()
+# Bundling
+if (WIN32)
+    install(
+        TARGETS
+        USDImport
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/Bundle
+    )
+    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
+    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dll")
+    install(
+        FILES
+        ${USD_dlls}
+        ${TBB_dlls}
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+    )
+    install(
+        DIRECTORY
+        ${USD_ROOT}/lib/usd
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
+    )
+elseif(UNIX AND NOT APPLE)
     install(
         TARGETS
         USDImport
         DESTINATION
         ${CMAKE_INSTALL_PREFIX}
+    )
+    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
+    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.so*")
+
+    install(
+        FILES
+        ${USD_dlls}
+        ${TBB_dlls}
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/lib
+    )
+    install(
+        DIRECTORY
+        ${USD_ROOT}/lib/usd
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/lib
+    )
+else()
+    install(
+        TARGETS
+        USDImport
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/capiplugins
+    )
+    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dylib")
+    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dylib")
+    install(
+        FILES
+        ${USD_dlls}
+        ${TBB_dlls}
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/lib
+    )
+    install(
+        DIRECTORY
+        ${USD_ROOT}/lib/usd
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}/lib
     )
 endif()
