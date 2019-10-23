@@ -7,20 +7,38 @@ project(
     LANGUAGES CXX
 )
 
-# Set essential dependencies roots
-set(USD_ROOT /home/rajiv/Working/Mari4.7/Thirdparty/USD/19.05/linux/release/usd)
-set(TBB_DIR /home/rajiv/Working/Mari4.7/Thirdparty/USD/19.05/linux/release/tbb/cmake)
-set(BOOST_INCLUDEDIR /home/rajiv/Working/Mari4.7/Thirdparty/Boost/1.61.0/bin/include)
-set(BOOST_LIBRARYDIR /home/rajiv/Working/Mari4.7/Thirdparty/Boost/1.61.0/bin/linux-64-x86-release-480-cxx11/lib)
+# Set essential dependencies
+if (WIN32)
+    set (CHECKOUT_ROOT "D:/Working/Mari4.6")
+
+    set (USD_ROOT "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/win/debug/usd")
+    set (TBB_DIR "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/win/debug/tbb/cmake")
+    set (BOOST_INCLUDEDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/include")
+    set (BOOST_LIBRARYDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+
+    # Include for Mari CAPI SDK
+    set (MARI_SDK_INCLUDE_DIR D:/Working/Mari4.6/test_release/FnBundle/Bundle/SDK/include)
+else()
+    set (CHECKOUT_ROOT "/d/Working/Mari4.6")
+
+    set (USD_ROOT "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/usd")
+    set (TBB_DIR "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/tbb/cmake")
+    set (BOOST_INCLUDEDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/include")
+    set (BOOST_LIBRARYDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+
+    # Include for Mari CAPI SDK
+    set (MARI_SDK_INCLUDE_DIR /home/rajiv/Working/Mari4.7/test_debug/FnBundle/SDK/include)
+endif()
+
+message(STATUS "USD_ROOT: ${USD_ROOT}")
+message(STATUS "TBB_DIR: ${TBB_DIR}")
+message(STATUS "BOOST_INCLUDEDIR: ${BOOST_INCLUDEDIR}")
+message(STATUS "BOOST_LIBRARYDIR: ${BOOST_LIBRARYDIR}")
 
 # Set cmake install path
 set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
 file (MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX})
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
-if(WIN32)
-    file(TO_CMAKE_PAT
-        H "${USD_ROOT}" USD_ROOT)
-endif()
 
 # Use C++ 11
 set (CMAKE_CXX_STANDARD "11" CACHE STRING "" FORCE)
@@ -44,10 +62,6 @@ add_library(
     ${CMAKE_CURRENT_LIST_DIR}/UsdReader.h
     ${CMAKE_CURRENT_LIST_DIR}/MariHostConfig.h
 )
-
-# Include for Mari CAPI SDK
-#set(MARI_SDK_INCLUDE_DIR D:/dev/Mari4.1/Apps/Mari/objects/win-64-x86-release-14.0.24210-dynamic/Bundle/SDK/include)
-set(MARI_SDK_INCLUDE_DIR /home/rajiv/Working/Mari4.7/test_debug/FnBundle/SDK/include)
 
 target_include_directories(
     USDImport
