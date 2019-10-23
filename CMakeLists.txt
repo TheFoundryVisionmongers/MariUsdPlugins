@@ -9,22 +9,18 @@ project(
 
 # Set essential dependencies
 if (WIN32)
-    set (CHECKOUT_ROOT "D:/Working/Mari4.6")
-
-    set (USD_ROOT "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/win/debug/usd")
-    set (TBB_DIR "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/win/debug/tbb/cmake")
-    set (BOOST_INCLUDEDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/include")
-    set (BOOST_LIBRARYDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/debug/usd")
+    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/debug/tbb/cmake")
+    set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
+    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
 
     # Include for Mari CAPI SDK
     set (MARI_SDK_INCLUDE_DIR D:/Working/Mari4.6/test_release/FnBundle/Bundle/SDK/include)
 else()
-    set (CHECKOUT_ROOT "/home/rajiv/Working/Mari4.7")
-
-    set (USD_ROOT "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/usd")
-    set (TBB_DIR "${CHECKOUT_ROOT}/Thirdparty/USD/19.05/linux/release/tbb/cmake")
-    set (BOOST_INCLUDEDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/include")
-    set (BOOST_LIBRARYDIR "${CHECKOUT_ROOT}/Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/usd")
+    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/tbb/cmake")
+    set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
+    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
 
     # Include for Mari CAPI SDK
     set (MARI_SDK_INCLUDE_DIR /home/rajiv/Working/Mari4.7/test_debug/FnBundle/SDK/include)
@@ -85,71 +81,29 @@ target_link_libraries(
 )
 
 # Bundling
+install(
+    TARGETS
+    USDImport
+    DESTINATION
+    ${CMAKE_INSTALL_PREFIX}
+)
 if (WIN32)
-    install(
-        TARGETS
-        USDImport
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/Bundle
-    )
     FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
     FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dll")
-    install(
-        FILES
-        ${USD_dlls}
-        ${TBB_dlls}
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
-    )
-    install(
-        DIRECTORY
-        ${USD_ROOT}/lib/usd
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/Bundle/bin
-    )
-elseif(UNIX AND NOT APPLE)
-    install(
-        TARGETS
-        USDImport
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}
-    )
+else()
     FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
     FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.so*")
-
-    install(
-        FILES
-        ${USD_dlls}
-        ${TBB_dlls}
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/lib
-    )
-    install(
-        DIRECTORY
-        ${USD_ROOT}/lib/usd
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/lib
-    )
-else()
-    install(
-        TARGETS
-        USDImport
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/capiplugins
-    )
-    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dylib")
-    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dylib")
-    install(
-        FILES
-        ${USD_dlls}
-        ${TBB_dlls}
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/lib
-    )
-    install(
-        DIRECTORY
-        ${USD_ROOT}/lib/usd
-        DESTINATION
-        ${CMAKE_INSTALL_PREFIX}/lib
-    )
 endif()
+install(
+    FILES
+    ${USD_dlls}
+    ${TBB_dlls}
+    DESTINATION
+    ${CMAKE_INSTALL_PREFIX}/lib
+)
+install(
+    DIRECTORY
+    ${USD_ROOT}/lib/usd
+    DESTINATION
+    ${CMAKE_INSTALL_PREFIX}/lib
+)
