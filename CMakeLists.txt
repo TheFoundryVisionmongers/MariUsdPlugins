@@ -9,10 +9,16 @@ project(
 
 # Set essential dependencies
 if (WIN32)
-    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/debug/usd")
-    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/debug/tbb/cmake")
+    if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+        set (BUILD_TYPE "debug")
+    else()
+        set (BUILD_TYPE "release")
+    endif()
+
+    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/${BUILD_TYPE}/usd")
+    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/${BUILD_TYPE}/tbb/cmake")
     set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
-    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-${BUILD_TYPE}-14.0.24210-dynamic/lib")
 
     # Include for Mari CAPI SDK
     set (MARI_SDK_INCLUDE_DIR D:/Working/Mari4.6/test_release/FnBundle/Bundle/SDK/include)
