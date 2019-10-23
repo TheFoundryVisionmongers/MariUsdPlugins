@@ -106,17 +106,23 @@ MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
     vector<int> frames;
-    std::string frameString, UVSet = "map1";
+    std::string loadOption, mergeOption, frameString, UVSet = "map1";
     vector<std::string> requestedModelNames,requestedGprimNames;
     vector<SdfPath> variantSelections;
     bool keepCentered = false;
     bool includeInvisible = false;
 
     /////// GET PARAMETERS ////////
-    _GetMariAttributes(Entity, frames, frameString, requestedModelNames,
+    _GetMariAttributes(Entity,
+                       loadOption, mergeOption,
+                       frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections, 
                        keepCentered, includeInvisible);
-    
+
+    bool loadFirstOnly = loadOption=="First Found";
+    bool loadAll = loadOption=="All Models";
+    bool keepSeparate = mergeOption=="Keep Models Separate";
+
     /////// READ FILE /////////
     UsdStageRefPtr stage = _OpenUsdStage();
 
@@ -135,6 +141,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     
     // variables used to coordinate which model should be loaded
     bool loadThisModel = false;
+    bool oneModelLoaded = false;
     ModelData* currentModelData = nullptr;
     std::vector<ModelData*> modelDataList;
     
@@ -168,15 +175,20 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         ModelData thisModelData (*primIt, UVSet);
         if (thisModelData) 
         {
-            // do we want to load any good model, 
-            // or this is the one we requested?
-            if(requestedModelNames.size()==0)
+            if(oneModelLoaded && loadFirstOnly)
             {
-                // if requestedModelName=="", load all models
+                // loaded one model already, so this is the second model. break now
+                break;
+            }
+
+            if(loadAll || loadFirstOnly)
+            {
+                // load this model because "All" or "First Found" is requested
                 loadThisModel = true;
             }
             else
             {
+                // otherwise, load this model only if it's specified in "Model Names"
                 std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
                 loadThisModel = it!=requestedModelNames.end();
             }
@@ -260,12 +272,22 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         if (currentModelData)
         {
             currentModelData->gprims.push_back(*primIt);
+            oneModelLoaded = true;
         }
 
         ++primIt;
     }
 
-    bool createChildren = modelDataList.size()>1;
+    int modelCount = 0;
+    for (ModelData* modelData: modelDataList)
+    {
+        if (modelData->gprims.size()>0)
+        {
+            ++modelCount;
+        }
+    }
+
+    bool createChildren = modelCount>1 && keepSeparate;
 
     if (createChildren)
     {
@@ -276,7 +298,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     {
         if (modelData->gprims.size()==0)
         {
-            // No gprim i.e. geometry data
+            // No gprim i.e. no geometry data
             continue;
         }
 
@@ -328,6 +350,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         _SaveMetadata( Entity, *modelData);
     }
 
+    MriGeoPluginResult result = MRI_GPR_SUCCEEDED;
+
     if (modelDataList.size()==0)
     {
         std::string requestedModelName;
@@ -349,10 +373,16 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         _log.push_back("Was looking for " + requestedModelName);
 
 
-        return MRI_GPR_FAILED;
+        result = MRI_GPR_FAILED;
     }
 
-    return MRI_GPR_SUCCEEDED;
+    // clean up
+    for(ModelData* modelData: modelDataList)
+    {
+        delete modelData;
+    }
+
+    return result;
 }
 
 
@@ -524,11 +554,13 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
     MriAttributeValue UVValue;
     UVValue.m_Type = MRI_ATTR_STRING_LIST;
     UVValue.m_pString = choices.c_str();
-    _host.setAttribute(SettingsHandle, "uvSet", &UVValue);
+    _host.setAttribute(SettingsHandle, "UV Set", &UVValue);
 }
 
 void
 UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
+                                    std::string& loadOption,
+                                    std::string& mergeOption,
                                     vector<int>& frames,
                                     std::string& frameString,
                                     vector<string>& requestedModelNames,
@@ -538,9 +570,31 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     bool& keepCentered,
                                     bool& includeInvisible)
 {
-    // detect requested UV set
     MriAttributeValue Value;
-    if (_host.getAttribute(Entity, "uvSet", &Value) == MRI_UPR_SUCCEEDED)
+
+    // detect requested load option
+    if (_host.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
+        loadOption = Value.m_pString;
+    _host.trace("[%s] requested Load Option %s", _pluginName,
+                loadOption.c_str());
+
+    // detect requested merge option
+    if (_host.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
+        mergeOption = Value.m_pString;
+    _host.trace("[%s] requested Merge Option %s", _pluginName,
+                mergeOption.c_str());
+
+    // detect requested model name
+    std::string modelNamesString;
+    if (_host.getAttribute(Entity, "Model Names", &Value) == MRI_UPR_SUCCEEDED)
+        modelNamesString = Value.m_pString;
+    requestedModelNames = TfStringTokenize(modelNamesString, ",");
+
+    _host.trace("[%s] requested modelNames %s", _pluginName,
+                modelNamesString.c_str());
+
+    // detect requested UV set
+    if (_host.getAttribute(Entity, "UV Set", &Value) == MRI_UPR_SUCCEEDED)
     {
         UVSet = Value.m_pString;
         UVSet = UVSet.substr(0, UVSet.find(" "));   
@@ -549,22 +603,13 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     _host.trace("[%s] Using uv set %s", _pluginName, UVSet.c_str());
 
     // detect requested frames
-    if (_host.getAttribute(Entity, "frameNumbers", &Value) ==
+    if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
             MRI_UPR_SUCCEEDED)
         frameString = Value.m_pString;
     _GetFrameList(frameString, frames);
     for (int iFrame = 0; iFrame<frames.size(); ++iFrame)
         _host.trace("[%s] requested frame number %i", _pluginName, 
                 frames[iFrame]);
-
-    // detect requested model name
-    std::string modelNamesString;
-    if (_host.getAttribute(Entity, "modelName", &Value) == MRI_UPR_SUCCEEDED)
-        modelNamesString = Value.m_pString;
-    requestedModelNames = TfStringTokenize(modelNamesString, ",");
-
-    _host.trace("[%s] requested modelName %s", _pluginName,
-                modelNamesString.c_str());
 
     // detect requested gprim names
     std::string gprimNamesString;

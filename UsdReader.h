@@ -47,7 +47,10 @@ class UsdReader
         void _ParseUVs(MriUserItemHandle SettingsHandle, 
                 GeoData::UVSet uvs, int size);
         
-        void _GetMariAttributes(MriGeoEntityHandle &Entity, std::vector<int>& frames,
+        void _GetMariAttributes(MriGeoEntityHandle &Entity,
+                std::string& loadOption,
+                std::string& mergeOption,
+                std::vector<int>& frames,
                 std::string& frameString,
                 std::vector<std::string>& requestedModelNames,
                 std::vector<std::string>& requestedGprimNames,
