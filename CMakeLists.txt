@@ -19,23 +19,21 @@ if (WIN32)
     set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/${BUILD_TYPE}/tbb/cmake")
     set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
     set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-${BUILD_TYPE}-14.0.24210-dynamic/lib")
-
-    # Include for Mari CAPI SDK
-    set (MARI_SDK_INCLUDE_DIR D:/Working/Mari4.6/test_release/FnBundle/Bundle/SDK/include)
 else()
     set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/usd")
     set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/tbb/cmake")
     set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
     set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
-
-    # Include for Mari CAPI SDK
-    set (MARI_SDK_INCLUDE_DIR /home/rajiv/Working/Mari4.7/test_debug/FnBundle/SDK/include)
 endif()
+
+# Include for Mari CAPI SDK
+set (MARI_SDK_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Mari/src/MriCAPI/include")
 
 message(STATUS "USD_ROOT: ${USD_ROOT}")
 message(STATUS "TBB_DIR: ${TBB_DIR}")
 message(STATUS "BOOST_INCLUDEDIR: ${BOOST_INCLUDEDIR}")
 message(STATUS "BOOST_LIBRARYDIR: ${BOOST_LIBRARYDIR}")
+message(STATUS "MARI_SDK_INCLUDE_DIR: ${MARI_SDK_INCLUDE_DIR}")
 
 # Set cmake install path
 set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
