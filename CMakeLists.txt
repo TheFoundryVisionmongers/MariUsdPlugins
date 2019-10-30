@@ -1,39 +1,51 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(
-    mariUsdImport
-    VERSION 1.0
-    DESCRIPTION "Mari USD Import"
-    LANGUAGES CXX
-)
+project(mariUsdImport)
 
-# Set essential dependencies
-if (WIN32)
-    if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-        set (BUILD_TYPE "debug")
-    else()
-        set (BUILD_TYPE "release")
-    endif()
-
-    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/${BUILD_TYPE}/usd")
-    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/win/${BUILD_TYPE}/tbb/cmake")
-    set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
-    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-${BUILD_TYPE}-14.0.24210-dynamic/lib")
+# Get essential dependencies
+if (NOT DEFINED ENV{USD_ROOT})
+    message(FATAL_ERROR "USD_ROOT has not been set")
 else()
-    set (USD_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/usd")
-    set (TBB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/USD/19.05/linux/release/tbb/cmake")
-    set (BOOST_INCLUDEDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/include")
-    set (BOOST_LIBRARYDIR "${CMAKE_CURRENT_LIST_DIR}/../../Thirdparty/Boost/1.61.0/bin/win-64-x86-debug-14.0.24210-dynamic/lib")
+    message(STATUS "USD_ROOT: $ENV{USD_ROOT}")
+endif()
+if (NOT DEFINED ENV{TBB_DIR})
+    message(FATAL_ERROR "TBB_DIR has not been set")
+else()
+    message(STATUS "TBB_DIR: $ENV{TBB_DIR}")
+endif()
+if (NOT DEFINED ENV{BOOST_INCLUDEDIR})
+    message(FATAL_ERROR "BOOST_INCLUDEDIR has not been set")
+else()
+    message(STATUS "BOOST_INCLUDEDIR: $ENV{BOOST_INCLUDEDIR}")
+endif()
+if (NOT DEFINED ENV{BOOST_INCLUDEDIR})
+    message(FATAL_ERROR "BOOST_INCLUDEDIR has not been set")
+else()
+    message(STATUS "BOOST_INCLUDEDIR: $ENV{BOOST_INCLUDEDIR}")
+endif()
+if (NOT DEFINED ENV{BOOST_LIBRARYDIR})
+    message(FATAL_ERROR "BOOST_LIBRARYDIR has not been set")
+else()
+    message(STATUS "BOOST_LIBRARYDIR: $ENV{BOOST_LIBRARYDIR}")
+endif()
+if (NOT DEFINED ENV{MARI_SDK_INCLUDE_DIR})
+    message(FATAL_ERROR "MARI_SDK_INCLUDE_DIR has not been set")
+else()
+    message(STATUS "MARI_SDK_INCLUDE_DIR: $ENV{MARI_SDK_INCLUDE_DIR}")
 endif()
 
-# Include for Mari CAPI SDK
-set (MARI_SDK_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Mari/src/MriCAPI/include")
+include($ENV{USD_ROOT}/pxrConfig.cmake)
+find_package(TBB CONFIG REQUIRED)
 
-message(STATUS "USD_ROOT: ${USD_ROOT}")
-message(STATUS "TBB_DIR: ${TBB_DIR}")
-message(STATUS "BOOST_INCLUDEDIR: ${BOOST_INCLUDEDIR}")
-message(STATUS "BOOST_LIBRARYDIR: ${BOOST_LIBRARYDIR}")
-message(STATUS "MARI_SDK_INCLUDE_DIR: ${MARI_SDK_INCLUDE_DIR}")
+if (NOT DEFINED ENV{PYTHON_ROOT})
+    message(STATUS "Python not enabled")
+else()
+    message(STATUS "Adding python package with PYTHON_ROOT: $ENV{PYTHON_ROOT}")
+    set (Python_DIR "$ENV{PYTHON_ROOT}/cmake")
+    find_package(Python CONFIG REQUIRED)
+endif()
+
+find_package(Boost COMPONENTS python)
 
 # Set cmake install path
 set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
@@ -44,10 +56,6 @@ message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 set (CMAKE_CXX_STANDARD "11" CACHE STRING "" FORCE)
 set (CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
 set (CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "" FORCE)
-
-include(${USD_ROOT}/pxrConfig.cmake)
-find_package(TBB CONFIG REQUIRED)
-find_package(Boost REQUIRED)
 
 add_library(
     USDImport
@@ -66,7 +74,7 @@ add_library(
 target_include_directories(
     USDImport
     PRIVATE
-    ${MARI_SDK_INCLUDE_DIR}
+    $ENV{MARI_SDK_INCLUDE_DIR}
 )
 
 target_compile_options(
@@ -91,23 +99,15 @@ install(
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}
 )
-if (WIN32)
-    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.dll")
-    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.dll")
-else()
-    FILE(GLOB USD_dlls "${USD_ROOT}/lib/*.so")
-    FILE(GLOB TBB_dlls "${TBB_DIR}/../lib/*.so*")
-endif()
 install(
-    FILES
-    ${USD_dlls}
-    ${TBB_dlls}
+    DIRECTORY
+    ${CMAKE_BINARY_DIR}/lib
     DESTINATION
-    ${CMAKE_INSTALL_PREFIX}/lib
+    ${CMAKE_INSTALL_PREFIX}
 )
 install(
     DIRECTORY
-    ${USD_ROOT}/lib/usd
+    $ENV{USD_ROOT}/lib/usd
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}/lib
 )
