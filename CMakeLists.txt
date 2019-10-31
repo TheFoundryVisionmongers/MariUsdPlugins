@@ -18,11 +18,6 @@ if (NOT DEFINED ENV{BOOST_INCLUDEDIR})
 else()
     message(STATUS "BOOST_INCLUDEDIR: $ENV{BOOST_INCLUDEDIR}")
 endif()
-if (NOT DEFINED ENV{BOOST_INCLUDEDIR})
-    message(FATAL_ERROR "BOOST_INCLUDEDIR has not been set")
-else()
-    message(STATUS "BOOST_INCLUDEDIR: $ENV{BOOST_INCLUDEDIR}")
-endif()
 if (NOT DEFINED ENV{BOOST_LIBRARYDIR})
     message(FATAL_ERROR "BOOST_LIBRARYDIR has not been set")
 else()
@@ -45,6 +40,12 @@ else()
     find_package(Python CONFIG REQUIRED)
 endif()
 
+if (NOT DEFINED Boost_USE_STATIC_LIBS)
+    set (Boost_USE_STATIC_LIBS ON)
+    message(STATUS "Setting Boost_USE_STATIC_LIBS to ${Boost_USE_STATIC_LIBS}")
+else()
+    message(STATUS "Boost_USE_STATIC_LIBS: ${Boost_USE_STATIC_LIBS}")
+endif()
 find_package(Boost COMPONENTS python)
 
 # Set cmake install path
@@ -82,7 +83,8 @@ target_compile_options(
     PRIVATE
     -DMARI_VERSION=46
     -DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
-    $<$<CXX_COMPILER_ID:MSVC>:-WX -W4 -DNOMINMAX -DWIN32_LEAN_AND_MEAN /FIiso646.h -wd4244 -wd4305 -wd4800 -wd4100 -wd4267 -wd4018 -wd4996 -wd4701>
+    $<$<CONFIG:Debug>:-DBOOST_DEBUG_PYTHON>
+    $<$<CXX_COMPILER_ID:MSVC>:-WX -W4 -DNOMINMAX -DWIN32_LEAN_AND_MEAN /FIiso646.h -wd4244 -wd4305 -wd4800 -wd4100 -wd4267 -wd4018 -wd4996 -wd4701 -EHsc>
     $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror -Wno-sign-compare -Wno-deprecated>
 )
 
