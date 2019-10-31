@@ -49,8 +49,7 @@ endif()
 find_package(Boost COMPONENTS python)
 
 # Set cmake install path
-set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
-file (MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX})
+set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE PATH "Bundling output path" FORCE)
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # Use C++ 11
@@ -95,21 +94,34 @@ target_link_libraries(
 )
 
 # Bundling
+# Copy across libs
 install(
-    TARGETS
-    USDImport
+    DIRECTORY
+    $ENV{USD_ROOT}/lib
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}
 )
 install(
     DIRECTORY
-    ${CMAKE_BINARY_DIR}/lib
+    $ENV{TBB_DIR}/lib
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}
 )
 install(
     DIRECTORY
-    $ENV{USD_ROOT}/lib/usd
+    $ENV{BOOST_LIBRARYDIR}
+    DESTINATION
+    ${CMAKE_INSTALL_PREFIX}
+)
+
+# Copy across bin dlls for windows
+FILE(GLOB LibFiles "$ENV{USD_ROOT}/bin/*.dll")
+list(APPEND DEP_LIB_FILES ${LibFiles})
+FILE(GLOB LibFiles "$ENV{TBB_DIR}/bin/*.dll")
+list(APPEND DEP_LIB_FILES ${LibFiles})
+install(
+    FILES
+    ${DEP_LIB_FILES}
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}/lib
 )
