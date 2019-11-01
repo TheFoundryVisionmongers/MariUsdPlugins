@@ -53,9 +53,6 @@ else()
 endif()
 find_package(Boost COMPONENTS python)
 
-# Set cmake install path
-set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/build" CACHE PATH "Bundling output path" FORCE)
-file (MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX})
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # Use C++ 11
