@@ -13,6 +13,11 @@ if (NOT DEFINED ENV{TBB_DIR})
 else()
     message(STATUS "TBB_DIR: $ENV{TBB_DIR}")
 endif()
+if (NOT DEFINED ENV{BOOST_ROOT})
+    message(FATAL_ERROR "BOOST_ROOT has not been set")
+else()
+    message(STATUS "BOOST_ROOT: $ENV{BOOST_ROOT}")
+endif()
 if (NOT DEFINED ENV{BOOST_INCLUDEDIR})
     message(FATAL_ERROR "BOOST_INCLUDEDIR has not been set")
 else()
@@ -94,6 +99,12 @@ target_link_libraries(
 )
 
 # Bundling
+install(
+    TARGETS
+    USDImport
+    DESTINATION
+    ${CMAKE_INSTALL_PREFIX}
+)
 # Copy across libs
 install(
     DIRECTORY
@@ -113,11 +124,20 @@ install(
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}
 )
-
+if (DEFINED ENV{PYTHON_ROOT})
+    install(
+        DIRECTORY
+        $ENV{PYTHON_ROOT}/lib
+        DESTINATION
+        ${CMAKE_INSTALL_PREFIX}
+    )
+endif()
 # Copy across bin dlls for windows
 FILE(GLOB LibFiles "$ENV{USD_ROOT}/bin/*.dll")
 list(APPEND DEP_LIB_FILES ${LibFiles})
 FILE(GLOB LibFiles "$ENV{TBB_DIR}/bin/*.dll")
+list(APPEND DEP_LIB_FILES ${LibFiles})
+FILE(GLOB LibFiles "$ENV{BOOST_ROOT}/bin/*.dll")
 list(APPEND DEP_LIB_FILES ${LibFiles})
 install(
     FILES
