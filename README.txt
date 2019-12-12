@@ -1,7 +1,16 @@
 Introduction
 ------------
+This repository contains the Mari USD CAPI plugins, which facilitate basic
+importing of USD scene graph data.
+
+The plug-in code was originally authored by Pixar as a proof-of-concept.
+In 2019, Foundry and Pixar agreed Foundry should maintain and curate
+the plug-ins, and so the plug-ins were made available under the same
+Modified Apache 2.0 license as the main USD library.
+
 This file will guide you through building the Mari USD CAPI plugin.
-The capi plugin code can be found on github at <>
+The capi plugin code can be found on github at
+https://github.com/TheFoundryVisionmongers/mariusdplugins
 
 For information about USD, please visit https://graphics.pixar.com/usd/docs/index.html.
 
@@ -90,7 +99,7 @@ Running the Code
 1. Copy the plugin (libUsSDImport.so on Linux and USDImport.dll on Windows) to your Mari "Plugins" folder.
 This will normally be "~/Mari/Plugins" on Linux and "C:\users\<username>\Documents\Mari\Plugins" on Window.
 
-2. We then need to point Mari to the "lib" folder so the usd plugin loads. 
+2. We then need to point Mari to the "lib" folder so the usd plugin loads.
 
 (Linux, assuming the "lib" folder is found at /tmp/MyPlugin/lib)
 export ROOT=/tmp/MyPlugin
@@ -101,4 +110,3 @@ export PYTHONPATH=$ROOT/lib/python/:$PYTHONPATH
 (Windows, assuming the "lib" folder is found at C:\MyPlugin\lib)
 - Update the environment registry PATH to C:\MyPlugin\lib
 - Update the environment registry PYTHONPATH to C:\MyPlugin\lib\python
-
