@@ -63,8 +63,9 @@ public:
         static bool CastVtValueAs(SOURCE &obj, TYPE &result);
 
         static void InitializePathSubstringLists();
-        
-        
+
+        static bool ReadFloat2AsUV();
+
         // create geoData
         GeoData(PXR_NS::UsdPrim const &prim,
                 std::string uvSet, // requested uvSet 

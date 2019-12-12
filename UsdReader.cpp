@@ -40,8 +40,6 @@
 #include "pxr/usd/usd/stageCache.h"
 #include "pxr/usd/usd/stageCacheContext.h"
 #include "pxr/usd/usdGeom/mesh.h"
-#include "pxr/usd/ar/resolver.h"
-#include "pxr/usd/ar/resolverContext.h"
 #include <sstream>
 #include <string>
 #include <time.h>
@@ -67,16 +65,9 @@ UsdReader::_OpenUsdStage()
     
     SdfLayerRefPtr rootLayer = SdfLayer::FindOrOpen(_fileName);
 
-    bool isAbsPath = strlen(_fileName) > 0 and _fileName[0] == '/';
-    std::string contextPath = 
-        isAbsPath ? TfGetPathName(_fileName) : ArchGetCwd(); 
-    ArResolver& resolver = ArGetResolver();
-    ArResolverContext pathResolverContext = 
-        resolver.CreateDefaultContextForAsset(contextPath);
-    
     static UsdStageCache stageCache;
     UsdStageCacheContext ctx(stageCache);
-    UsdStageRefPtr stage = UsdStage::Open(rootLayer, pathResolverContext);
+    UsdStageRefPtr stage = UsdStage::Open(rootLayer);
 
     if (!stage)
     {
@@ -103,9 +94,9 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
     if (!stage)
         return MRI_GPR_FAILED;
    
-    UsdPrimRange primRange = stage->Traverse();
+    UsdPrimRange range = stage->Traverse();
 
-    if (!primRange)
+    if (range.empty())
     {
         _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
@@ -114,13 +105,12 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
     }
 
     int size = 0;
-    for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
+    for (UsdPrim prim: range)
     {
-        if (GeoData::IsValidNode((*primIt))) 
+        if (GeoData::IsValidNode(prim))
         {
-            GeoData::GetUvSets(*primIt, uvs);
+            GeoData::GetUvSets(prim, uvs);
         }
-        ++primIt;
         size++;
     }
         
@@ -160,9 +150,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         return MRI_GPR_FILE_OPEN_FAILED;
     
     /////// LOOP THROUGH ALL PATHS ////////
-    UsdPrimRange primRange = stage->Traverse();
+    UsdPrimRange range = stage->Traverse();
 
-    if (!primRange)
+    if (range.empty())
     {
         _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
@@ -175,10 +165,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     ModelData* currentModelData = nullptr;
     std::vector<ModelData*> modelDataList;
     
-    for (auto primIt = primRange.cbegin(); primIt != primRange.cend(); )
+    for (auto primIt = range.begin(); primIt != range.end(); ++primIt)
     {
-
-
         // Check to see if this path matches a variant
         SdfPath path = primIt->GetPath();
         for(vector<SdfPath>::iterator it = variantSelections.begin();
@@ -236,14 +224,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             }
 
             // if this node is a model, it is not a gprim: continue to next.
-            ++primIt;
             continue;
         }
 
         if (not loadThisModel) 
         {
             // this is not a model the user opted in.
-            ++primIt;
             continue;
         }
         UsdGeomImageable imageable = UsdGeomImageable(*primIt);
@@ -255,7 +241,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 _host.trace("[%s] %s Is invisible", 
                     _pluginName, primIt->GetPath().GetText());
                 primIt.PruneChildren();
-                ++primIt;
                 continue;
             } else {
                 _host.trace("[%s] %s Is visible", 
@@ -269,7 +254,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             _host.trace("[%s] %s Not a valid node", 
                     _pluginName, primIt->GetPath().GetText());
             // not even a gprim.
-            ++primIt;
             continue;
         }
 
@@ -295,7 +279,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                        path.GetText()) == requestedGprimNames.end()) 
             ) 
         {
-            ++primIt;
             continue;
         }
 
@@ -305,7 +288,13 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             oneModelLoaded = true;
         }
 
-        ++primIt;
+        else {
+            _host.trace("[%s] Could not make mari geo entity with uv set %s for"
+                " prim %s", _pluginName, UVSet.c_str(),
+                path.GetString().c_str());
+            _log.push_back("Could not make mari geo entity with uv set "
+                + UVSet + " for prim " + path.GetString() + ".");
+        }
     }
 
     int modelCount = 0;
@@ -394,6 +383,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             requestedModelName.append(name);
         }
 
+        // Note, this was removed in earlier iterations, but looks like it could
+        // be useful to keep for the logging of errors
         _host.trace("[%s] No valid geometry with uv set %s found in %s",
             _pluginName, UVSet.c_str(), _fileName);
         _host.trace("[%s] Was looking for %s", 
@@ -518,17 +509,6 @@ UsdReader::_MakeGeoEntity(
                          &UVIndices));
     }
 
-    // Load animated frames
-    if (frames.size() > 1)
-    {
-        for (unsigned int i = 0; i<frames.size(); ++i)
-        {
-            int frame = frames[i];
-            CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, Vertices, frame, Geom.GetVertices(frame),
-                    Geom.GetNumPoints() * sizeof(float)));
-        }
-    }
     // Create geo object and add data        
     CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), 
             Geom.GetNumTriangles(), &Object));
@@ -548,6 +528,46 @@ UsdReader::_MakeGeoEntity(
         CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseIndices));
         CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseLengths));
         CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseSharpness));
+    }
+
+    // Load animated frames
+    if (frames.size() > 1)
+    {
+        for (unsigned int i = 0; i<frames.size(); ++i)
+        {
+            int frame = frames[i];
+            /*
+             * The following channels are mandatory for subdivision to work in
+             * Mari 3:
+             *     - Vertices
+             *     - Indices (of the vertices)
+             *     - FaceVertexCounts
+             * If any of these channels are missing, subdivision on animated
+             * frames will not work, and the animated frames will appear to
+             * be stuck on the first frame.
+             */
+            CHECK_RESULT(_host.setGeoDataForFrame(
+                    Entity, Vertices, frame, Geom.GetVertices(frame),
+                    Geom.GetNumPoints() * sizeof(float)));
+            CHECK_RESULT(_host.setGeoDataForFrame(
+                    Entity, Indices, frame, Geom.GetIndices(),
+                    Geom.GetNumIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_host.setGeoDataForFrame(
+                    Entity, FaceVertexCounts, frame, Geom.GetFaceVertexCounts(),
+                    Geom.GetNumTriangles() * sizeof(unsigned)));
+            /*
+             * Apparently Mari now wants UV data for each frame, even if that data
+             * is the same for each frame..
+             */
+            if(Geom.HasUVs()) {
+                CHECK_RESULT(_host.setGeoDataForFrame(
+                    Entity, UVs, frame, Geom.GetUVs(),
+                    Geom.GetNumFaceVertices() * 2 *  sizeof(float)));
+                CHECK_RESULT(_host.setGeoDataForFrame(
+                    Entity, UVIndices, frame, Geom.GetUVIndices(),
+                    Geom.GetNumIndices() * sizeof(unsigned int)));
+            }
+        }
     }
 
     return MRI_GPR_SUCCEEDED;

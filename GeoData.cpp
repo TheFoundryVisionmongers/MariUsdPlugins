@@ -34,6 +34,7 @@
 
 #include "pxr/base/vt/value.h"
 #include "pxr/base/vt/array.h"
+#include "pxr/base/tf/envSetting.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/xformCache.h"
 
@@ -41,13 +42,22 @@
 using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
+TF_DEFINE_ENV_SETTING(MARI_READ_FLOAT2_AS_UV, true,
+        "Set to false to disable ability to read Float2 type as a UV set");
+
 std::vector<std::string> GeoData::_requireGeomPathSubstring;
 std::vector<std::string> GeoData::_ignoreGeomPathSubstring;
 
 std::string GeoData::_requireGeomPathSubstringEnvVar = "PX_USDREADER_REQUIRE_GEOM_PATH_SUBSTR";
 std::string GeoData::_ignoreGeomPathSubstringEnvVar = "PX_USDREADER_IGNORE_GEOM_PATH_SUBSTR";
 
-
+bool
+GeoData::ReadFloat2AsUV()
+{
+    static const bool readFloat2AsUV =
+        TfGetEnvSetting(MARI_READ_FLOAT2_AS_UV);
+    return readFloat2AsUV;
+}
 
 
 //------------------------------------------------------------------------------
@@ -93,7 +103,9 @@ GeoData::GeoData(UsdPrim const &prim,
             
             if ((interpolation == UsdGeomTokens->vertex or
                  interpolation == UsdGeomTokens->faceVarying) and
-                (typeName == SdfValueTypeNames->Float2Array) and
+                (typeName == SdfValueTypeNames->TexCoord2fArray or
+                 (GeoData::ReadFloat2AsUV() and
+                 typeName == SdfValueTypeNames->Float2Array)) and
                 uvgpv.ComputeFlattened(&uvVt))
             {
                 if (uvVt.IsHolding<VtVec2fArray>())
@@ -389,7 +401,7 @@ GeoData::GeoData(UsdPrim const &prim,
         {
             // ignore transforms up to the model level
             GfMatrix4d m = xformCache.GetLocalToWorldTransform(model);
-            fullXform = m.GetInverse() * fullXform;
+            fullXform = fullXform * m.GetInverse();
         }
                 
         if (fullXform != IDENTITY)
@@ -490,6 +502,8 @@ GeoData::_BuildMariGeoData(const int frame,
 
             indexVertex = vertIndices[iIndexFaceVarying];
 
+            host.trace("\t\t\tindexVertex = %i/%i",
+                        indexVertex, points.size());
             if (indexVertex < 0 || indexVertex >= points.size()) {
                 // host.trace("\t\t\t\tbad! force to 0");
                 indexVertex = 0;
@@ -515,6 +529,11 @@ GeoData::_BuildMariGeoData(const int frame,
                 
                 // uvs
                 if(uvSet.length() > 0) {
+                    host.trace("\t\t\tUVs %i", _numFaceVertices);
+                    host.trace("\t\t\tuvIndex %d", iIndexFaceVarying);
+                    host.trace("\t\t\t(%f, %f)",
+                               uu[faceVaryingUU ? iIndexFaceVarying : indexVertex],
+                               vv[faceVaryingVV ? iIndexFaceVarying : indexVertex]);
                     _uvs[iIndexFaceVarying*2] =
                         uu[faceVaryingUU ? iIndexFaceVarying : indexVertex];
                     _uvs[iIndexFaceVarying*2+1] = 
@@ -612,7 +631,9 @@ GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
                 (typeName == SdfValueTypeNames->FloatArray))
             {
                 mapName = name.GetString().substr(2);
-            } else if (typeName == SdfValueTypeNames->Float2Array)
+            } else if (typeName == SdfValueTypeNames->TexCoord2fArray ||
+               (GeoData::ReadFloat2AsUV() &&
+                typeName == SdfValueTypeNames->Float2Array))
             {
                 mapName = name.GetString();
             }
