@@ -61,7 +61,7 @@ UsdReader::UsdReader(const char* pFileName,
 UsdStageRefPtr
 UsdReader::_OpenUsdStage()
 {
-    _host.trace("[%s] Opening: %s", _pluginName, _fileName);
+    _host.trace("[%s:%d] Opening: %s", _pluginName, __LINE__, _fileName);
     
     SdfLayerRefPtr rootLayer = SdfLayer::FindOrOpen(_fileName);
 
@@ -71,10 +71,12 @@ UsdReader::_OpenUsdStage()
 
     if (!stage)
     {
-        _host.trace("[%s] Cannot load usd file from %s", _pluginName, _fileName);
+        _host.trace("%s:%d] Cannot load usd file from %s", _pluginName, __LINE__, _fileName);
         _log.push_back("Cannot load usd file from " + std::string(_fileName) + ".");
         return NULL;
     }
+
+    _host.trace("[%s:%d] ABOUT TO LOAD STAGE!!! from %s", _pluginName, __LINE__, _fileName);
 
     // reload the stage to flush any USD level cache
     stage->Reload();
@@ -98,7 +100,7 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
 
     if (range.empty())
     {
-        _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
+        _host.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
 
         return MRI_GPR_FAILED;
@@ -154,7 +156,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     if (range.empty())
     {
-        _host.trace("[%s] File %s is empty!", _pluginName, _fileName);
+        _host.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
         return MRI_GPR_FAILED;
     }
@@ -238,21 +240,21 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         {
             if(visibility == UsdGeomTokens->invisible) 
             {
-                _host.trace("[%s] %s Is invisible", 
-                    _pluginName, primIt->GetPath().GetText());
+                _host.trace("%s:%d] %s Is invisible", 
+                    _pluginName, __LINE__, primIt->GetPath().GetText());
                 primIt.PruneChildren();
                 continue;
             } else {
-                _host.trace("[%s] %s Is visible", 
-                    _pluginName, primIt->GetPath().GetText());
+                _host.trace("%s:%d] %s Is visible", 
+                    _pluginName, __LINE__, primIt->GetPath().GetText());
             }
                 
         }
 
         if (not GeoData::IsValidNode(*primIt)) 
         {
-            _host.trace("[%s] %s Not a valid node", 
-                    _pluginName, primIt->GetPath().GetText());
+            _host.trace("%s:%d] %s Not a valid node", 
+                    _pluginName, __LINE__, primIt->GetPath().GetText());
             // not even a gprim.
             continue;
         }
@@ -267,8 +269,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         // gprims. 2(O^2). 
 
 
-        _host.trace("[%s] looking for %s and %s in requested names %d.", 
-                    _pluginName, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
+        _host.trace("%s:%d] looking for %s and %s in requested names %d.", 
+                    _pluginName, __LINE__, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
         if (
             requestedGprimNames.size() > 0 &&
             (std::find(requestedGprimNames.begin(),
@@ -339,8 +341,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             if (Geom)
             {
 
-                _host.trace("[%s] %s, found importable mesh",
-                            _pluginName, prim.GetPath().GetName().c_str());
+                _host.trace("%s:%d] %s, found importable mesh",
+                            _pluginName, __LINE__, prim.GetPath().GetName().c_str());
 
                 // detect handle id
                 std::string handle = "";
@@ -385,9 +387,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
         // Note, this was removed in earlier iterations, but looks like it could
         // be useful to keep for the logging of errors
-        _host.trace("[%s] No valid geometry with uv set %s found in %s",
+        _host.trace("[%s:%d] No valid geometry with uv set %s found in %s",
             _pluginName, UVSet.c_str(), _fileName);
-        _host.trace("[%s] Was looking for %s", 
+        _host.trace("[%s:%d] Was looking for %s", 
             _pluginName, requestedModelName.c_str());
         _log.push_back("No valid geometry with uv set " + UVSet +
                        " found in " + std::string(_fileName) + ".");
@@ -625,13 +627,13 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     // detect requested load option
     if (_host.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
         loadOption = Value.m_pString;
-    _host.trace("[%s] requested Load Option %s", _pluginName,
+    _host.trace("%s:%d] requested Load Option %s", _pluginName, __LINE__,
                 loadOption.c_str());
 
     // detect requested merge option
     if (_host.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
         mergeOption = Value.m_pString;
-    _host.trace("[%s] requested Merge Option %s", _pluginName,
+    _host.trace("%s:%d] requested Merge Option %s", _pluginName, __LINE__,
                 mergeOption.c_str());
 
     // detect requested model name
@@ -640,7 +642,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         modelNamesString = Value.m_pString;
     requestedModelNames = TfStringTokenize(modelNamesString, ",");
 
-    _host.trace("[%s] requested modelNames %s", _pluginName,
+    _host.trace("%s:%d] requested modelNames %s", _pluginName, __LINE__,
                 modelNamesString.c_str());
 
     // detect requested UV set
@@ -650,7 +652,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         UVSet = UVSet.substr(0, UVSet.find(" "));   
 // ignore comment on uvSet
     }
-    _host.trace("[%s] Using uv set %s", _pluginName, UVSet.c_str());
+    _host.trace("%s:%d] Using uv set %s", _pluginName, __LINE__, UVSet.c_str());
 
     // detect requested frames
     if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
@@ -658,7 +660,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         frameString = Value.m_pString;
     _GetFrameList(frameString, frames);
     for (int iFrame = 0; iFrame<frames.size(); ++iFrame)
-        _host.trace("[%s] requested frame number %i", _pluginName, 
+        _host.trace("%s:%d] requested frame number %i", _pluginName, __LINE__, 
                 frames[iFrame]);
 
     // detect requested gprim names
@@ -667,7 +669,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         gprimNamesString = Value.m_pString;
     requestedGprimNames = TfStringTokenize(gprimNamesString, ",");
 
-    _host.trace("[%s] requested gprimString %s", _pluginName, 
+    _host.trace("%s:%d] requested gprimString %s", _pluginName, __LINE__, 
                 gprimNamesString.c_str());
 
     std::string variantsString;
@@ -675,7 +677,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     {
         variantsString = Value.m_pString;
         _GetVariantSelectionsList(variantsString, variantSelections);
-        _host.trace("[%s] Using variants %s", _pluginName, variantsString.c_str());
+        _host.trace("%s:%d] Using variants %s", _pluginName, __LINE__, variantsString.c_str());
     }
 
     // detect if we want to ignore model transforms
@@ -683,14 +685,14 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         MRI_UPR_SUCCEEDED )
         keepCentered = (Value.m_Int !=0);
     if( keepCentered )
-        _host.trace("[%s] Discarding model transforms.", _pluginName);
+        _host.trace("%s:%d] Discarding model transforms.", _pluginName, __LINE__);
 
     // detect if we want to include invisible gprims
     if( _host.getAttribute(Entity, "includeInvisible", &Value) ==
         MRI_UPR_SUCCEEDED )
         includeInvisible = (Value.m_Int !=0);
     if( !includeInvisible )
-        _host.trace("[%s] Discarding invisible gprims.", _pluginName);
+        _host.trace("%s:%d] Discarding invisible gprims.", _pluginName, __LINE__);
 }
 
 void
@@ -702,11 +704,11 @@ UsdReader::_SaveMetadata(
     Value.m_Type = MRI_ATTR_STRING;
     map<string, string> metadata = modelData.GetMetadata();
     map<string, string>::iterator it;
-    _host.trace("[%s] Using metadata setAttribute (>2.0)", _pluginName);
+    _host.trace("%s:%d] Using metadata setAttribute (>2.0)", _pluginName, __LINE__);
     for (it = metadata.begin(); it!=metadata.end();++it)
     {
         Value.m_pString = it->second.c_str();
-        _host.trace("[%s] setting metadata %s to %s", _pluginName, 
+        _host.trace("%s:%d] setting metadata %s to %s", _pluginName, __LINE__, 
             it->first.c_str(), it->second.c_str());
         _host.setAttribute(Entity, it->first.c_str(), &Value);
     }

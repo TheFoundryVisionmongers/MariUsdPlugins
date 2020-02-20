@@ -88,8 +88,8 @@ GeoData::GeoData(UsdPrim const &prim,
         TfToken vSet = TfToken("v_" + uvSet);
 
         if (not mesh){
-            host.trace("[GeoData] Can't get uvs from non-mesh prim %s (type %s)", 
-                       prim.GetPath().GetText(), prim.GetTypeName().GetText());
+            host.trace("[GeoData:%d] Can't get uvs from non-mesh prim %s (type %s)", 
+                       __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
             log.push_back("Can't get uvs from non-mesh prim " +
                           prim.GetPath().GetName() + " of type " +
                           std::string(prim.GetTypeName().GetText()));
@@ -126,8 +126,8 @@ GeoData::GeoData(UsdPrim const &prim,
                         if (uu[i] < 0.f || uu[i]>10.f || 
                             vv[i] < 0.f)
                         {
-                            host.trace("[GeoData]\tdiscarding because of unsupported U or V coordinate (negative or >10 UV[%d](%f, %f) at:" 
-                                       "%s", i, uu[i], vv[i], prim.GetPath().GetName().c_str());
+                            host.trace("[GeoData:%d]\tdiscarding because of unsupported U or V coordinate (negative or >10 UV[%d](%f, %f) at:" 
+                                       "%s", __LINE__, i, uu[i], vv[i], prim.GetPath().GetName().c_str());
                             if(uu[i] < 0.f)
                                 log.push_back("Discarding mesh at " +
                                               prim.GetPath().GetName() +
@@ -145,9 +145,9 @@ GeoData::GeoData(UsdPrim const &prim,
                     }
                 }
             } else {
-                host.trace("[GeoData]\tDiscarding because Vertex or Facevarying "
+                host.trace("[GeoData:%d]\tDiscarding because Vertex or Facevarying "
                            "interpolation is not defined for the \"%s\" uv set on "
-                           "%s.", uvSet.c_str(), prim.GetPath().GetName().c_str());
+                           "%s.", __LINE__, uvSet.c_str(), prim.GetPath().GetName().c_str());
                 log.push_back("Discarding because Vertex or Facevarying interpolation is not defined for uvset" +
                               std::string(uvSet) + " on gprim " +
                               std::string(prim.GetPath().GetName()));
@@ -188,8 +188,8 @@ GeoData::GeoData(UsdPrim const &prim,
             // No uvs, this is only good for ptex, and we asked for a uvSet. So discard.
             if (!(hasU && hasV)) 
             {
-                host.trace("[GeoData] Couldn't find uvset data on %s", 
-                           prim.GetPath().GetText());
+                host.trace("[GeoData:%d] Couldn't find uvset data on %s", 
+                           __LINE__, prim.GetPath().GetText());
                 return; // this is not optional!
             }
 
@@ -202,8 +202,8 @@ GeoData::GeoData(UsdPrim const &prim,
                     float u = uuArray[i];
                     if (u < 0.f || u>10.f) 
                     {
-                        host.trace("[GeoData]\tdiscarding %s because of bad U coordinates (%f) at index %i",
-                            prim.GetPath().GetName().c_str(), u, i);
+                        host.trace("[GeoData:%d]\tdiscarding %s because of bad U coordinates (%f) at index %i",
+                            __LINE__, prim.GetPath().GetName().c_str(), u, i);
                         if (u < 0.f) 
                             log.push_back("Discarding " + prim.GetPath().GetName() +
                                           " because of negative U coordinates");
@@ -228,8 +228,8 @@ GeoData::GeoData(UsdPrim const &prim,
                     float v = vvArray[i];
                     if (v < 0.f) 
                     {
-                        host.trace("[GeoData]\tdiscarding %s because of bad V coordinates (%f) at index %i",
-                            prim.GetPath().GetName().c_str(), v, i);
+                        host.trace("[GeoData:%d]\tdiscarding %s because of bad V coordinates (%f) at index %i",
+                            __LINE__, prim.GetPath().GetName().c_str(), v, i);
                         log.push_back("Discarding " + prim.GetPath().GetName() +
                                       " because of negative V coordinates.");
                         return;
@@ -255,8 +255,8 @@ GeoData::GeoData(UsdPrim const &prim,
 
     if (!mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray)) 
     {
-        host.trace("[GeoData]\tfailed getting faces on %s.",
-                prim.GetPath().GetName().c_str());
+        host.trace("[GeoData:%d]\tfailed getting faces on %s.",
+                __LINE__, prim.GetPath().GetName().c_str());
         log.push_back("Failed getting faces on " +
                       prim.GetPath().GetName());
         return;// this is not optional!
@@ -266,8 +266,8 @@ GeoData::GeoData(UsdPrim const &prim,
 
     if (!mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray)) 
     {
-        host.trace("[GeoData]\tfailed getting faces on %s",
-                prim.GetPath().GetName().c_str());
+        host.trace("[GeoData:%d]\tfailed getting faces on %s",
+                __LINE__, prim.GetPath().GetName().c_str());
         log.push_back("Failed getting faces on " +
                       prim.GetPath().GetName());
         return;// this is not optional!
@@ -277,8 +277,8 @@ GeoData::GeoData(UsdPrim const &prim,
 
     if (!mesh.GetCreaseIndicesAttr().Get(&creaseIndicesArray))
     {
-        host.trace("[GeoData]\tfailed getting creases on %s",
-                prim.GetPath().GetName().c_str());
+        host.trace("[GeoData:%d]\tfailed getting creases on %s",
+                __LINE__, prim.GetPath().GetName().c_str());
     }
 
     _creaseIndices = vector<int>(creaseIndicesArray.begin(), 
@@ -289,16 +289,16 @@ GeoData::GeoData(UsdPrim const &prim,
     {
         if (!mesh.GetCreaseLengthsAttr().Get(&creaseLengthsArray))
         {
-            host.trace("[GeoData]\tfailed getting crease lengths on %s",
-                       prim.GetPath().GetName().c_str());
+            host.trace("[GeoData:%d]\tfailed getting crease lengths on %s",
+                       __LINE__, prim.GetPath().GetName().c_str());
         }
         _creaseLengths = vector<int>(creaseLengthsArray.begin(), 
                                      creaseLengthsArray.end());
 
         if (!mesh.GetCreaseSharpnessesAttr().Get(&creaseSharpnessArray))
         {
-            host.trace("[GeoData]\tfailed getting crease sharpness on %s",
-                       prim.GetPath().GetName().c_str());
+            host.trace("[GeoData:%d]\tfailed getting crease sharpness on %s",
+                       __LINE__, prim.GetPath().GetName().c_str());
         }
         _creaseSharpness = vector<float>(creaseSharpnessArray.begin(), 
                                          creaseSharpnessArray.end());
@@ -340,14 +340,14 @@ GeoData::GeoData(UsdPrim const &prim,
     for (unsigned int iFrame = 0; iFrame < frames.size(); ++iFrame) 
     {
         unsigned int frame = frames[iFrame];
-        host.trace("[GeoData]\tProcessing frame %i: %i", iFrame, frame);
+        host.trace("[GeoData:%d]\tProcessing frame %i: %i", __LINE__, iFrame, frame);
         double currentTime = double(frame);
 
         VtVec3fArray pointsVt;
         if (!mesh.GetPointsAttr().Get(&pointsVt, frame)) 
         {
-            host.trace("[GeoData]\tfailed getting faces on %s.",
-                       prim.GetPath().GetName().c_str());
+            host.trace("[GeoData:%d]\tfailed getting faces on %s.",
+                       __LINE__, prim.GetPath().GetName().c_str());
             log.push_back("Failed getting faces on " +
                           prim.GetPath().GetName());
             return;// this is not optional!
@@ -364,13 +364,13 @@ GeoData::GeoData(UsdPrim const &prim,
         if (iFrame == 0) 
         {
             // only once
-            host.trace("[GeoData]\t%i U uvSet count", uu.size());
-            host.trace("[GeoData]\t%i V uvSet count", vv.size());
-            host.trace("[GeoData]\t%i vertices", points.size());
-            host.trace("[GeoData]\tTopology was computed. Allocating space for"
-                    "arrays.");
-            host.trace("[GeoData]\t\t%i faces", nFaces);
-            host.trace("[GeoData]\t\t%i indices", vertsIndices.size());
+            host.trace("[GeoData:%d]\t%i U uvSet count", __LINE__, uu.size());
+            host.trace("[GeoData:%d]\t%i V uvSet count", __LINE__, vv.size());
+            host.trace("[GeoData:%d]\t%i vertices", __LINE__, points.size());
+            host.trace("[GeoData:%d]\tTopology was computed. Allocating space for"
+                    "arrays.", __LINE__);
+            host.trace("[GeoData:%d]\t\t%i faces", __LINE__, nFaces);
+            host.trace("[GeoData:%d]\t\t%i indices", __LINE__, vertsIndices.size());
 
             // estimate sizes and reserve space for arrays
             for (unsigned int iFace = 0; iFace < nFaces; ++iFace)
@@ -388,7 +388,7 @@ GeoData::GeoData(UsdPrim const &prim,
 
         // allocate space on vertices, same value on each frame
         // 3 floats per point
-        host.trace("[GeoData]\tAllocating space for vertices.");
+        host.trace("[GeoData:%d]\tAllocating space for vertices.", __LINE__);
         _vertices[frame].resize(points.size());
 
         // calculate transforms.
@@ -423,7 +423,7 @@ GeoData::GeoData(UsdPrim const &prim,
         ////////////
         ///  COPY ALL THE DATA INTO THE MARI COMPATIBLE STRUCTURES
         ///
-        host.trace("[GeoData]\tTransfering data to mari-compatible structures");
+        host.trace("[GeoData:%d]\tTransfering data to mari-compatible structures", __LINE__);
         _BuildMariGeoData(frame,
                           iFrame,
                           nFaces, 
