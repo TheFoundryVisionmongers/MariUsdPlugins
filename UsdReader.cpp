@@ -527,62 +527,59 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
                                          &UVIndices));
     }
 
-    if (Geom.IsSubdivMesh())
+    if (Geom.GetNumCreaseIndices() > 0)
     {
-        if (Geom.GetNumCreaseIndices() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetCreaseLengths(),
-                                             Geom.GetNumCreaseLengths() * sizeof(unsigned int),
-                                             MRI_GDT_U32_BUFFER,
-                                             MRI_GDR_MESH_SUBD_CREASE_LENGTHS,
-                                             &CreaseLengths));
-        }
-        if (Geom.GetNumCreaseLengths() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetCreaseIndices(),
-                                             Geom.GetNumCreaseIndices() * sizeof(unsigned int),
-                                             MRI_GDT_U32_BUFFER,
-                                             MRI_GDR_MESH_SUBD_CREASE_INDICES,
-                                             &CreaseIndices));
-        }
-        if (Geom.GetNumCreaseSharpness() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetCreaseSharpness(),
-                                             Geom.GetNumCreaseSharpness() * sizeof(float),
-                                             MRI_GDT_FLOAT_BUFFER,
-                                             MRI_GDR_MESH_SUBD_CREASE_SHARPNESS,
-                                             &CreaseSharpness));
-        }
-        if (Geom.GetNumCornerIndices() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetCornerIndices(),
-                                             Geom.GetNumCornerIndices() * sizeof(unsigned int),
-                                             MRI_GDT_U32_BUFFER,
-                                             MRI_GDR_MESH_SUBD_CORNER_INDICES,
-                                             &CornerIndices));
-        }
-        if (Geom.GetNumCornerSharpness() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetCornerSharpness(),
-                                             Geom.GetNumCornerSharpness() * sizeof(float),
-                                             MRI_GDT_FLOAT_BUFFER,
-                                             MRI_GDR_MESH_SUBD_CORNER_SHARPNESS,
-                                             &CornerSharpness));
-        }
-        if (Geom.GetNumHoleIndices() > 0)
-        {
-            CHECK_RESULT(_host.createGeoData(Entity,
-                                             Geom.GetHoleIndicess(),
-                                             Geom.GetNumHoleIndices() * sizeof(unsigned int),
-                                             MRI_GDT_U32_BUFFER,
-                                             MRI_GDR_MESH_SUBD_HOLES,
-                                             &Holes));
-        }
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetCreaseLengths(),
+                                         Geom.GetNumCreaseLengths() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_SUBD_CREASE_LENGTHS,
+                                         &CreaseLengths));
+    }
+    if (Geom.GetNumCreaseLengths() > 0)
+    {
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetCreaseIndices(),
+                                         Geom.GetNumCreaseIndices() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_SUBD_CREASE_INDICES,
+                                         &CreaseIndices));
+    }
+    if (Geom.GetNumCreaseSharpness() > 0)
+    {
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetCreaseSharpness(),
+                                         Geom.GetNumCreaseSharpness() * sizeof(float),
+                                         MRI_GDT_FLOAT_BUFFER,
+                                         MRI_GDR_MESH_SUBD_CREASE_SHARPNESS,
+                                         &CreaseSharpness));
+    }
+    if (Geom.GetNumCornerIndices() > 0)
+    {
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetCornerIndices(),
+                                         Geom.GetNumCornerIndices() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_SUBD_CORNER_INDICES,
+                                         &CornerIndices));
+    }
+    if (Geom.GetNumCornerSharpness() > 0)
+    {
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetCornerSharpness(),
+                                         Geom.GetNumCornerSharpness() * sizeof(float),
+                                         MRI_GDT_FLOAT_BUFFER,
+                                         MRI_GDR_MESH_SUBD_CORNER_SHARPNESS,
+                                         &CornerSharpness));
+    }
+    if (Geom.GetNumHoleIndices() > 0)
+    {
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetHoleIndicess(),
+                                         Geom.GetNumHoleIndices() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_SUBD_HOLES,
+                                         &Holes));
     }
 
     // 3. Create Mesh and add data channels to it
@@ -600,33 +597,33 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
         CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVs));
         CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVIndices));
     }
+
+    if (Geom.GetNumCreaseIndices() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseIndices));
+    }
+    if (Geom.GetNumCreaseLengths() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseLengths));
+    }
+    if (Geom.GetNumCreaseSharpness() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseSharpness));
+    }
+    if (Geom.GetNumCornerIndices() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerIndices));
+    }
+    if (Geom.GetNumCornerSharpness() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerSharpness));
+    }
+    if (Geom.GetNumHoleIndices() > 0)
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Holes));
+    }
     if (Geom.IsSubdivMesh())
     {
-        if (Geom.GetNumCreaseIndices() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseIndices));
-        }
-        if (Geom.GetNumCreaseLengths() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseLengths));
-        }
-        if (Geom.GetNumCreaseSharpness() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseSharpness));
-        }
-        if (Geom.GetNumCornerIndices() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerIndices));
-        }
-        if (Geom.GetNumCornerSharpness() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerSharpness));
-        }
-        if (Geom.GetNumHoleIndices() > 0)
-        {
-            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Holes));
-        }
-
         CHECK_RESULT(_host.setSubdivisionOnMeshObject(Entity,
                                                       MeshObject,
                                                       Geom.SubdivisionScheme().c_str(),
@@ -693,56 +690,53 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
                                                   Geom.GetNumVertexIndices() * sizeof(unsigned int)));
         }
 
-        if (Geom.IsSubdivMesh())
+        if (Geom.GetNumCreaseIndices() > 0)
         {
-            if (Geom.GetNumCreaseIndices() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      CreaseLengths,
-                                                      frame,
-                                                      Geom.GetCreaseLengths(),
-                                                      Geom.GetNumCreaseLengths() * sizeof(unsigned int)));
-            }
-            if (Geom.GetNumCreaseLengths() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      CreaseIndices,
-                                                      frame,
-                                                      Geom.GetCreaseIndices(),
-                                                      Geom.GetNumCreaseIndices() * sizeof(unsigned int)));
-            }
-            if (Geom.GetNumCreaseSharpness() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      CreaseSharpness,
-                                                      frame,
-                                                      Geom.GetCreaseSharpness(),
-                                                      Geom.GetNumCreaseSharpness() * sizeof(float)));
-            }
-            if (Geom.GetNumCornerIndices() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      CornerIndices,
-                                                      frame,
-                                                      Geom.GetCornerIndices(),
-                                                      Geom.GetNumCornerIndices() * sizeof(unsigned int)));
-            }
-            if (Geom.GetNumCornerSharpness() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      CornerSharpness,
-                                                      frame,
-                                                      Geom.GetCornerSharpness(),
-                                                      Geom.GetNumCornerSharpness() * sizeof(float)));
-            }
-            if (Geom.GetNumHoleIndices() > 0)
-            {
-                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                      Holes,
-                                                      frame,
-                                                      Geom.GetHoleIndicess(),
-                                                      Geom.GetNumHoleIndices() * sizeof(unsigned int)));
-            }
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  CreaseLengths,
+                                                  frame,
+                                                  Geom.GetCreaseLengths(),
+                                                  Geom.GetNumCreaseLengths() * sizeof(unsigned int)));
+        }
+        if (Geom.GetNumCreaseLengths() > 0)
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  CreaseIndices,
+                                                  frame,
+                                                  Geom.GetCreaseIndices(),
+                                                  Geom.GetNumCreaseIndices() * sizeof(unsigned int)));
+        }
+        if (Geom.GetNumCreaseSharpness() > 0)
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  CreaseSharpness,
+                                                  frame,
+                                                  Geom.GetCreaseSharpness(),
+                                                  Geom.GetNumCreaseSharpness() * sizeof(float)));
+        }
+        if (Geom.GetNumCornerIndices() > 0)
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  CornerIndices,
+                                                  frame,
+                                                  Geom.GetCornerIndices(),
+                                                  Geom.GetNumCornerIndices() * sizeof(unsigned int)));
+        }
+        if (Geom.GetNumCornerSharpness() > 0)
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  CornerSharpness,
+                                                  frame,
+                                                  Geom.GetCornerSharpness(),
+                                                  Geom.GetNumCornerSharpness() * sizeof(float)));
+        }
+        if (Geom.GetNumHoleIndices() > 0)
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  Holes,
+                                                  frame,
+                                                  Geom.GetHoleIndicess(),
+                                                  Geom.GetNumHoleIndices() * sizeof(unsigned int)));
         }
     }
 
