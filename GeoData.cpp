@@ -51,305 +51,184 @@ std::vector<std::string> GeoData::_ignoreGeomPathSubstring;
 std::string GeoData::_requireGeomPathSubstringEnvVar = "PX_USDREADER_REQUIRE_GEOM_PATH_SUBSTR";
 std::string GeoData::_ignoreGeomPathSubstringEnvVar = "PX_USDREADER_IGNORE_GEOM_PATH_SUBSTR";
 
-bool
-GeoData::ReadFloat2AsUV()
+//#define PRINT_DEBUG
+//#define PRINT_ARRAYS
+
+//------------------------------------------------------------------------------
+// GeoData implementation
+//------------------------------------------------------------------------------
+
+bool GeoData::ReadFloat2AsUV()
 {
     static const bool readFloat2AsUV =
         TfGetEnvSetting(MARI_READ_FLOAT2_AS_UV);
     return readFloat2AsUV;
 }
 
-
-//------------------------------------------------------------------------------
-// GeoData implementation
-//------------------------------------------------------------------------------
 GeoData::GeoData(UsdPrim const &prim,
                  std::string uvSet,  // requested uvSet. If empty string, it's a ptex thing.
                  std::vector<int> frames,
                  bool keepCentered,
                  UsdPrim const &model,
                  const MriGeoReaderHost& host,
-                 std::vector<std::string>& log):
-    _numTriangles(0),
-    _numFaceVertices(0)
-{    
+                 std::vector<std::string>& log)
+{
+    // Init
+    m_isSubdivMesh = false;
+    m_subdivisionScheme = "";
+    m_interpolateBoundary = 0;
+    m_faceVaryingLinearInterpolation = 0;
+    m_propagateCorner = 0;
 
-    /// Load UVs, check sanity and verify their level of detail (vertex or 
-    /// facevarying)
-    bool hasU = false, hasV = false;
-    bool faceVaryingUU = false, faceVaryingVV = false;
-    vector<float> uu, vv;
-    VtValue uuVt, vvVt, uvVt;
-    
-    UsdGeomMesh   mesh(prim);
-    if (uvSet.length() > 0) {
-        // meshName
-        TfToken uSet = TfToken("u_" + uvSet);
-        TfToken vSet = TfToken("v_" + uvSet);
+    UsdGeomMesh mesh(prim);
+    if (not mesh)
+    {
+        host.trace("[GeoData:%d] Invalid non-mesh prim %s (type %s)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
+        log.push_back("Invalid non-mesh prim " + std::string(prim.GetPath().GetText()) + " of type " + std::string(prim.GetTypeName().GetText()));
+        return;
+    }
 
-        if (not mesh){
-            host.trace("[GeoData:%d] Can't get uvs from non-mesh prim %s (type %s)", 
-                       __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
-            log.push_back("Can't get uvs from non-mesh prim " +
-                          prim.GetPath().GetName() + " of type " +
-                          std::string(prim.GetTypeName().GetText()));
-            return;
-        }
-    
-        if (UsdGeomPrimvar uvgpv = mesh.GetPrimvar(TfToken(uvSet)))
+    bool isTopologyVarying = mesh.GetFaceVertexIndicesAttr().GetNumTimeSamples() >= 1;
+
+//#if defined(PRINT_DEBUG)
+    host.trace("[ !! ] ---------------------------------------");
+    host.trace("[ GeoData:%d] Reading MESH %s (type %s) (topology Varying %d)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText(), isTopologyVarying);
+//#endif
+    // Read vertex/face indices
+    {
+        VtIntArray vertsIndicesArray;
+        bool ok = isTopologyVarying ? mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray, UsdTimeCode::EarliestTime()) : mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray);
+        if (!ok)
         {
-            SdfValueTypeName typeName      = uvgpv.GetTypeName();
-            TfToken          interpolation = uvgpv.GetInterpolation();
-            
-            if ((interpolation == UsdGeomTokens->vertex or
-                 interpolation == UsdGeomTokens->faceVarying) and
-                (typeName == SdfValueTypeNames->TexCoord2fArray or
-                 (GeoData::ReadFloat2AsUV() and
-                 typeName == SdfValueTypeNames->Float2Array)) and
-                uvgpv.ComputeFlattened(&uvVt))
+            host.trace("[GeoData:%d]\tfailed getting face vertex indices on %s.", __LINE__, prim.GetPath().GetText());
+            log.push_back("Failed getting faces on " + std::string(prim.GetPath().GetText()));
+            return;// this is not optional!
+        }
+        m_vertexIndices = vector<int>(vertsIndicesArray.begin(), vertsIndicesArray.end());
+    }
+
+    // Read face counts
+    {
+        VtIntArray nvertsPerFaceArray;
+        bool ok = isTopologyVarying ? mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray, UsdTimeCode::EarliestTime()) : mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray);
+        if (!ok)
+        {
+            host.trace("[GeoData:%d]\tfailed getting face counts on %s", __LINE__, prim.GetPath().GetText());
+            log.push_back("Failed getting faces on " + std::string(prim.GetPath().GetText()));
+            return;// this is not optional!
+        }
+        m_faceCounts = vector<int>(nvertsPerFaceArray.begin(), nvertsPerFaceArray.end());
+    }
+
+    // Create face selection indices
+    {
+        m_faceSelectionIndices.reserve(m_faceCounts.size());
+        for(int x = 0; x < m_faceCounts.size(); ++x)
+        {
+            m_faceSelectionIndices.push_back(x);
+        }
+    }
+
+    if (uvSet.length() > 0)
+    {
+        // Get UV set primvar
+        if (UsdGeomPrimvar uvPrimvar = mesh.GetPrimvar(TfToken(uvSet)))
+        {
+            SdfValueTypeName typeName      = uvPrimvar.GetTypeName();
+            TfToken          interpolation = uvPrimvar.GetInterpolation();
+
+            // Only consider vertex or face varying uvs
+            if ((interpolation == UsdGeomTokens->vertex or interpolation == UsdGeomTokens->faceVarying)
+                and (typeName == SdfValueTypeNames->TexCoord2fArray or (GeoData::ReadFloat2AsUV() and typeName == SdfValueTypeNames->Float2Array)))
             {
-                if (uvVt.IsHolding<VtVec2fArray>())
+                VtVec2fArray values;
+                VtIntArray indices;
+                if (uvPrimvar.Get(&values, UsdTimeCode::EarliestTime()))
                 {
-                    hasU = true; hasV = true;
-                    faceVaryingUU = interpolation == UsdGeomTokens->faceVarying;
-                    faceVaryingVV = faceVaryingUU;
-                    
-                    VtVec2fArray uvArray = uvVt.Get<VtVec2fArray>();
-                    uu.resize(uvArray.size());
-                    vv.resize(uvArray.size());
-                    for (int i = 0; i < uvArray.size(); ++i) 
+                    bool ok = isTopologyVarying ? uvPrimvar.GetIndices(&indices, UsdTimeCode::EarliestTime()) : uvPrimvar.GetIndices(&indices);
+                    if (ok)
                     {
-                        // u is invalid if negative, more than 10 or on the
-                        // boundary of a uv quadrant
-                        uu[i] = uvArray[i][0];
-                        vv[i] = uvArray[i][1];
-                        if (uu[i] < 0.f || uu[i]>10.f || 
-                            vv[i] < 0.f)
+                        // primvar is indexed: validate/process values and indices together
+                        m_uvIndices = vector<int>(indices.begin(), indices.end());
+                    }
+                    else
+                    {
+                        // Our uvs are not indexed -> we need to fill in an ordered list of indices
+                        m_uvIndices.reserve(m_vertexIndices.size());
+                        for (unsigned int x = 0; x < m_vertexIndices.size(); ++x)
                         {
-                            host.trace("[GeoData:%d]\tdiscarding because of unsupported U or V coordinate (negative or >10 UV[%d](%f, %f) at:" 
-                                       "%s", __LINE__, i, uu[i], vv[i], prim.GetPath().GetName().c_str());
-                            if(uu[i] < 0.f)
-                                log.push_back("Discarding mesh at " +
-                                              prim.GetPath().GetName() +
-                                              " because of negative U coordinate");
-                            if(uu[i] > 10.f)
-                                log.push_back("Discarding mesh at " +
-                                              prim.GetPath().GetName() +
-                                              " because of U coordinate greater than 10");
-                            if(vv[i] < 0.f)
-                                log.push_back("Discarding mesh at " +
-                                              prim.GetPath().GetName() +
-                                              " because of negative V coordinate");
-                            return;
+                            m_uvIndices.push_back(x);
                         }
                     }
-                }
-            } else {
-                host.trace("[GeoData:%d]\tDiscarding because Vertex or Facevarying "
-                           "interpolation is not defined for the \"%s\" uv set on "
-                           "%s.", __LINE__, uvSet.c_str(), prim.GetPath().GetName().c_str());
-                log.push_back("Discarding because Vertex or Facevarying interpolation is not defined for uvset" +
-                              std::string(uvSet) + " on gprim " +
-                              std::string(prim.GetPath().GetName()));
-                return;
-            }
-        } else {
-        
-            if (UsdGeomPrimvar ugpv = mesh.GetPrimvar(uSet))
-            {
-                SdfValueTypeName typeName      = ugpv.GetTypeName();
-                TfToken          interpolation = ugpv.GetInterpolation();
 
-                if ((interpolation == UsdGeomTokens->vertex or
-                     interpolation == UsdGeomTokens->faceVarying) and
-                    (typeName == SdfValueTypeNames->FloatArray) and
-                    ugpv.ComputeFlattened(&uuVt))
-                {
-                    hasU = true;
-                    faceVaryingUU = interpolation == UsdGeomTokens->faceVarying;
-                }
-            }
-
-            if (UsdGeomPrimvar vgpv = mesh.GetPrimvar(vSet))
-            {
-                SdfValueTypeName typeName       = vgpv.GetTypeName();
-                TfToken          interpolation = vgpv.GetInterpolation();
-
-                if ((interpolation == UsdGeomTokens->vertex or
-                     interpolation == UsdGeomTokens->faceVarying) and
-                    (typeName == SdfValueTypeNames->FloatArray) and
-                    vgpv.ComputeFlattened(&vvVt))
-                {
-                    hasV = true;
-                    faceVaryingVV = interpolation == UsdGeomTokens->faceVarying;
-                }
-            }
-
-            // No uvs, this is only good for ptex, and we asked for a uvSet. So discard.
-            if (!(hasU && hasV)) 
-            {
-                host.trace("[GeoData:%d] Couldn't find uvset data on %s", 
-                           __LINE__, prim.GetPath().GetText());
-                return; // this is not optional!
-            }
-
-            if (uuVt.IsHolding<VtFloatArray>())
-            {
-                VtFloatArray uuArray = uuVt.Get<VtFloatArray>();
-                for (int i = 0; i < uuArray.size(); ++i) 
-                {
-                    // u is invalid if negative or more than 10 
-                    float u = uuArray[i];
-                    if (u < 0.f || u>10.f) 
+                    // Read uvs
+                    m_uvs.resize(values.size()*2);
+                    for (int i = 0; i < values.size(); ++i)
                     {
-                        host.trace("[GeoData:%d]\tdiscarding %s because of bad U coordinates (%f) at index %i",
-                            __LINE__, prim.GetPath().GetName().c_str(), u, i);
-                        if (u < 0.f) 
-                            log.push_back("Discarding " + prim.GetPath().GetName() +
-                                          " because of negative U coordinates");
-                        if (u > 10.f) 
-                            log.push_back("Discarding " + prim.GetPath().GetName() +
-                                          " because of U coordinates greater than 10.");
-                        return;
+                        m_uvs[i * 2    ] = values[i][0];
+                        m_uvs[i * 2 + 1] = values[i][1];
                     }
                 }
-                uu = vector<float>(uuArray.begin(), uuArray.end());
-            } 
-            else 
-            {
-                return;
-            }
-
-            if (vvVt.IsHolding<VtFloatArray>()) 
-            {
-                VtFloatArray vvArray = vvVt.Get<VtFloatArray>();
-                for (int i = 0; i < vvArray.size(); ++i) 
+                else
                 {
-                    float v = vvArray[i];
-                    if (v < 0.f) 
-                    {
-                        host.trace("[GeoData:%d]\tdiscarding %s because of bad V coordinates (%f) at index %i",
-                            __LINE__, prim.GetPath().GetName().c_str(), v, i);
-                        log.push_back("Discarding " + prim.GetPath().GetName() +
-                                      " because of negative V coordinates.");
-                        return;
-                    }
+                    host.trace("[GeoData:%d]\tdiscarding because could not read uvs on '%s'",  __LINE__, prim.GetPath().GetText());
+                    log.push_back("discarding because could not read uvs on " +  std::string(prim.GetPath().GetText()));
+                    return;
                 }
-                vv = vector<float>(vvArray.begin(), vvArray.end());
-            } 
-            else 
+            }
+            else
             {
+                host.trace("[GeoData:%d]\tDiscarding because Vertex or Facevarying interpolation is not defined for the \"%s\" uv set on %s",
+                           __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+                log.push_back("Discarding because Vertex or Facevarying interpolation is not defined for the " + uvSet + " uv set on " + std::string(prim.GetPath().GetText()));
                 return;
+            }
+        }
+        else
+        {
+            host.trace("[GeoData:%d]\tDiscarding invalid uv set %s on %s", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+            log.push_back("Discarding invalid uv set " + uvSet + " on " + std::string(prim.GetPath().GetText()));
+            return;
+        }
+    }
+
+    // Read normals
+    {
+        VtVec3fArray normalsVt;
+        bool ok = isTopologyVarying ? mesh.GetNormalsAttr().Get(&normalsVt, UsdTimeCode::EarliestTime()) : mesh.GetNormalsAttr().Get(&normalsVt);
+        if (ok)
+        {
+            m_normals.resize(normalsVt.size() * 3);
+            for(int i = 0; i < normalsVt.size(); ++i)
+            {
+                m_normals[i * 3    ] = normalsVt[i][0];
+                m_normals[i * 3 + 1] = normalsVt[i][1];
+                m_normals[i * 3 + 2] = normalsVt[i][2];
+            }
+
+            m_normalIndices.reserve(m_vertexIndices.size());
+            for (unsigned int x = 0; x < m_vertexIndices.size(); ++x)
+            {
+                m_normalIndices.push_back(x);
             }
         }
     }
 
-    _selectionGroupName = prim.GetParent().GetPath().GetName();
-
-    ////////////
-    /// TOPOLOGY
-    ///
-    VtIntArray vertsIndicesArray, nvertsPerFaceArray, creaseIndicesArray, 
-        creaseLengthsArray;
-    VtFloatArray creaseSharpnessArray;
-
-    if (!mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray)) 
-    {
-        host.trace("[GeoData:%d]\tfailed getting faces on %s.",
-                __LINE__, prim.GetPath().GetName().c_str());
-        log.push_back("Failed getting faces on " +
-                      prim.GetPath().GetName());
-        return;// this is not optional!
-    }
-    vector<int> vertsIndices(vertsIndicesArray.begin(), 
-            vertsIndicesArray.end());
-
-    if (!mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray)) 
-    {
-        host.trace("[GeoData:%d]\tfailed getting faces on %s",
-                __LINE__, prim.GetPath().GetName().c_str());
-        log.push_back("Failed getting faces on " +
-                      prim.GetPath().GetName());
-        return;// this is not optional!
-    }
-    vector<int> nvertsPerFace(nvertsPerFaceArray.begin(), 
-            nvertsPerFaceArray.end());
-
-    if (!mesh.GetCreaseIndicesAttr().Get(&creaseIndicesArray))
-    {
-        host.trace("[GeoData:%d]\tfailed getting creases on %s",
-                __LINE__, prim.GetPath().GetName().c_str());
-    }
-
-    _creaseIndices = vector<int>(creaseIndicesArray.begin(), 
-                                 creaseIndicesArray.end());
-
-    host.trace("creaseIndices.size() => %d", _creaseIndices.size());
-    if (_creaseIndices.size() > 0)
-    {
-        if (!mesh.GetCreaseLengthsAttr().Get(&creaseLengthsArray))
-        {
-            host.trace("[GeoData:%d]\tfailed getting crease lengths on %s",
-                       __LINE__, prim.GetPath().GetName().c_str());
-        }
-        _creaseLengths = vector<int>(creaseLengthsArray.begin(), 
-                                     creaseLengthsArray.end());
-
-        if (!mesh.GetCreaseSharpnessesAttr().Get(&creaseSharpnessArray))
-        {
-            host.trace("[GeoData:%d]\tfailed getting crease sharpness on %s",
-                       __LINE__, prim.GetPath().GetName().c_str());
-        }
-        _creaseSharpness = vector<float>(creaseSharpnessArray.begin(), 
-                                         creaseSharpnessArray.end());
-    }
-
-    // process indices to something mari understands:
-    // triangulate and turn everything into facevarying
-    int totalPointCount = 0;
+    // Load vertices and animation frames
+    GfMatrix4d const IDENTITY(1);
     vector<float> points;
-
-    unsigned int nFaces = nvertsPerFace.size();
-    TfToken orientation;
-    bool leftHandedness = false;
-
-    // If any uu or vv values are on integer values, nudge them in to be in
-    // the same span as the rest of the values on the face in question.
-    if (uvSet.length() > 0) {
-        _NudgeUVs(uu, vv, vertsIndices, nvertsPerFace, host);
-    }
-
-    // Get handedness
-    if (mesh.GetOrientationAttr().Get(&orientation)) 
-    {
-        if( orientation == UsdGeomTokens->leftHanded ) 
-        {
-            leftHandedness = true;
-        }
-        else 
-        {
-            leftHandedness = false;
-        }
-    }
-
-
-    ////////////
-    /// ANIMATED DATA:
-    ///     VERTICES
-    ///
     for (unsigned int iFrame = 0; iFrame < frames.size(); ++iFrame) 
     {
-        unsigned int frame = frames[iFrame];
-        host.trace("[GeoData:%d]\tProcessing frame %i: %i", __LINE__, iFrame, frame);
-        double currentTime = double(frame);
+        // Get frame sample corresponding to frame index
+        unsigned int frameSample = frames[iFrame];
+        double currentTime = double(frameSample);
 
+        // Read points for this frame sample
         VtVec3fArray pointsVt;
-        if (!mesh.GetPointsAttr().Get(&pointsVt, frame)) 
+        if (!mesh.GetPointsAttr().Get(&pointsVt, frameSample))
         {
-            host.trace("[GeoData:%d]\tfailed getting faces on %s.",
-                       __LINE__, prim.GetPath().GetName().c_str());
-            log.push_back("Failed getting faces on " +
-                          prim.GetPath().GetName());
+            host.trace("[GeoData:%d]\tfailed getting vertices on %s.", __LINE__, prim.GetPath().GetName().c_str());
+            log.push_back("Failed getting faces on " + prim.GetPath().GetName());
             return;// this is not optional!
         }
         
@@ -361,39 +240,7 @@ GeoData::GeoData(UsdPrim const &prim,
             points[i * 3 + 2] = pointsVt[i][2];
         }
 
-        if (iFrame == 0) 
-        {
-            // only once
-            host.trace("[GeoData:%d]\t%i U uvSet count", __LINE__, uu.size());
-            host.trace("[GeoData:%d]\t%i V uvSet count", __LINE__, vv.size());
-            host.trace("[GeoData:%d]\t%i vertices", __LINE__, points.size());
-            host.trace("[GeoData:%d]\tTopology was computed. Allocating space for"
-                    "arrays.", __LINE__);
-            host.trace("[GeoData:%d]\t\t%i faces", __LINE__, nFaces);
-            host.trace("[GeoData:%d]\t\t%i indices", __LINE__, vertsIndices.size());
-
-            // estimate sizes and reserve space for arrays
-            for (unsigned int iFace = 0; iFace < nFaces; ++iFace)
-                // 3 points per triangle
-                totalPointCount += nvertsPerFace[iFace];
-            _indices.reserve(totalPointCount);
-            _uvIndices.reserve(totalPointCount);
-            // 2 floats per uv
-            if (uvSet.length() > 0) {
-                _uvs.resize(totalPointCount*2);
-            }
-        }
-
-
-
-        // allocate space on vertices, same value on each frame
-        // 3 floats per point
-        host.trace("[GeoData:%d]\tAllocating space for vertices.", __LINE__);
-        _vertices[frame].resize(points.size());
-
-        // calculate transforms.
-        // if not identity, pre-transform all points in place
-        GfMatrix4d const IDENTITY(1);
+        // Calculate transforms - if not identity, pre-transform all points in place
         UsdGeomXformCache xformCache(currentTime);
         GfMatrix4d fullXform = xformCache.GetLocalToWorldTransform(prim);
 
@@ -403,16 +250,12 @@ GeoData::GeoData(UsdPrim const &prim,
             GfMatrix4d m = xformCache.GetLocalToWorldTransform(model);
             fullXform = fullXform * m.GetInverse();
         }
-                
         if (fullXform != IDENTITY)
         {
-            host.trace("\tTransforming points...");
-            int psize = points.size();
+            unsigned int psize = points.size();
             for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
             {
-                GfVec4d p (points[iPoint    ],
-                           points[iPoint + 1],
-                           points[iPoint + 2],1.0);
+                GfVec4d p(points[iPoint], points[iPoint + 1], points[iPoint + 2], 1.0);
                 p = p * fullXform;
                 points[iPoint    ] = p[0];
                 points[iPoint + 1] = p[1];
@@ -420,129 +263,186 @@ GeoData::GeoData(UsdPrim const &prim,
             }
         }
 
-        ////////////
-        ///  COPY ALL THE DATA INTO THE MARI COMPATIBLE STRUCTURES
-        ///
-        host.trace("[GeoData:%d]\tTransfering data to mari-compatible structures", __LINE__);
-        _BuildMariGeoData(frame,
-                          iFrame,
-                          nFaces, 
-                          leftHandedness,
-                          nvertsPerFace,
-                          points,
-                          vertsIndices,
-                          uvSet,
-                          faceVaryingUU,
-                          faceVaryingVV,
-                          uu,
-                          vv,
-                          host);
-
+        // Insert transformed vertices in our map
+        m_vertices[frameSample].resize(points.size());
+        m_vertices[frameSample] = points;
     }
 
-    _CalculateFaceIndices();
-}
-
-
-void
-GeoData::_CalculateFaceIndices() 
-{
-    // set up faceindices for selection sets. It is basically 
-    // all faces of this prim, since that's what mari expects.
-    _faceIndices.resize(_numTriangles);
-    for (int iFaceIndex = 0; iFaceIndex<_numTriangles; ++iFaceIndex)
-        _faceIndices[iFaceIndex] = iFaceIndex;
-}
-
-void
-GeoData::_BuildMariGeoData(const int frame,
-                           const int iFrame,
-                           const int nFaces,
-                           const bool leftHandedness,
-                           const vector<int>& nvertsPerFace,
-                           const vector<float>& points,
-                           const vector<int>& vertIndices,
-                           const string& uvSet,
-                           const bool faceVaryingUU,
-                           const bool faceVaryingVV,
-                           const vector<float>& uu,
-                           const vector<float>& vv,
-                           const MriGeoReaderHost& host)
-{
-    set<int> vertsAdded;
-    unsigned int nVertsOnThisFace;
-    unsigned int iIndexFaceVaryingBase = 0;
-    unsigned int iIndexFaceVarying;
-    unsigned int indexVertex;
-    
-    for (unsigned int iFace = 0; iFace < nFaces; ++iFace) 
+    // DEBUG
+#if defined(PRINT_DEBUG)
     {
-        // host.trace("Face %i", iFace);
-        nVertsOnThisFace = nvertsPerFace[iFace];
-        
-        for (unsigned int iVert = 0; iVert < nVertsOnThisFace; ++iVert) 
+        host.trace("[GeoData:%d]\t\t Face counts %i", __LINE__, m_faceCounts.size());
+    #if defined(PRINT_ARRAYS)
+        for (unsigned int x = 0; x < m_faceCounts.size(); ++x)
         {
-            iIndexFaceVarying = iIndexFaceVaryingBase;
-            if (iVert > 0)
-            {
-                if (leftHandedness)
-                {
-                    // invert 1 and 2
-                    iIndexFaceVarying += nVertsOnThisFace - iVert;
-                }
-                else
-                    iIndexFaceVarying += iVert;
-            }
-
-            if (iIndexFaceVarying >= vertIndices.size())
-            {
-                // host.trace("\t\t\tskip");
-                continue;
-            }
-
-            indexVertex = vertIndices[iIndexFaceVarying];
-
-            if (indexVertex < 0 || indexVertex >= points.size()) {
-                // host.trace("\t\t\t\tbad! force to 0");
-                indexVertex = 0;
-            }
-
-            if (vertsAdded.find(indexVertex) == vertsAdded.end())
-            {
-                // vertex, changes per frame
-                // Convert Z-up to Y-up
-                _vertices[frame][indexVertex * 3] = 
-                    points[indexVertex * 3    ]; // x
-                _vertices[frame][indexVertex * 3 + 1] = 
-                    points[indexVertex * 3 + 2]; // y
-                _vertices[frame][indexVertex * 3 + 2] = 
-                    -points[indexVertex * 3 + 1]; // z
-            }
-                
-            // only assign topology and UVs for the first frame
-            if (iFrame == 0)
-            {
-                _numFaceVertices++;
-                _indices.push_back(indexVertex);
-                
-                // uvs
-                if(uvSet.length() > 0) {
-                    _uvs[iIndexFaceVarying*2] =
-                        uu[faceVaryingUU ? iIndexFaceVarying : indexVertex];
-                    _uvs[iIndexFaceVarying*2+1] = 
-                        vv[faceVaryingVV ? iIndexFaceVarying : indexVertex];
-                    _uvIndices.push_back(iIndexFaceVarying);                    
-                }
-            }
+            host.trace("\t\t face count[%d] : %d", x, m_faceCounts[x]);
         }
-        iIndexFaceVaryingBase+=nVertsOnThisFace;
-        if (iFrame == 0)
+    #endif
+
+        host.trace("[GeoData:%d]\t\t vertex indices %i", __LINE__, m_vertexIndices.size());
+    #if defined(PRINT_ARRAYS)
+        for (unsigned x = 0; x < m_vertexIndices.size(); ++x)
         {
-            _numTriangles++;
-            _vertsPerFace.push_back(nVertsOnThisFace);
+            host.trace("\t\t vertex Index[%d] : %d", x, m_vertexIndices[x]);
+        }
+    #endif
+
+        host.trace("[GeoData:%d]\t\t vertex frame count %i", __LINE__, m_vertices.size());
+        vector<float> vertices0 = m_vertices.begin()->second;
+        host.trace("[GeoData:%d]\t\t vertex @ frame0 count %i", __LINE__, vertices0.size()/3);
+    #if defined(PRINT_ARRAYS)
+        for (unsigned x = 0; x < vertices0.size()/3; ++x)
+        {
+            host.trace("\t\t vertex[%d] : (%f, %f, %f)", x, vertices0[(x*3)+0], vertices0[(x*3)+1], vertices0[(x*3)+2]);
+        }
+    #endif
+
+        host.trace("[GeoData:%d]\t\t uvs count %i", __LINE__, m_uvs.size()/2);
+    #if defined(PRINT_ARRAYS)
+        for(int x = 0; x < m_uvs.size()/2; ++x)
+        {
+            host.trace("\t\t uv[%d] : (%f, %f)", x, m_uvs[(x*2)+0], m_uvs[(x*2)+1]);
+        }
+    #endif
+
+        host.trace("[GeoData:%d]\t\t uv indices %i", __LINE__, m_uvIndices.size());
+    #if defined(PRINT_ARRAYS)
+        for(int x = 0; x < m_uvIndices.size(); ++x)
+        {
+            host.trace("\t\t UV Index[%d] : %d", x, m_uvIndices[x]);
+        }
+    #endif
+
+        host.trace("[GeoData:%d]\t\t normals count %i", __LINE__, m_normals.size()/3);
+    #if defined(PRINT_ARRAYS)
+        for(int x = 0; x < m_normals.size()/3; ++x)
+        {
+            host.trace("\t\t normal[%d] : (%f, %f, %f)", x, m_normals[(x*3)+0], m_normals[(x*3)+1], m_normals[(x*3)+2]);
+        }
+    #endif
+
+        host.trace("[GeoData:%d]\t\t normals indices %i", __LINE__, m_normalIndices.size());
+    #if defined(PRINT_ARRAYS)
+        for(int x = 0; x < m_normalIndices.size(); ++x)
+        {
+            host.trace("\t\t Normal Index[%d] : %d", x, m_normalIndices[x]);
+        }
+    #endif
+    }
+#endif
+
+    // Read OpenSubdiv structures
+    {
+        VtIntArray creaseIndicesArray;
+        if (mesh.GetCreaseIndicesAttr().Get(&creaseIndicesArray))
+        {
+            m_creaseIndices = vector<int>(creaseIndicesArray.begin(), creaseIndicesArray.end());
+        }
+
+        VtIntArray creaseLengthsArray;
+        if (mesh.GetCreaseLengthsAttr().Get(&creaseLengthsArray))
+        {
+            m_creaseLengths = vector<int>(creaseLengthsArray.begin(), creaseLengthsArray.end());
+        }
+
+        VtFloatArray creaseSharpnessArray;
+        if (mesh.GetCreaseSharpnessesAttr().Get(&creaseSharpnessArray))
+        {
+            m_creaseSharpness = vector<float>(creaseSharpnessArray.begin(), creaseSharpnessArray.end());
+        }
+
+        VtIntArray cornerIndicesArray;
+        if (mesh.GetCornerIndicesAttr().Get(&cornerIndicesArray))
+        {
+            m_cornerIndices = vector<int>(cornerIndicesArray.begin(), cornerIndicesArray.end());
+        }
+
+        VtFloatArray cornerSharpnessArray;
+        if (mesh.GetCornerSharpnessesAttr().Get(&cornerSharpnessArray))
+        {
+            m_cornerSharpness = vector<float>(cornerSharpnessArray.begin(), cornerSharpnessArray.end());
+        }
+
+        VtIntArray holeIndicesArray;
+        if (mesh.GetHoleIndicesAttr().Get(&holeIndicesArray))
+        {
+            m_holeIndices = vector<int>(holeIndicesArray.begin(), holeIndicesArray.end());
+        }
+
+        m_isSubdivMesh = false;
+        TfToken subdivisionScheme;
+        if (mesh.GetSubdivisionSchemeAttr().Get(&subdivisionScheme))
+        {
+            if (subdivisionScheme == UsdGeomTokens->none)
+            {
+                // This mesh is not subdivideable
+                m_isSubdivMesh = false;
+            }
+            else
+            {
+                m_isSubdivMesh = true;
+
+                if (subdivisionScheme == UsdGeomTokens->catmullClark)
+                {
+                    m_subdivisionScheme = "catmullClark";
+                }
+                else if (subdivisionScheme == UsdGeomTokens->loop)
+                {
+                    m_subdivisionScheme = "loop";
+                }
+                else if (subdivisionScheme == UsdGeomTokens->bilinear)
+                {
+                    m_subdivisionScheme = "bilinear";
+                }
+
+                TfToken interpolateBoundary;
+                if (mesh.GetInterpolateBoundaryAttr().Get(&interpolateBoundary))
+                {
+                    if (interpolateBoundary == UsdGeomTokens->none)
+                    {
+                        m_interpolateBoundary = 0;
+                    }
+                    else if (interpolateBoundary == UsdGeomTokens->edgeAndCorner)
+                    {
+                        m_interpolateBoundary = 1;
+                    }
+                    else if (interpolateBoundary == UsdGeomTokens->edgeOnly)
+                    {
+                        m_interpolateBoundary = 2;
+                    }
+                }
+
+                TfToken faceVaryingLinearInterpolation;
+                if (mesh.GetFaceVaryingLinearInterpolationAttr().Get(&faceVaryingLinearInterpolation))
+                {
+                    // See MriOpenSubdivDialog::faceVaryingBoundaryInterpolationFromInt for reference
+
+                    if (faceVaryingLinearInterpolation == UsdGeomTokens->all)
+                    {
+                        m_faceVaryingLinearInterpolation = 0;
+                    }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->none)
+                    {
+                        m_faceVaryingLinearInterpolation = 2;
+                    }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->boundaries)
+                    {
+                        m_faceVaryingLinearInterpolation = 3;
+                    }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersPlus1)
+                    {
+                        m_faceVaryingLinearInterpolation = 1;
+                        m_propagateCorner = 0;
+                    }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersPlus2)
+                    {
+                        m_faceVaryingLinearInterpolation = 1;
+                        m_propagateCorner = 1;
+                    }
+                }
+            }
         }
     }
-
 }
 
 GeoData::~GeoData()
@@ -552,41 +452,18 @@ GeoData::~GeoData()
 
 
 // Print the internal status of the Geometric Data.
-void
-GeoData::Log(const MriGeoReaderHost& host)
+void GeoData::Log(const MriGeoReaderHost& host)
 {
-    host.trace("Resulting mari mesh: ");
-    host.trace("\tVertex Array Length: %i floats (%i points)", 
-        _vertices.begin()->second.size(), _vertices.begin()->second.size()/3);
-    host.trace("\tIndex Array Length: %i", _indices.size());
-    host.trace("\tUV Array Length: %i floats (%i uvs)", 
-        _uvs.size(), _uvs.size()/2);
-    host.trace("\tNumTriangles: %i", _numTriangles);
-    host.trace("\tNumCorners: %i", _numFaceVertices);
 }
-
 
 // Cast to bool. False if no good data is found.
 GeoData::operator bool()
 {
-    return (_vertices.size() > 0 && 
-        _vertices.begin()->second.size()>0 && 
-        _indices.size()>0);
+    return (m_vertices.size() > 0 && m_vertices.begin()->second.size()>0 && m_vertexIndices.size()>0);
 }
-
-
-void
-GeoData::GetSelectionGroup(string& name, int & size, int*& faceIndices) 
-{
-    size = _numTriangles;
-    name = _selectionGroupName;
-    faceIndices = &(_faceIndices[0]);
-}
-
 
 // Static - Sanity test to see if the usd prim is something we can use.
-bool
-GeoData::IsValidNode(UsdPrim const &prim)
+bool GeoData::IsValidNode(UsdPrim const &prim)
 {
     if (not prim.IsA<UsdGeomMesh>())
         return false;
@@ -597,8 +474,7 @@ GeoData::IsValidNode(UsdPrim const &prim)
 
 
 // Pre-scan the UsdStage to see what uv sets are included.
-void
-GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
+void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
 {
     UsdGeomGprim   gprim(prim);
     if (not gprim)
@@ -641,19 +517,18 @@ GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
     }
 }
 
-float* 
-GeoData::GetVertices(int frame)
+float* GeoData::GetVertices(int frameSample)
 {
-    if (_vertices.size() > 0)
+    if (m_vertices.size() > 0)
     {
-        if (frame == -1)
-            // no frame specified. Return first found...
-            return &(_vertices.begin()->second[0]);
+        if (m_vertices.find(frameSample) != m_vertices.end())
+        {
+            return &(m_vertices[frameSample][0]);
+        }
         else
         {
-            // some frame requested. Return it if found
-            if (_vertices.find(frame) != _vertices.end())
-                return &(_vertices[frame][0]);
+            // Could not find frame -> let's return frame 0
+            return &(m_vertices.begin()->second[0]);
         }
     }
 
@@ -661,18 +536,29 @@ GeoData::GetVertices(int frame)
     return NULL;
 }
 
-
-void
-GeoData::Reset()
+void GeoData::Reset()
 {
-    _numTriangles = 0;
-    _numFaceVertices = 0;
+    m_vertexIndices.clear();
+    m_faceCounts.clear();
+    m_faceSelectionIndices.clear();
+
+    m_vertices.clear();
+
+    m_normalIndices.clear();
+    m_normals.clear();
+
+    m_uvIndices.clear();
+    m_uvs.clear();
+
+    m_creaseIndices.clear();
+    m_creaseLengths.clear();
+    m_creaseSharpness.clear();
+    m_cornerIndices.clear();
+    m_cornerSharpness.clear();
+    m_holeIndices.clear();
 }
 
-
-
-bool
-GeoData::TestPath(string path) 
+bool GeoData::TestPath(string path)
 {
     bool requiredSubstringFound = true;
     std::vector<std::string>::iterator i;
@@ -703,8 +589,7 @@ GeoData::TestPath(string path)
 }
     
 
-void
-GeoData::InitializePathSubstringLists() 
+void GeoData::InitializePathSubstringLists()
 {
     char * ignoreEnv = getenv(_ignoreGeomPathSubstringEnvVar.c_str());
     char * requireEnv = getenv(_requireGeomPathSubstringEnvVar.c_str());
@@ -723,8 +608,7 @@ GeoData::InitializePathSubstringLists()
 }
 
 template <typename SOURCE, typename TYPE>
-bool
-GeoData::CastVtValueAs(SOURCE &obj, TYPE &result)
+bool GeoData::CastVtValueAs(SOURCE &obj, TYPE &result)
 {
     if ( obj.template CanCast<TYPE>() ) 
     {
@@ -734,79 +618,4 @@ GeoData::CastVtValueAs(SOURCE &obj, TYPE &result)
     }
     return false;
 }
-
-void
-GeoData::_NudgeUVs(
-    vector<float>& u, 
-    vector<float>& v,
-    const vector<int>& vertsIndices,
-    const vector<int>& numVertsPerFace,
-    const MriGeoReaderHost& host)
-{
-    // Loop over all Faces
-    for( int i = 0, j = 0; i < numVertsPerFace.size(); j+=numVertsPerFace[i], i++)
-    {
-        float offset = 0.f;
-        float epsilon = 5.f * FLT_EPSILON;
-        // Loop over all vertices in the face.
-        for (int k = 0; k < numVertsPerFace[i]; ++k)
-        {
-            int iVertex = vertsIndices[j+k];
-
-            // Is the u value on this vertex on an integer boundary?
-            if (floorf(u[iVertex]) == u[iVertex]) {
-                // If so compare it with the u values on the other
-                // vertices of this face and nudge it into the 
-                // span of the rest of them.
-                // e.g. If the vertex in question is 3.0
-                // and another vertex has 3.3, we'll 
-                // add 5*FLT_EPSLION. If another vertex is
-                // 2.8, we'll subtract 5*FLT_EPSILON.
-                
-                offset = 0.f;
-                for(int m = 0; m < numVertsPerFace[i]; ++m)
-                {
-                    if (m == k) continue;
-
-                    int iOtherVertex = vertsIndices[j+m];
-                    
-                    if (u[iVertex] > u[iOtherVertex])
-                    {
-                        offset = -epsilon;
-                        break;
-                    }
-                    if (u[iVertex] < u[iOtherVertex])
-                    {
-                        offset = epsilon;
-                        break;
-                    }
-                }
-                u[iVertex] += offset;
-            }          
-            // Now repeat for v values on this vertex.
-            if (floorf(v[iVertex]) == v[iVertex]) {
-                offset = 0.f;
-                for(int m = 0; m < numVertsPerFace[i]; ++m)
-                {
-                    if (m == k) continue;
-
-                    int iOtherVertex = vertsIndices[j+m];
-                    
-                    if (v[iVertex] > v[iOtherVertex])
-                    {
-                        offset = -epsilon;
-                        break;
-                    }
-                    if (v[iVertex] < v[iOtherVertex])
-                    {
-                        offset = epsilon;
-                        break;
-                    }
-                }
-                v[iVertex] += offset;
-            }          
-        }
-    }
-}
-
 

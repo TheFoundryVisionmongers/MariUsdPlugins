@@ -40,6 +40,8 @@
 #include "pxr/usd/usd/stageCache.h"
 #include "pxr/usd/usd/stageCacheContext.h"
 #include "pxr/usd/usdGeom/mesh.h"
+#include "pxr/usd/usdGeom/metrics.h"
+
 #include <sstream>
 #include <string>
 #include <time.h>
@@ -76,7 +78,10 @@ UsdReader::_OpenUsdStage()
         return NULL;
     }
 
-    _host.trace("[%s:%d] ABOUT TO LOAD STAGE!!! from %s", _pluginName, __LINE__, _fileName);
+    TfToken upAxis = UsdGeomGetStageUpAxis(stage);
+   // UsdGeomSetStageUpAxis(stage, upAxis);
+
+    _host.trace("[%s:%d] ABOUT TO LOAD STAGE!!! from %s : '%s'", _pluginName, __LINE__, _fileName, upAxis.data());
 
     // reload the stage to flush any USD level cache
     stage->Reload();
@@ -133,13 +138,14 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     vector<SdfPath> variantSelections;
     bool keepCentered = false;
     bool includeInvisible = false;
+    bool createFaceSelectionGroups = false;
 
     /////// GET PARAMETERS ////////
     _GetMariAttributes(Entity,
                        loadOption, mergeOption,
                        frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections, 
-                       keepCentered, includeInvisible);
+                       keepCentered, includeInvisible, createFaceSelectionGroups);
 
     bool loadFirstOnly = loadOption=="First Found";
     bool loadAll = loadOption=="All Models";
@@ -201,6 +207,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 break;
             }
 
+            _host.trace("[ -- ] %s:%d Parsing mesh '%s', '%s'", _pluginName, __LINE__, primIt->GetPath().GetText(), thisModelData.instanceName.c_str());
+
             if(loadAll || loadFirstOnly)
             {
                 // load this model because "All" or "First Found" is requested
@@ -209,7 +217,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             else
             {
                 // otherwise, load this model only if it's specified in "Model Names"
-                std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), thisModelData.instanceName);
+                std::vector<std::string>::iterator it = std::find(requestedModelNames.begin(), requestedModelNames.end(), primIt->GetPath().GetText());
                 loadThisModel = it!=requestedModelNames.end();
             }
 
@@ -240,21 +248,20 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         {
             if(visibility == UsdGeomTokens->invisible) 
             {
-                _host.trace("%s:%d] %s Is invisible", 
-                    _pluginName, __LINE__, primIt->GetPath().GetText());
+                /*_host.trace("%s:%d] %s Is invisible",
+                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
                 primIt.PruneChildren();
                 continue;
             } else {
-                _host.trace("%s:%d] %s Is visible", 
-                    _pluginName, __LINE__, primIt->GetPath().GetText());
+                /*_host.trace("%s:%d] %s Is visible",
+                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
             }
                 
         }
 
         if (not GeoData::IsValidNode(*primIt)) 
         {
-            _host.trace("%s:%d] %s Not a valid node", 
-                    _pluginName, __LINE__, primIt->GetPath().GetText());
+            _host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());
             // not even a gprim.
             continue;
         }
@@ -269,8 +276,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         // gprims. 2(O^2). 
 
 
-        _host.trace("%s:%d] looking for %s and %s in requested names %d.", 
-                    _pluginName, __LINE__, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
+        //_host.trace("%s:%d] looking for %s and %s in requested names %d.", 
+        //            _pluginName, __LINE__, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
         if (
             requestedGprimNames.size() > 0 &&
             (std::find(requestedGprimNames.begin(),
@@ -336,8 +343,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         for (auto prim: modelData->gprims)
         {
             // Create a mari-compatible geometry
-            GeoData Geom(prim, UVSet,
-                         frames, keepCentered, modelData->mprim, _host, _log);
+            GeoData Geom(prim, UVSet, frames, keepCentered, modelData->mprim, _host, _log);
             if (Geom)
             {
 
@@ -362,8 +368,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                     handle = prim.GetPath().GetText();
                 }
 
-                _MakeGeoEntity(Geom, entityToPopulate,
-                    handle, frames);
+                _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
             }
         }
 
@@ -388,9 +393,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         // Note, this was removed in earlier iterations, but looks like it could
         // be useful to keep for the logging of errors
         _host.trace("[%s:%d] No valid geometry with uv set %s found in %s",
-            _pluginName, UVSet.c_str(), _fileName);
+            _pluginName, __LINE__, UVSet.c_str(), _fileName);
         _host.trace("[%s:%d] Was looking for %s", 
-            _pluginName, requestedModelName.c_str());
+            _pluginName, __LINE__, requestedModelName.c_str());
         _log.push_back("No valid geometry with uv set " + UVSet +
                        " found in " + std::string(_fileName) + ".");
         _log.push_back("Was looking for " + requestedModelName);
@@ -419,7 +424,28 @@ UsdReader::_GetFrameList(const string &frameString, vector<int> &frames)
     for (vector<string>::iterator it = framesStringTokens.begin();
             it != framesStringTokens.end();
             ++it)
-        frames.push_back(int(TfStringToDouble(*it)));
+    {
+        // Process range values
+        std::vector<std::string> rangeStringTokens = TfStringTokenize(*it, "-");
+        if (!rangeStringTokens.empty() && rangeStringTokens.size() == 2)
+        {
+            int startFrame = int(TfStringToDouble(rangeStringTokens[0]));
+            int endFrame = int(TfStringToDouble(rangeStringTokens[1]));
+            for (int frame = startFrame; frame <= endFrame; ++frame)
+            {
+                frames.push_back(frame);
+            }
+
+        }
+        else
+        {
+            // Single frame
+            frames.push_back(int(TfStringToDouble(*it)));
+        }
+    }
+
+    // Reorder our frames
+    std::sort(frames.begin(), frames.begin());
 }
 
 void 
@@ -440,144 +466,302 @@ UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPat
     }
 }
 
-MriGeoPluginResult
-UsdReader::_MakeGeoEntity(
-    GeoData &Geom, 
-    MriGeoEntityHandle &Entity,
-    string label,
-    const vector<int> &frames)
+MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups)
 {
-    MriGeoDataHandle FaceVertexCounts, Vertices, Indices, UVs, UVIndices;
-    MriGeoDataHandle CreaseIndices, CreaseLengths, CreaseSharpness;
-    MriGeoObjectHandle Object;
+    MriGeoDataHandle FaceVertexCounts, Vertices, Normals, VertexIndices, NormalIndices;
+    MriGeoDataHandle UVs, UVIndices;
+    MriGeoDataHandle CreaseIndices, CreaseLengths, CreaseSharpness, CornerIndices, CornerSharpness, Holes;
+    MriGeoObjectHandle MeshObject;
     MriGeoPluginResult Result;
-    CHECK_RESULT(_host.createGeoData(Entity, 
-                                     Geom.GetFaceVertexCounts(), 
-                                     Geom.GetNumTriangles() * sizeof(unsigned),
-                                     MRI_GDT_U32_BUFFER, 
-                                     MRI_GDR_MESH_FACE_VERTEX_COUNTS, 
-                                     &FaceVertexCounts));
-    CHECK_RESULT(_host.createGeoData(Entity, 
-                                     Geom.GetVertices(), 
+
+    // 1 Create a version - not needed, as Mari creates a default one for us
+
+    // 2. Create our geometry data channels
+    CHECK_RESULT(_host.createGeoData(Entity,
+                                     Geom.GetVertices(0),
                                      Geom.GetNumPoints() * sizeof(float),
-                                     MRI_GDT_FLOAT_BUFFER, 
-                                     MRI_GDR_MESH_VERTICES, 
+                                     MRI_GDT_FLOAT_BUFFER,
+                                     MRI_GDR_MESH_VERTICES,
                                      &Vertices));
-    CHECK_RESULT(_host.createGeoData(Entity, 
-                                     Geom.GetIndices(), 
-                                     Geom.GetNumIndices() * sizeof(unsigned int),
-                                     MRI_GDT_U32_BUFFER, 
-                                     MRI_GDR_MESH_VERTEX_INDICES, 
-                                     &Indices));
+    CHECK_RESULT(_host.createGeoData(Entity,
+                                     Geom.GetVertexIndices(),
+                                     Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                     MRI_GDT_U32_BUFFER,
+                                     MRI_GDR_MESH_VERTEX_INDICES,
+                                     &VertexIndices));
+    CHECK_RESULT(_host.createGeoData(Entity,
+                                     Geom.GetFaceVertexCounts(),
+                                     Geom.GetNumFaceVertexCounts() * sizeof(unsigned int),
+                                     MRI_GDT_U32_BUFFER,
+                                     MRI_GDR_MESH_FACE_VERTEX_COUNTS,
+                                     &FaceVertexCounts));
 
-    if (Geom.GetNumCreaseIndices() > 0)
+    if (Geom.HasNormals())
     {
-        _host.trace("setting crease lengths");
-        CHECK_RESULT(_host.createGeoData(Entity, 
-                                         Geom.GetCreaseLengths(),
-                                         Geom.GetNumCreaseLengths() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER, 
-                                         MRI_GDR_MESH_SUBD_CREASE_LENGTHS, 
-                                         &CreaseLengths));
-
-        _host.trace("setting crease indices %d", MRI_GDR_MESH_SUBD_CREASE_INDICES);
-        CHECK_RESULT(_host.createGeoData(Entity, 
-                                         Geom.GetCreaseIndices(),
-                                         Geom.GetNumCreaseIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER, 
-                                         MRI_GDR_MESH_SUBD_CREASE_INDICES, 
-                                         &CreaseIndices));
-
-        _host.trace("setting crease sharpness");
-        CHECK_RESULT(_host.createGeoData(Entity, 
-                                         Geom.GetCreaseSharpness(),
-                                         Geom.GetNumCreaseSharpness() * sizeof(float),
-                                         MRI_GDT_FLOAT_BUFFER, 
-                                         MRI_GDR_MESH_SUBD_CREASE_SHARPNESS, 
-                                         &CreaseSharpness));
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetNormals(),
+                                         Geom.GetNumNormals() * sizeof(float),
+                                         MRI_GDT_FLOAT_BUFFER,
+                                         MRI_GDR_MESH_NORMALS,
+                                         &Normals));
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetNormalIndices(),
+                                         Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_NORMAL_INDICES,
+                                         &NormalIndices));
     }
-
-
-    if(Geom.HasUVs()) {
-        CHECK_RESULT(_host.createGeoData(
-                         Entity, Geom.GetUVs(), Geom.GetNumFaceVertices() * 
-                         2 * sizeof(float),
-                         MRI_GDT_FLOAT_BUFFER, MRI_GDR_MESH_UV0, &UVs));
-        CHECK_RESULT(_host.createGeoData(
-                         Entity, Geom.GetUVIndices(), Geom.GetNumIndices() * 
-                         sizeof(unsigned int),
-                         MRI_GDT_U32_BUFFER, 
-                         MRI_GDR_MESH_UV0_INDICES, 
-                         &UVIndices));
-    }
-
-    // Create geo object and add data        
-    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), 
-            Geom.GetNumTriangles(), &Object));
-
-    // Add data to geo object
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, FaceVertexCounts));
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, Vertices));
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, Indices));
-    if(Geom.HasUVs()) {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, UVs));
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, UVIndices));
-    }
-    
-    if (Geom.GetNumCreaseIndices() > 0)
+    if (Geom.HasUVs())
     {
-        _host.trace("Adding creases");
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseIndices));
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseLengths));
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, Object, CreaseSharpness));
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetUVs(),
+                                         Geom.GetNumUvs() * sizeof(float),
+                                         MRI_GDT_FLOAT_BUFFER,
+                                         MRI_GDR_MESH_UV0,
+                                         &UVs));
+        CHECK_RESULT(_host.createGeoData(Entity,
+                                         Geom.GetUVIndices(),
+                                         Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                         MRI_GDT_U32_BUFFER,
+                                         MRI_GDR_MESH_UV0_INDICES,
+                                         &UVIndices));
+    }
+
+    if (Geom.IsSubdivMesh())
+    {
+        if (Geom.GetNumCreaseIndices() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetCreaseLengths(),
+                                             Geom.GetNumCreaseLengths() * sizeof(unsigned int),
+                                             MRI_GDT_U32_BUFFER,
+                                             MRI_GDR_MESH_SUBD_CREASE_LENGTHS,
+                                             &CreaseLengths));
+        }
+        if (Geom.GetNumCreaseLengths() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetCreaseIndices(),
+                                             Geom.GetNumCreaseIndices() * sizeof(unsigned int),
+                                             MRI_GDT_U32_BUFFER,
+                                             MRI_GDR_MESH_SUBD_CREASE_INDICES,
+                                             &CreaseIndices));
+        }
+        if (Geom.GetNumCreaseSharpness() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetCreaseSharpness(),
+                                             Geom.GetNumCreaseSharpness() * sizeof(float),
+                                             MRI_GDT_FLOAT_BUFFER,
+                                             MRI_GDR_MESH_SUBD_CREASE_SHARPNESS,
+                                             &CreaseSharpness));
+        }
+        if (Geom.GetNumCornerIndices() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetCornerIndices(),
+                                             Geom.GetNumCornerIndices() * sizeof(unsigned int),
+                                             MRI_GDT_U32_BUFFER,
+                                             MRI_GDR_MESH_SUBD_CORNER_INDICES,
+                                             &CornerIndices));
+        }
+        if (Geom.GetNumCornerSharpness() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetCornerSharpness(),
+                                             Geom.GetNumCornerSharpness() * sizeof(float),
+                                             MRI_GDT_FLOAT_BUFFER,
+                                             MRI_GDR_MESH_SUBD_CORNER_SHARPNESS,
+                                             &CornerSharpness));
+        }
+        if (Geom.GetNumHoleIndices() > 0)
+        {
+            CHECK_RESULT(_host.createGeoData(Entity,
+                                             Geom.GetHoleIndicess(),
+                                             Geom.GetNumHoleIndices() * sizeof(unsigned int),
+                                             MRI_GDT_U32_BUFFER,
+                                             MRI_GDR_MESH_SUBD_HOLES,
+                                             &Holes));
+        }
+    }
+
+    // 3. Create Mesh and add data channels to it
+    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), &MeshObject));
+    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Vertices));
+    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, VertexIndices));
+    if (Geom.HasNormals())
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Normals));
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, NormalIndices));
+    }
+    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, FaceVertexCounts));
+    if (Geom.HasUVs())
+    {
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVs));
+        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVIndices));
+    }
+    if (Geom.IsSubdivMesh())
+    {
+        if (Geom.GetNumCreaseIndices() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseIndices));
+        }
+        if (Geom.GetNumCreaseLengths() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseLengths));
+        }
+        if (Geom.GetNumCreaseSharpness() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseSharpness));
+        }
+        if (Geom.GetNumCornerIndices() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerIndices));
+        }
+        if (Geom.GetNumCornerSharpness() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerSharpness));
+        }
+        if (Geom.GetNumHoleIndices() > 0)
+        {
+            CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Holes));
+        }
+
+        CHECK_RESULT(_host.setSubdivisionOnMeshObject(Entity,
+                                                      MeshObject,
+                                                      Geom.SubdivisionScheme().c_str(),
+                                                      Geom.InterpolateBoundary(),
+                                                      Geom.FaceVaryingLinearInterpolation(),
+                                                      Geom.PropagateCorner()));
     }
 
     // Load animated frames
-    if (frames.size() > 1)
+    // The structures before have added a default entry in the channels' data refererences with frame=0
+    for (unsigned int frameIndex = 0; frameIndex<frames.size(); ++frameIndex)
     {
-        for (unsigned int i = 0; i<frames.size(); ++i)
+        int frame = frames[frameIndex];
+        if (frame == 0)
         {
-            int frame = frames[i];
-            /*
-             * The following channels are mandatory for subdivision to work in
-             * Mari 3:
-             *     - Vertices
-             *     - Indices (of the vertices)
-             *     - FaceVertexCounts
-             * If any of these channels are missing, subdivision on animated
-             * frames will not work, and the animated frames will appear to
-             * be stuck on the first frame.
-             */
-            CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, Vertices, frame, Geom.GetVertices(frame),
-                    Geom.GetNumPoints() * sizeof(float)));
-            CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, Indices, frame, Geom.GetIndices(),
-                    Geom.GetNumIndices() * sizeof(unsigned int)));
-            CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, FaceVertexCounts, frame, Geom.GetFaceVertexCounts(),
-                    Geom.GetNumTriangles() * sizeof(unsigned)));
-            /*
-             * Apparently Mari now wants UV data for each frame, even if that data
-             * is the same for each frame..
-             */
-            if(Geom.HasUVs()) {
-                CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, UVs, frame, Geom.GetUVs(),
-                    Geom.GetNumFaceVertices() * 2 *  sizeof(float)));
-                CHECK_RESULT(_host.setGeoDataForFrame(
-                    Entity, UVIndices, frame, Geom.GetUVIndices(),
-                    Geom.GetNumIndices() * sizeof(unsigned int)));
+            // We've already added ddi references for frame = 0, no need to do that again - Skip
+            continue;
+        }
+
+        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                              Vertices,
+                                              frame,
+                                              Geom.GetVertices(frame),
+                                              Geom.GetNumPoints() * sizeof(float)));
+
+        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                              VertexIndices,
+                                              frame,
+                                              Geom.GetVertexIndices(),
+                                              Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+
+        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                              FaceVertexCounts,
+                                              frame,
+                                              Geom.GetFaceVertexCounts(),
+                                              Geom.GetNumFaceVertexCounts() * sizeof(unsigned)))
+        if (Geom.HasNormals())
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  Normals,
+                                                  frame,
+                                                  Geom.GetNormals(),
+                                                  Geom.GetNumNormals() * sizeof(float)));
+
+            // REQUIRED To prevent Mari from automatically reindexing for latter frames and creating mangled rendereing
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  NormalIndices,
+                                                  frame,
+                                                  Geom.GetNormalIndices(),
+                                                  Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+        }
+        if (Geom.HasUVs())
+        {
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  UVs,
+                                                  frame,
+                                                  Geom.GetUVs(),
+                                                  Geom.GetNumUvs() * sizeof(float)));
+            // REQUIRED To prevent Mari from automatically reindexing for latter frames and creating mangled rendereing
+            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                  UVIndices,
+                                                  frame,
+                                                  Geom.GetUVIndices(),
+                                                  Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+        }
+
+        if (Geom.IsSubdivMesh())
+        {
+            if (Geom.GetNumCreaseIndices() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      CreaseLengths,
+                                                      frame,
+                                                      Geom.GetCreaseLengths(),
+                                                      Geom.GetNumCreaseLengths() * sizeof(unsigned int)));
+            }
+            if (Geom.GetNumCreaseLengths() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      CreaseIndices,
+                                                      frame,
+                                                      Geom.GetCreaseIndices(),
+                                                      Geom.GetNumCreaseIndices() * sizeof(unsigned int)));
+            }
+            if (Geom.GetNumCreaseSharpness() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      CreaseSharpness,
+                                                      frame,
+                                                      Geom.GetCreaseSharpness(),
+                                                      Geom.GetNumCreaseSharpness() * sizeof(float)));
+            }
+            if (Geom.GetNumCornerIndices() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      CornerIndices,
+                                                      frame,
+                                                      Geom.GetCornerIndices(),
+                                                      Geom.GetNumCornerIndices() * sizeof(unsigned int)));
+            }
+            if (Geom.GetNumCornerSharpness() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      CornerSharpness,
+                                                      frame,
+                                                      Geom.GetCornerSharpness(),
+                                                      Geom.GetNumCornerSharpness() * sizeof(float)));
+            }
+            if (Geom.GetNumHoleIndices() > 0)
+            {
+                CHECK_RESULT(_host.setGeoDataForFrame(Entity,
+                                                      Holes,
+                                                      frame,
+                                                      Geom.GetHoleIndicess(),
+                                                      Geom.GetNumHoleIndices() * sizeof(unsigned int)));
             }
         }
     }
 
+    // 4. Add Mesh object to version - unneeded since we did not create a default version
+
+    // 5. Add face selection groups
+    if (createFaceSelectionGroups)
+    {
+        char pszBuffer[256];
+
+        MriSelectionGroupHandle FaceSelection;
+
+        snprintf(pszBuffer, sizeof(pszBuffer), "Faces_%s", label.c_str());
+        CHECK_RESULT(_host.createSelectionGroup(Entity, pszBuffer, &FaceSelection));
+        CHECK_RESULT(_host.addFacesToSelectionGroup(Entity, FaceSelection, MeshObject, Geom.GetFaceSelectionIndices(), Geom.GetNumFaceVertexCounts()));
+    }
+
     return MRI_GPR_SUCCEEDED;
 }
-
-
-
-
 
 void
 UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
@@ -620,13 +804,15 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     std::string& UVSet,
                                     vector<SdfPath>& variantSelections,
                                     bool& keepCentered,
-                                    bool& includeInvisible)
+                                    bool& includeInvisible,
+                                    bool& createFaceSelectionGroups)
 {
     MriAttributeValue Value;
 
     // detect requested load option
     if (_host.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
         loadOption = Value.m_pString;
+
     _host.trace("%s:%d] requested Load Option %s", _pluginName, __LINE__,
                 loadOption.c_str());
 
@@ -640,6 +826,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     std::string modelNamesString;
     if (_host.getAttribute(Entity, "Model Names", &Value) == MRI_UPR_SUCCEEDED)
         modelNamesString = Value.m_pString;
+
     requestedModelNames = TfStringTokenize(modelNamesString, ",");
 
     _host.trace("%s:%d] requested modelNames %s", _pluginName, __LINE__,
@@ -658,6 +845,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
             MRI_UPR_SUCCEEDED)
         frameString = Value.m_pString;
+
     _GetFrameList(frameString, frames);
     for (int iFrame = 0; iFrame<frames.size(); ++iFrame)
         _host.trace("%s:%d] requested frame number %i", _pluginName, __LINE__, 
@@ -693,6 +881,13 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         includeInvisible = (Value.m_Int !=0);
     if( !includeInvisible )
         _host.trace("%s:%d] Discarding invisible gprims.", _pluginName, __LINE__);
+
+    // detect if we want to create face selection groups
+    if( _host.getAttribute(Entity, "createFaceSelectionGroups", &Value) ==
+        MRI_UPR_SUCCEEDED )
+        createFaceSelectionGroups = (Value.m_Int !=0);
+    if( createFaceSelectionGroups )
+        _host.trace("%s:%d] Will create face selection groups.", _pluginName, __LINE__);
 }
 
 void

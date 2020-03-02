@@ -82,78 +82,83 @@ public:
                 
         // reset
         void Reset();
-        
-        // get
-        float* GetVertices(int frame = -1);
-        float* GetNormals(int frame = -1);
-
-        // return recommended selection set name, number of faces
-        // and face indices for this geom.
-        void GetSelectionGroup(std::string& name, 
-            int &size, int*& faceIndices);
 
         typedef unsigned* uptr;
 
-        inline uptr GetIndices() {return (unsigned*)&(_indices[0]);}
-        inline uptr GetFaceIndices() {return (unsigned*)&(_faceIndices[0]);}
-        inline uptr GetFaceVertexCounts() {return (unsigned*)&(_vertsPerFace[0]);}
-        inline uptr GetCreaseIndices() {return (unsigned*)&(_creaseIndices[0]);}
-        inline uptr GetCreaseLengths() {return (unsigned*)&(_creaseLengths[0]);}
-        inline float* GetCreaseSharpness() {return &(_creaseSharpness[0]);}
-        inline float* GetUVs() {return &(_uvs[0]);}
-        inline uptr GetUVIndices() {return (unsigned*)&(_uvIndices[0]);}
-        inline bool HasUVs() {return (_uvs.size() != 0);}
-        inline int GetNumTriangles() {return _numTriangles;}
-        inline int GetNumPoints() {return _vertices.begin()->second.size();}
-        inline int GetNumIndices() {return _indices.size();}
-        inline int GetNumFaceVertices() {return _numFaceVertices;}
-        inline int GetNumFaceVertexCounts() {return _numFaceVertCounts;}
-        inline int GetNumCreaseIndices() {return _creaseIndices.size();}
-        inline int GetNumCreaseLengths() {return _creaseLengths.size();}
-        inline int GetNumCreaseSharpness() {return _creaseSharpness.size();}
+        inline uptr GetVertexIndices() {return (unsigned*)&(m_vertexIndices[0]);}
+        inline int GetNumVertexIndices() {return m_vertexIndices.size();}
+
+        inline uptr GetFaceVertexCounts() {return (unsigned*)&(m_faceCounts[0]);}
+        inline int GetNumFaceVertexCounts() {return m_faceCounts.size();}
+
+        inline int* GetFaceSelectionIndices() {return &(m_faceSelectionIndices[0]);}
+
+        float* GetVertices(int frameSample);
+        inline int GetNumPoints() {return m_vertices.begin()->second.size();}
+
+        inline bool HasNormals() {return (m_normals.size() != 0);}
+        inline uptr GetNormalIndices() {return (unsigned*)&(m_normalIndices[0]);}
+        inline float* GetNormals() {return &(m_normals[0]);}
+        inline int GetNumNormals() {return m_normals.size();}
+
+        inline bool HasUVs() {return (m_uvs.size() != 0);}
+        inline uptr GetUVIndices() {return (unsigned*)&(m_uvIndices[0]);}
+        inline float* GetUVs() {return &(m_uvs[0]);}
+        inline int GetNumUvs() {return m_uvs.size();}
+
+        inline uptr GetCreaseIndices() {return (unsigned*)&(m_creaseIndices[0]);}
+        inline int GetNumCreaseIndices() {return m_creaseIndices.size();}
+
+        inline uptr GetCreaseLengths() {return (unsigned*)&(m_creaseLengths[0]);}
+        inline int GetNumCreaseLengths() {return m_creaseLengths.size();}
+
+        inline float* GetCreaseSharpness() {return &(m_creaseSharpness[0]);}
+        inline int GetNumCreaseSharpness() {return m_creaseSharpness.size();}
+
+        inline uptr GetCornerIndices() {return (unsigned*)&(m_cornerIndices[0]);}
+        inline int GetNumCornerIndices() {return m_cornerIndices.size();}
+
+        inline float* GetCornerSharpness() {return &(m_cornerSharpness[0]);}
+        inline int GetNumCornerSharpness() {return m_cornerSharpness.size();}
+
+        inline uptr GetHoleIndicess() {return (unsigned*)&(m_holeIndices[0]);}
+        inline int GetNumHoleIndices() {return m_holeIndices.size();}
+
+        inline bool IsSubdivMesh() {return m_isSubdivMesh;}
+        inline std::string SubdivisionScheme() {return m_subdivisionScheme;}
+        inline int InterpolateBoundary() {return m_interpolateBoundary;}
+        inline int FaceVaryingLinearInterpolation() {return m_faceVaryingLinearInterpolation;}
+        inline int PropagateCorner() {return m_propagateCorner;}
 
         // is valid?
         operator bool();
 
-private:
-        void _NudgeUVs(std::vector<float>& u, 
-                       std::vector<float>& v, 
-                       const std::vector<int>& vertsIndices,
-                       const std::vector<int>& numVertsPerFace,
-                       const MriGeoReaderHost& host);
-        void _BuildMariGeoData(const int frame,
-                               const int iFrame,
-                               const int nFaces,
-                               const bool leftHandedness,
-                               const std::vector<int>& nvertsPerFace,
-                               const std::vector<float>& points,
-                               const std::vector<int>& vertIndices,
-                               const std::string& uvSet,
-                               const bool faceVaryingUU,
-                               const bool faceVaryingVV,
-                               const std::vector<float>& uu,
-                               const std::vector<float>& vv,
-                               const MriGeoReaderHost& host);
-        void _CalculateFaceIndices();
-
-        
 protected:
-        int _numTriangles;
-        int _numFaceVertices;
-        int _numFaceVertCounts;
-        
-        std::vector<float> _uvs;
-        std::vector<int> _uvIndices;
-        std::vector<float> _creaseSharpness;
-        std::map<int, std::vector<float> > _vertices;
-        std::map<int, std::vector<float> > _normals;
-        std::vector<unsigned int> _indices;
-        std::vector<int> _faceIndices;   // used for selection sets
-        std::vector<int> _normalIndices;
-        std::vector<int> _creaseIndices;
-        std::vector<int> _creaseLengths;
-        std::vector<int> _vertsPerFace;
-        std::string _selectionGroupName;
+        std::vector<int> m_vertexIndices;
+        std::vector<int> m_faceCounts;
+        std::vector<int> m_faceSelectionIndices;
+
+        std::map<int, std::vector<float> > m_vertices;
+
+        std::vector<int> m_normalIndices;
+        std::vector<float> m_normals;
+
+        std::vector<int> m_uvIndices;
+        std::vector<float> m_uvs;
+
+        std::vector<int> m_creaseIndices;
+        std::vector<int> m_creaseLengths;
+        std::vector<float> m_creaseSharpness;
+        std::vector<int> m_cornerIndices;
+        std::vector<float> m_cornerSharpness;
+        std::vector<int> m_holeIndices;
+
+        bool m_isSubdivMesh;
+        std::string m_subdivisionScheme;
+        int m_interpolateBoundary;
+        int m_faceVaryingLinearInterpolation;
+        int m_propagateCorner;
+
         static std::string _requireGeomPathSubstringEnvVar;
         static std::string _ignoreGeomPathSubstringEnvVar;
         static std::vector<std::string> _requireGeomPathSubstring;

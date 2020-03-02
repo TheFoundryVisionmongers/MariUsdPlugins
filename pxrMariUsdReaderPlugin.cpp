@@ -176,6 +176,12 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     IncludeInvisibleValue.m_Int = 0;
     host.setAttribute(SettingsHandle, "Include Invisible", &IncludeInvisibleValue);
 
+    // Include CreateFaceSelectionGroups
+    MriAttributeValue CreateFaceSelectionGroupsValue;
+    CreateFaceSelectionGroupsValue.m_Type = MRI_ATTR_BOOL;
+    CreateFaceSelectionGroupsValue.m_Int = 0;
+    host.setAttribute(SettingsHandle, "Create Face Selection Group per mesh", &CreateFaceSelectionGroupsValue);
+
     return res;
 }
 
@@ -207,7 +213,7 @@ FnPluginStatus setHost(const FnPluginHost *pHost)
 #if MARI_VERSION < 30
             MRI_GEO_READER_API_VERSION);
 #else
-            3001);
+            4006);
 #endif
 
     if (pHostSuite == NULL)
@@ -232,7 +238,7 @@ extern "C"
         s_Plugin.pluginVersionMajor = 1;
         s_Plugin.pluginVersionMinor = 0;
         s_Plugin.apiName = MRI_GEO_READER_API_NAME;
-        s_Plugin.apiVersion = MRI_GEO_READER_API_VERSION;
+        s_Plugin.apiVersion = 4006;
         s_Plugin.setHost = &setHost;
         s_Plugin.getSuite = &getPluginSuite;
         s_Plugin.flush = &flushPluginSuite;

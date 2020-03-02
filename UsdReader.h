@@ -64,7 +64,8 @@ class UsdReader
         MriGeoPluginResult _MakeGeoEntity(GeoData &Geom, 
                 MriGeoEntityHandle &Entity, 
                 std::string label, 
-                const std::vector<int> &frames);
+                const std::vector<int> &frames,
+                bool createFaceSelectionGroups);
         
         static void _GetFrameList(const std::string &frameString, 
                 std::vector<int> &frames);
@@ -87,7 +88,8 @@ class UsdReader
                 std::string& UVSet,
                 std::vector<PXR_NS::SdfPath>& variantSelections,
                 bool& keepCentered,
-                bool& includeInvisible);
+                bool& includeInvisible,
+                bool& createFaceSelectionGroups);
 
         void _SaveMetadata(
                 MriGeoEntityHandle &Entity,
