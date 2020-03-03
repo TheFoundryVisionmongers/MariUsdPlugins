@@ -199,7 +199,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
         // get this model Data
         ModelData thisModelData (*primIt, UVSet);
-        if (thisModelData) 
+        if (thisModelData)
         {
             if(oneModelLoaded && loadFirstOnly)
             {
@@ -232,9 +232,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 // Reset currentModelData to null so that the gprims belonging to this model will not get loaded
                 currentModelData = nullptr;
             }
-
-            // if this node is a model, it is not a gprim: continue to next.
-            continue;
         }
 
         if (not loadThisModel) 
@@ -256,7 +253,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 /*_host.trace("%s:%d] %s Is visible",
                     _pluginName, __LINE__, primIt->GetPath().GetText());*/
             }
-                
         }
 
         if (not GeoData::IsValidNode(*primIt)) 

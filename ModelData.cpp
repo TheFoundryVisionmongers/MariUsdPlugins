@@ -30,7 +30,6 @@
 
 #include "ModelData.h"
 #include "pxr/base/tf/stringUtils.h"
-#include "pxr/usd/usd/modelAPI.h"
 #include <sstream>
 
 using namespace std;
@@ -48,14 +47,9 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 ModelData::ModelData(UsdPrim prim, string wantedUvSet)
 {
-    UsdModelAPI schema(prim);
-    if (schema.IsModel()) 
-    {
-        // this might be in a shot
-        fullPath = modelName = instanceName = label = modelPath =
-            prim.GetPath().GetName();
-        uvSet = wantedUvSet;
-    }
+    // this might be in a shot
+    fullPath = modelName = instanceName = label = modelPath = prim.GetPath().GetName();
+    uvSet = wantedUvSet;
 }
 
 

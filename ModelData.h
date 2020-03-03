@@ -39,12 +39,7 @@
 
 struct ModelData
 {
-    /* 
-    This structure keeps track of valid models, 
-    as defined in the pixar pipeline.
-    Model Groups are not considered models for our purposes.
-    One ModelData struct can have a lot of gprims.
-    */
+    //This structure keeps track of valid models. One ModelData struct can have a lot of gprims.
 public:
     std::string fullPath;
     std::string instanceName;
