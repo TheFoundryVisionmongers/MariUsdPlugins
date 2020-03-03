@@ -396,7 +396,7 @@ GeoData::GeoData(UsdPrim const &prim,
                 }
 
                 TfToken interpolateBoundary;
-                if (mesh.GetInterpolateBoundaryAttr().Get(&interpolateBoundary))
+                if (mesh.GetInterpolateBoundaryAttr().Get(&interpolateBoundary, UsdTimeCode::EarliestTime()))
                 {
                     if (interpolateBoundary == UsdGeomTokens->none)
                     {
@@ -413,13 +413,18 @@ GeoData::GeoData(UsdPrim const &prim,
                 }
 
                 TfToken faceVaryingLinearInterpolation;
-                if (mesh.GetFaceVaryingLinearInterpolationAttr().Get(&faceVaryingLinearInterpolation))
+                if (mesh.GetFaceVaryingLinearInterpolationAttr().Get(&faceVaryingLinearInterpolation, UsdTimeCode::EarliestTime()))
                 {
                     // See MriOpenSubdivDialog::faceVaryingBoundaryInterpolationFromInt for reference
 
                     if (faceVaryingLinearInterpolation == UsdGeomTokens->all)
                     {
                         m_faceVaryingLinearInterpolation = 0;
+                    }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersPlus1)
+                    {
+                        m_faceVaryingLinearInterpolation = 1;
+                        m_propagateCorner = 0;
                     }
                     else if (faceVaryingLinearInterpolation == UsdGeomTokens->none)
                     {
@@ -428,11 +433,6 @@ GeoData::GeoData(UsdPrim const &prim,
                     else if (faceVaryingLinearInterpolation == UsdGeomTokens->boundaries)
                     {
                         m_faceVaryingLinearInterpolation = 3;
-                    }
-                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersPlus1)
-                    {
-                        m_faceVaryingLinearInterpolation = 1;
-                        m_propagateCorner = 0;
                     }
                     else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersPlus2)
                     {
