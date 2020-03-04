@@ -90,10 +90,10 @@ GeoData::GeoData(UsdPrim const &prim,
 
     bool isTopologyVarying = mesh.GetFaceVertexIndicesAttr().GetNumTimeSamples() >= 1;
 
-//#if defined(PRINT_DEBUG)
+#if defined(PRINT_DEBUG)
     host.trace("[ !! ] ---------------------------------------");
     host.trace("[ GeoData:%d] Reading MESH %s (type %s) (topology Varying %d)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText(), isTopologyVarying);
-//#endif
+#endif
     // Read vertex/face indices
     {
         VtIntArray vertsIndicesArray;
@@ -137,19 +137,53 @@ GeoData::GeoData(UsdPrim const &prim,
             SdfValueTypeName typeName      = uvPrimvar.GetTypeName();
             TfToken          interpolation = uvPrimvar.GetInterpolation();
 
-            // Only consider vertex or face varying uvs
-            if ((interpolation == UsdGeomTokens->vertex or interpolation == UsdGeomTokens->faceVarying)
-                and (typeName == SdfValueTypeNames->TexCoord2fArray or (GeoData::ReadFloat2AsUV() and typeName == SdfValueTypeNames->Float2Array)))
+            if ((interpolation == UsdGeomTokens->faceVarying or interpolation == UsdGeomTokens->vertex) and (typeName == SdfValueTypeNames->TexCoord2fArray or (GeoData::ReadFloat2AsUV() and typeName == SdfValueTypeNames->Float2Array)))
             {
                 VtVec2fArray values;
                 VtIntArray indices;
                 if (uvPrimvar.Get(&values, UsdTimeCode::EarliestTime()))
                 {
+                    // Read uvs
+                    m_uvs.resize(values.size()*2);
+                    for (int i = 0; i < values.size(); ++i)
+                    {
+                        m_uvs[i * 2    ] = values[i][0];
+                        m_uvs[i * 2 + 1] = values[i][1];
+                    }
+
+                    // Get indices
                     bool ok = isTopologyVarying ? uvPrimvar.GetIndices(&indices, UsdTimeCode::EarliestTime()) : uvPrimvar.GetIndices(&indices);
                     if (ok)
                     {
-                        // primvar is indexed: validate/process values and indices together
-                        m_uvIndices = vector<int>(indices.begin(), indices.end());
+                        if (interpolation == UsdGeomTokens->faceVarying)
+                        {
+                            // All good -> primvar is indexed: validate/process values and indices together
+                            m_uvIndices = vector<int>(indices.begin(), indices.end());
+                        }
+                        else
+                        {
+                            // vertex interpolated -> do extra extrapolation
+                            m_uvIndices.reserve(m_vertexIndices.size());
+
+                            // To build an actual face varying uv indices array, we need to
+                            // 1. for each vertex V on a face F, get its vertex index V from the vertexIndices array
+                            // 2. use VI as an index into the original vertex-interpolcated uv index table, to get uv index UVI
+                            // 3. add UVI to final face varying uv index array
+                            // VITAL NOTE: the final uv indices array count MUST MATCH the vertex indices array count
+                            std::vector<int> UvIndices = vector<int>(indices.begin(), indices.end());
+                            int globalIndex = 0;
+                            for(int x = 0; x < m_faceCounts.size(); ++x)
+                            {
+                                int vertCount = m_faceCounts[x];
+                                for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex)
+                                {
+                                    int vertId = m_vertexIndices[globalIndex++];
+
+                                    int uvId = UvIndices[vertId];
+                                    m_uvIndices.push_back(uvId);
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -160,27 +194,20 @@ GeoData::GeoData(UsdPrim const &prim,
                             m_uvIndices.push_back(x);
                         }
                     }
-
-                    // Read uvs
-                    m_uvs.resize(values.size()*2);
-                    for (int i = 0; i < values.size(); ++i)
-                    {
-                        m_uvs[i * 2    ] = values[i][0];
-                        m_uvs[i * 2 + 1] = values[i][1];
-                    }
                 }
                 else
                 {
-                    host.trace("[GeoData:%d]\tdiscarding because could not read uvs on '%s'",  __LINE__, prim.GetPath().GetText());
-                    log.push_back("discarding because could not read uvs on " +  std::string(prim.GetPath().GetText()));
+                    // Could not read uvs
+                    host.trace("[GeoData:%d]\tDiscarding invalid uv set %s on %s", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+                    log.push_back("Discarding invalid uv set " + uvSet + " on " + std::string(prim.GetPath().GetText()));
                     return;
                 }
             }
             else
             {
-                host.trace("[GeoData:%d]\tDiscarding because Vertex or Facevarying interpolation is not defined for the \"%s\" uv set on %s",
-                           __LINE__, uvSet.c_str(), prim.GetPath().GetText());
-                log.push_back("Discarding because Vertex or Facevarying interpolation is not defined for the " + uvSet + " uv set on " + std::string(prim.GetPath().GetText()));
+                // Incorrect interpolation
+                host.trace("[GeoData:%d]\tDiscarding UV set '%s' on mesh '%s' because it is of unknown interpolation type", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+                log.push_back("Discarding UV set '" + uvSet + "' on mesh '" + std::string(prim.GetPath().GetText()) + "' because it is of unknown interpolation type");
                 return;
             }
         }

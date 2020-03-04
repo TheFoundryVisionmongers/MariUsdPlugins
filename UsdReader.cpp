@@ -207,8 +207,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 break;
             }
 
-            _host.trace("[ -- ] %s:%d Parsing mesh '%s', '%s'", _pluginName, __LINE__, primIt->GetPath().GetText(), thisModelData.instanceName.c_str());
-
             if(loadAll || loadFirstOnly)
             {
                 // load this model because "All" or "First Found" is requested
@@ -257,7 +255,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
         if (not GeoData::IsValidNode(*primIt)) 
         {
-            _host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());
+            /*_host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());*/
             // not even a gprim.
             continue;
         }
@@ -343,8 +341,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             if (Geom)
             {
 
-                _host.trace("%s:%d] %s, found importable mesh",
-                            _pluginName, __LINE__, prim.GetPath().GetName().c_str());
+                _host.trace("%s:%d] %s, found importable mesh", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
 
                 // detect handle id
                 std::string handle = "";
@@ -837,9 +834,8 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         frameString = Value.m_pString;
 
     _GetFrameList(frameString, frames);
-    for (int iFrame = 0; iFrame<frames.size(); ++iFrame)
-        _host.trace("%s:%d] requested frame number %i", _pluginName, __LINE__, 
-                frames[iFrame]);
+    _host.trace("%s:%d] requested %d frames", _pluginName, __LINE__,
+                frames.size());
 
     // detect requested gprim names
     std::string gprimNamesString;
