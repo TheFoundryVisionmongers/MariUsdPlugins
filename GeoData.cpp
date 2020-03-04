@@ -68,6 +68,8 @@ bool GeoData::ReadFloat2AsUV()
 GeoData::GeoData(UsdPrim const &prim,
                  std::string uvSet,  // requested uvSet. If empty string, it's a ptex thing.
                  std::vector<int> frames,
+                 bool conformToMariY,
+                 bool readerIsUpY,
                  bool keepCentered,
                  UsdPrim const &model,
                  const MriGeoReaderHost& host,
@@ -287,6 +289,18 @@ GeoData::GeoData(UsdPrim const &prim,
                 points[iPoint    ] = p[0];
                 points[iPoint + 1] = p[1];
                 points[iPoint + 2] = p[2];
+            }
+        }
+
+        if (conformToMariY && !readerIsUpY)
+        {
+            // Our source is Z and we need to conform to Y -> let's flip
+            unsigned int psize = points.size();
+            for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+            {
+                int y = points[iPoint + 1];
+                points[iPoint + 1] = points[iPoint + 2];
+                points[iPoint + 2] = -y;
             }
         }
 

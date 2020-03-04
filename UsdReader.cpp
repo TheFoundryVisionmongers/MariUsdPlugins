@@ -79,9 +79,8 @@ UsdReader::_OpenUsdStage()
     }
 
     TfToken upAxis = UsdGeomGetStageUpAxis(stage);
-   // UsdGeomSetStageUpAxis(stage, upAxis);
-
-    _host.trace("[%s:%d] ABOUT TO LOAD STAGE!!! from %s : '%s'", _pluginName, __LINE__, _fileName, upAxis.data());
+    m_upAxisIsY = upAxis.data() == UsdGeomTokens->y;
+    _host.trace("[%s:%d] Stage up axis is : %s", _pluginName, __LINE__, m_upAxisIsY ? "y" : "z");
 
     // reload the stage to flush any USD level cache
     stage->Reload();
@@ -136,6 +135,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     std::string loadOption, mergeOption, frameString, UVSet = "map1";
     vector<std::string> requestedModelNames,requestedGprimNames;
     vector<SdfPath> variantSelections;
+    bool conformToMariY = true;
     bool keepCentered = false;
     bool includeInvisible = false;
     bool createFaceSelectionGroups = false;
@@ -144,8 +144,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     _GetMariAttributes(Entity,
                        loadOption, mergeOption,
                        frames, frameString, requestedModelNames,
-                       requestedGprimNames, UVSet, variantSelections, 
-                       keepCentered, includeInvisible, createFaceSelectionGroups);
+                       requestedGprimNames, UVSet, variantSelections,
+                       conformToMariY, keepCentered, includeInvisible, createFaceSelectionGroups);
 
     bool loadFirstOnly = loadOption=="First Found";
     bool loadAll = loadOption=="All Models";
@@ -260,7 +260,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             continue;
         }
 
-
         // If we've requested specific gprims and 
         // this gprim isnt' in that list, continue.
         // We need to search using the full path of the current
@@ -337,7 +336,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         for (auto prim: modelData->gprims)
         {
             // Create a mari-compatible geometry
-            GeoData Geom(prim, UVSet, frames, keepCentered, modelData->mprim, _host, _log);
+            GeoData Geom(prim, UVSet, frames, conformToMariY, m_upAxisIsY, keepCentered, modelData->mprim, _host, _log);
             if (Geom)
             {
 
@@ -790,6 +789,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     vector<string>& requestedGprimNames,
                                     std::string& UVSet,
                                     vector<SdfPath>& variantSelections,
+                                    bool& conformToMariY,
                                     bool& keepCentered,
                                     bool& includeInvisible,
                                     bool& createFaceSelectionGroups)
@@ -853,6 +853,12 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         _GetVariantSelectionsList(variantsString, variantSelections);
         _host.trace("%s:%d] Using variants %s", _pluginName, __LINE__, variantsString.c_str());
     }
+
+    // conform to Mari Y is up
+    if( _host.getAttribute(Entity, "ConformToMariY", &Value) ==
+        MRI_UPR_SUCCEEDED )
+        conformToMariY = (Value.m_Int !=0);
+    _host.trace("%s:%d] Conform to Mari Y is up : %d", _pluginName, __LINE__, conformToMariY);
 
     // detect if we want to ignore model transforms
     if( _host.getAttribute(Entity, "keepCentered", &Value) ==

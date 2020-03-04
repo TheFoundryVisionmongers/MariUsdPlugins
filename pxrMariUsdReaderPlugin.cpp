@@ -170,6 +170,12 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     KeepCenteredValue.m_Int = 0;
     host.setAttribute(SettingsHandle, "Keep Centered", &KeepCenteredValue);
 
+    // Mari y up
+    MriAttributeValue ConformToMariY;
+    ConformToMariY.m_Type = MRI_ATTR_BOOL;
+    ConformToMariY.m_Int = 1;
+    host.setAttribute(SettingsHandle, "Conform to Mari Y as up", &ConformToMariY);
+
     // Include Invisible
     MriAttributeValue IncludeInvisibleValue;
     IncludeInvisibleValue.m_Type = MRI_ATTR_BOOL;

@@ -87,6 +87,7 @@ class UsdReader
                 std::vector<std::string>& requestedGprimNames,
                 std::string& UVSet,
                 std::vector<PXR_NS::SdfPath>& variantSelections,
+                bool &conformToMariY,
                 bool& keepCentered,
                 bool& includeInvisible,
                 bool& createFaceSelectionGroups);
@@ -102,6 +103,7 @@ class UsdReader
         std::vector<std::string> _log;
         std::map<std::string, MriSelectionGroupHandle> _selectionGroups;
 
+        bool    m_upAxisIsY;
 
     public:
         int _startTime;

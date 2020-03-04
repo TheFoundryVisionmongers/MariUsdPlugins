@@ -70,6 +70,8 @@ public:
         GeoData(PXR_NS::UsdPrim const &prim,
                 std::string uvSet, // requested uvSet 
                 std::vector<int> frames,
+                bool conformToMariY,
+                bool readerIsUpY,
                 bool keepCentered,
                 PXR_NS::UsdPrim const &model,
                 const MriGeoReaderHost& host,
