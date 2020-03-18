@@ -49,6 +49,8 @@
 using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
+std::string UsdReader::kNoUvSetFoundStr = "* no uv set found *";
+
 UsdReader::UsdReader(const char* pFileName, 
                                  MriGeoReaderHost &pHost) :
     _pluginName("UsdReader"),
@@ -116,14 +118,12 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
         if (GeoData::IsValidNode(prim))
         {
             GeoData::GetUvSets(prim, uvs);
+
         }
         size++;
     }
-        
-    if (uvs.size() > 0)
-    {
-        _ParseUVs(SettingsHandle, uvs, size);
-    }
+
+    _ParseUVs(SettingsHandle, uvs, size);
 
     return MRI_GPR_SUCCEEDED;
 }
@@ -132,7 +132,7 @@ MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
     vector<int> frames;
-    std::string loadOption, mergeOption, frameString, UVSet = "map1";
+    std::string loadOption, mergeOption, frameString, UVSet = "", mappingScheme;
     vector<std::string> requestedModelNames,requestedGprimNames;
     vector<SdfPath> variantSelections;
     bool conformToMariY = true;
@@ -142,7 +142,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     /////// GET PARAMETERS ////////
     _GetMariAttributes(Entity,
-                       loadOption, mergeOption,
+                       loadOption, mergeOption, mappingScheme,
                        frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections,
                        conformToMariY, keepCentered, includeInvisible, createFaceSelectionGroups);
@@ -333,14 +333,14 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             entityToPopulate = childEntity; 
         }
 
+        bool ValidEntity = false;
         for (auto prim: modelData->gprims)
         {
             // Create a mari-compatible geometry
-            GeoData Geom(prim, UVSet, frames, conformToMariY, m_upAxisIsY, keepCentered, modelData->mprim, _host, _log);
+            GeoData Geom(prim, UVSet, mappingScheme, frames, conformToMariY, m_upAxisIsY, keepCentered, modelData->mprim, _host, _log);
             if (Geom)
             {
-
-                _host.trace("%s:%d] %s, found importable mesh", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
+                _host.trace("[%s:%d] * Found importable mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
 
                 // detect handle id
                 std::string handle = "";
@@ -361,37 +361,29 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 }
 
                 _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
+
+                ValidEntity = true;
+            }
+            else
+            {
+                _host.trace("[%s:%d] X Could not load mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
+                --modelCount;
             }
         }
 
         // Save on metadata file
-        _SaveMetadata( Entity, *modelData);
+        if (ValidEntity)
+        {
+            _SaveMetadata( Entity, *modelData);
+        }
     }
 
     MriGeoPluginResult result = MRI_GPR_SUCCEEDED;
 
-    if (modelDataList.size()==0)
+    if (modelDataList.size()==0 or modelCount == 0)
     {
-        std::string requestedModelName;
-        for(const std::string& name: requestedModelNames)
-        {
-            if(requestedModelNames.size()>0)
-            {
-                requestedModelName.append(",");
-            }
-            requestedModelName.append(name);
-        }
-
-        // Note, this was removed in earlier iterations, but looks like it could
-        // be useful to keep for the logging of errors
-        _host.trace("[%s:%d] No valid geometry with uv set %s found in %s",
-            _pluginName, __LINE__, UVSet.c_str(), _fileName);
-        _host.trace("[%s:%d] Was looking for %s", 
-            _pluginName, __LINE__, requestedModelName.c_str());
-        _log.push_back("No valid geometry with uv set " + UVSet +
-                       " found in " + std::string(_fileName) + ".");
-        _log.push_back("Was looking for " + requestedModelName);
-
+        _host.trace("[%s:%d] No valid geometry found in %s", _pluginName, __LINE__, _fileName);
+        _log.push_back("> No valid geometry found in " + std::string(_fileName));
 
         result = MRI_GPR_FAILED;
     }
@@ -757,20 +749,20 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
     string choices = "";
     for (GeoData::UVSet::iterator it = uvs.begin(); it != uvs.end(); ++it)
     {
+        if (choices.length() > 0)
+        {
+            // Already have a previous option, append new line
+            choices += "\n";
+        }
+
         stringstream oss;
-        if (it->first == "map1")
-        {
-            // map1 should be the first and default choice
-            oss << it->first << " (" << it->second << "/" <<
-                size <<  ")" << endl << choices;
-            choices = oss.str();
-        }
-        else
-        {
-            oss << it->first << " (" << it->second << "/" <<
-                size <<  ")" << endl;
-            choices += oss.str();
-        }
+        oss << it->first << " (" << it->second << "/" << size <<  ")";
+        choices += oss.str();
+    }
+
+    if (uvs.empty())
+    {
+        choices = kNoUvSetFoundStr;
     }
    
     MriAttributeValue UVValue;
@@ -783,6 +775,7 @@ void
 UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     std::string& loadOption,
                                     std::string& mergeOption,
+                                    std::string& mappingScheme,
                                     vector<int>& frames,
                                     std::string& frameString,
                                     vector<string>& requestedModelNames,
@@ -822,11 +815,26 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     // detect requested UV set
     if (_host.getAttribute(Entity, "UV Set", &Value) == MRI_UPR_SUCCEEDED)
     {
-        UVSet = Value.m_pString;
-        UVSet = UVSet.substr(0, UVSet.find(" "));   
-// ignore comment on uvSet
+        if (Value.m_pString == kNoUvSetFoundStr)
+        {
+            UVSet = "";
+            _host.trace("%s:%d] No uv set found", _pluginName, __LINE__);
+        }
+        else
+        {
+            UVSet = Value.m_pString;
+            UVSet = UVSet.substr(0, UVSet.find(" "));
+
+            _host.trace("%s:%d] Using uv set %s", _pluginName, __LINE__, UVSet.c_str());
+        }
     }
-    _host.trace("%s:%d] Using uv set %s", _pluginName, __LINE__, UVSet.c_str());
+
+    // Mapping scheme option
+    if (_host.getAttribute(Entity, "Mapping Scheme", &Value) == MRI_UPR_SUCCEEDED)
+        mappingScheme = Value.m_pString;
+
+    _host.trace("%s:%d] Mappping scheme Option %s", _pluginName, __LINE__,
+                mappingScheme.c_str());
 
     // detect requested frames
     if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==

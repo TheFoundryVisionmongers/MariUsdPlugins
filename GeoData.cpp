@@ -66,7 +66,8 @@ bool GeoData::ReadFloat2AsUV()
 }
 
 GeoData::GeoData(UsdPrim const &prim,
-                 std::string uvSet,  // requested uvSet. If empty string, it's a ptex thing.
+                 std::string uvSet,
+                 std::string mappingScheme,
                  std::vector<int> frames,
                  bool conformToMariY,
                  bool readerIsUpY,
@@ -86,7 +87,7 @@ GeoData::GeoData(UsdPrim const &prim,
     if (not mesh)
     {
         host.trace("[GeoData:%d] Invalid non-mesh prim %s (type %s)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
-        log.push_back("Invalid non-mesh prim " + std::string(prim.GetPath().GetText()) + " of type " + std::string(prim.GetTypeName().GetText()));
+        log.push_back("** Invalid non-mesh prim " + std::string(prim.GetPath().GetText()) + " of type " + std::string(prim.GetTypeName().GetText()));
         return;
     }
 
@@ -103,7 +104,7 @@ GeoData::GeoData(UsdPrim const &prim,
         if (!ok)
         {
             host.trace("[GeoData:%d]\tfailed getting face vertex indices on %s.", __LINE__, prim.GetPath().GetText());
-            log.push_back("Failed getting faces on " + std::string(prim.GetPath().GetText()));
+            log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
         m_vertexIndices = vector<int>(vertsIndicesArray.begin(), vertsIndicesArray.end());
@@ -116,7 +117,7 @@ GeoData::GeoData(UsdPrim const &prim,
         if (!ok)
         {
             host.trace("[GeoData:%d]\tfailed getting face counts on %s", __LINE__, prim.GetPath().GetText());
-            log.push_back("Failed getting faces on " + std::string(prim.GetPath().GetText()));
+            log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
         m_faceCounts = vector<int>(nvertsPerFaceArray.begin(), nvertsPerFaceArray.end());
@@ -131,7 +132,7 @@ GeoData::GeoData(UsdPrim const &prim,
         }
     }
 
-    if (uvSet.length() > 0)
+    if (mappingScheme != "Force Ptex" and uvSet.length() > 0)
     {
         // Get UV set primvar
         if (UsdGeomPrimvar uvPrimvar = mesh.GetPrimvar(TfToken(uvSet)))
@@ -200,25 +201,29 @@ GeoData::GeoData(UsdPrim const &prim,
                 else
                 {
                     // Could not read uvs
-                    host.trace("[GeoData:%d]\tDiscarding invalid uv set %s on %s", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
-                    log.push_back("Discarding invalid uv set " + uvSet + " on " + std::string(prim.GetPath().GetText()));
+                    host.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s cannot be read", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
+                    log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " cannot be read");
                     return;
                 }
             }
             else
             {
                 // Incorrect interpolation
-                host.trace("[GeoData:%d]\tDiscarding UV set '%s' on mesh '%s' because it is of unknown interpolation type", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
-                log.push_back("Discarding UV set '" + uvSet + "' on mesh '" + std::string(prim.GetPath().GetText()) + "' because it is of unknown interpolation type");
+                host.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s is not of type 'faceVarying or vertex'", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
+                log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " is not of type 'faceVarying or vertex'");
                 return;
             }
         }
         else
         {
-            host.trace("[GeoData:%d]\tDiscarding invalid uv set %s on %s", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
-            log.push_back("Discarding invalid uv set " + uvSet + " on " + std::string(prim.GetPath().GetText()));
-            return;
+            // UV set not found on mesh
+            host.trace("[GeoData:%d]\tSpecified uv set %s not found on mesh %s - will use ptex", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+            log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " not found");
         }
+    }
+    else
+    {
+        // Mari will use Ptex for uv-ing later on
     }
 
     // Read normals
@@ -257,7 +262,7 @@ GeoData::GeoData(UsdPrim const &prim,
         if (!mesh.GetPointsAttr().Get(&pointsVt, frameSample))
         {
             host.trace("[GeoData:%d]\tfailed getting vertices on %s.", __LINE__, prim.GetPath().GetName().c_str());
-            log.push_back("Failed getting faces on " + prim.GetPath().GetName());
+            log.push_back("** Failed getting faces on " + prim.GetPath().GetName());
             return;// this is not optional!
         }
         

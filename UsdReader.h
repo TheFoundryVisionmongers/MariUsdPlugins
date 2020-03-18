@@ -81,6 +81,7 @@ class UsdReader
         void _GetMariAttributes(MriGeoEntityHandle &Entity,
                 std::string& loadOption,
                 std::string& mergeOption,
+                std::string &mappingScheme,
                 std::vector<int>& frames,
                 std::string& frameString,
                 std::vector<std::string>& requestedModelNames,
@@ -104,6 +105,8 @@ class UsdReader
         std::map<std::string, MriSelectionGroupHandle> _selectionGroups;
 
         bool    m_upAxisIsY;
+
+        static std::string kNoUvSetFoundStr;
 
     public:
         int _startTime;

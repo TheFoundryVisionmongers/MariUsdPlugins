@@ -68,7 +68,8 @@ public:
 
         // create geoData
         GeoData(PXR_NS::UsdPrim const &prim,
-                std::string uvSet, // requested uvSet 
+                std::string uvSet, // requested uvSet
+                std::string mappingScheme,
                 std::vector<int> frames,
                 bool conformToMariY,
                 bool readerIsUpY,
