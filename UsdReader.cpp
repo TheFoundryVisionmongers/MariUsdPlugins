@@ -308,6 +308,16 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         }
     }
 
+    if (modelCount == 0)
+    {
+        // No UsdGeomMesh found to load -> error out now!
+
+        _host.trace("[%s:%d] No model of type UsdGeomMesh found to load in %s", _pluginName, __LINE__, _fileName);
+        _log.push_back("> No model of type UsdGeomMesh found to load in " + std::string(_fileName));
+
+        return MRI_GPR_FAILED;
+    }
+
     bool createChildren = modelCount>1 && keepSeparate;
 
     if (createChildren)
