@@ -84,8 +84,12 @@ UsdReader::_OpenUsdStage()
     m_upAxisIsY = upAxis.data() == UsdGeomTokens->y;
     _host.trace("[%s:%d] Stage up axis is : %s", _pluginName, __LINE__, m_upAxisIsY ? "y" : "z");
 
-    // reload the stage to flush any USD level cache
-    stage->Reload();
+    // NOTES FROM RAJIV:
+    // The following crashes on windows only. The USD documentation warns against using Reload in the face of threading.
+    // We do not seem to need Reload to be called here, since we are only doing reading of the file and no scene
+    // composition and writing.
+    // // reload the stage to flush any USD level cache
+    // stage->Reload();
 
     return stage;
 }
