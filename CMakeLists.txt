@@ -63,15 +63,15 @@ set (CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "" FORCE)
 add_library(
     USDImport
     SHARED
-    ${CMAKE_CURRENT_LIST_DIR}/GeoData.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/ModelData.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/pxrMariUsdReaderPlugin.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/UsdReader.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/GeoData.h
-    ${CMAKE_CURRENT_LIST_DIR}/ModelData.h
-    ${CMAKE_CURRENT_LIST_DIR}/pxrMariUsdReaderPlugin.h
-    ${CMAKE_CURRENT_LIST_DIR}/UsdReader.h
-    ${CMAKE_CURRENT_LIST_DIR}/MariHostConfig.h
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/GeoData.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/ModelData.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/pxrMariUsdReaderPlugin.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/UsdReader.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/GeoData.h
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/ModelData.h
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/pxrMariUsdReaderPlugin.h
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/UsdReader.h
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/MariHostConfig.h
 )
 
 target_include_directories(
