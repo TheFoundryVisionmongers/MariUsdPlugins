@@ -8,7 +8,7 @@ import os
 import re
 
 import mari
-from pxr import Sdf, Usd, UsdShade
+from pxr import Sdf, Usd, UsdShade, Tf
 
 USD_SHADER_INPUT_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
@@ -162,7 +162,7 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
     if type(shader_input_export_func).__name__ != "function":
         raise ValueError("No shader input export callback function specified for registerRendererExportPlugin")
     USD_SHADER_INPUT_EXPORT_FUNCTIONS[mari_shader_type_name] = shader_input_export_func
-    USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, material_terminal_name)
+    USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
 
 
 def writeUsdPreviewSurfaceInput(looks_stage, usd_shader, mari_shader, shader_input_name, export_item,
@@ -174,7 +174,7 @@ def writeUsdPreviewSurfaceInput(looks_stage, usd_shader, mari_shader, shader_inp
         looks_stage (Usd.Stage): Stage to write to
         usd_shader (Usd.Shader): Shader to connect to
         mari_shader (mari.Shader): Source Mari Shader being exported
-        shader_input (mari.ShaderModelInput): The shader input to write
+        shader_input (str): The shader input name to write for
         export_item (mari.ExportItem): Export item source for texture maps
         export_root_path (str): Export texture root path
     """
@@ -220,9 +220,12 @@ def writeUsdPreviewSurfaceInput(looks_stage, usd_shader, mari_shader, shader_inp
             texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             texture_sampler.CreateIdAttr("UsdUVTexture")
-            texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(st_reader, 'result')
+            texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
+                st_reader.ConnectableAPI(),
+                "result"
+            )
             usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler,
+                texture_sampler.ConnectableAPI(),
                 "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
             )
             texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
@@ -383,12 +386,12 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
             shader_model = mari_shader.shaderModel()
             material_shader = UsdShade.Shader.Define(looks_stage, material_sdf_path.AppendChild(_sanitize(mari_shader.name())))
             material_shader.SetShaderId(MARI_TO_USD_SHADER_MAPPING[shader_model.id()])
-            material_surface_context, material_terminal_name = USD_MATERIAL_TERMINALS[shader_model.id()]
+            material_surface_context, material_terminal_token = USD_MATERIAL_TERMINALS[shader_model.id()]
             if material_surface_context is not None:
                 material_output = material.CreateSurfaceOutput(material_surface_context)
             else:
                 material_output = material.CreateSurfaceOutput()
-            material_output.ConnectToSource(material_shader, material_terminal_name)
+            material_output.ConnectToSource(material_shader.ConnectableAPI(), material_terminal_token)
 
             texture_root_path = os.path.normpath(textures_dir_name)
 
