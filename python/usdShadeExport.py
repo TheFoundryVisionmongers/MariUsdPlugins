@@ -1,4 +1,4 @@
-""" Mari Export to UsdShade Proof of Concept
+""" Mari Export to UsdShade
     coding: utf-8
     Copyright (c) 2017 The Foundry Visionmongers Ltd.  All Rights Reserved.
     Author : Rory Woodford
@@ -177,19 +177,17 @@ def getExportItemForShaderInput(mari_shader, shader_model_input):
     mari_shader_node = mari_shader.shaderNode()
     mari_geo_entity = mari_shader_node.parentNodeGraph().parentGeoEntity()
     shader_input_name = shader_model_input.name()
-    shader_input_node = mari_shader_node.inputNode(shader_input_name)
+    shader_input_node, shader_input_node_output_port = mari_shader_node.inputConnection(shader_input_name)
     if shader_input_node is None:
         return
-    if shader_input_node.isGroupNode():
-        output_port_name = getNodeOutputNameConnectedToNodeInputPort(
-            shader_input_node,
-            mari_shader_node,
-            shader_input_name
-        )
-        group_node_graph = shader_input_node.childNodeGraph()
-        for output_node in group_node_graph.nodesWithTag("_output"):
-            if output_node.name() == output_port_name:
-                shader_input_node = output_node.inputNode("Input")
+
+    if isinstance(shader_input_node, mari.GroupNode):
+        output_node = shader_input_node.groupOutputNode(shader_input_node_output_port)
+        if output_node:
+            shader_input_node = output_node.inputNode("Input")
+        else:
+            shader_input_node = None
+
     if isinstance(shader_input_node, (mari.ChannelNode, mari.BakePointNode)):
         for export_item in mari.exports.exportItemList(mari_geo_entity):
             if export_item.sourceNode() == shader_input_node:
@@ -213,7 +211,7 @@ def getInputExportItems(mari_shader):
 
 
 def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_path,
-    textures_dir_name, usd_format, mari_shader, material_assign_locations, root_name
+    textures_dir_name, mari_shader, material_assign_locations, root_name
 ):
     """Exports a Mari Shader as a UsdShade look file.
 
@@ -223,7 +221,6 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         assembly_filename (str): Name of Usd Assembly file
         payload_path (str): Path to Usd payload
         textures_dir_name (str): Name of textures sub directory
-        usd_format (str): Usd format to export to (usd, usda)
         mari_shader (mari.Shader): Source shader to export from
         material_assign_locations (list of str): Usd locations to assign material to
         root_name (str): Usd root location
@@ -233,7 +230,12 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
             shader_model.id() not in USD_SHADER_INPUT_EXPORT_FUNCTIONS:
         raise ValueError("Shader type {0} has no plugin registered for UsdShade export.".format(shader_model.id()))
 
-    looks_path = os.path.join(target_dir, ".".join((looks_filename, usd_format)))
+    if os.path.isabs(looks_filename):
+        looks_path = looks_filename
+    else:
+        looks_path = os.path.join(target_dir, looks_filename)
+    looks_path = os.path.normpath(looks_path)
+
     if os.path.exists(looks_path):
         os.remove(looks_path)
     looks_stage = _create_new_stage(looks_path, root_name)
@@ -253,16 +255,19 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         material_output = material.CreateSurfaceOutput()
     material_output.ConnectToSource(material_shader, material_terminal_name)
 
+    texture_root_path = os.path.normpath(textures_dir_name)
+
     for shader_model_input in list(shader_model.inputs().values()):
         export_item = getExportItemForShaderInput(mari_shader, shader_model_input)
-        USD_SHADER_INPUT_EXPORT_FUNCTIONS[shader_model.id()](
-            looks_stage,
-            material_shader,
-            mari_shader,
-            shader_model_input,
-            export_item,
-            os.path.normpath(os.path.join(target_dir, textures_dir_name))
-        )
+        if export_item and export_item.exportEnabled():
+            USD_SHADER_INPUT_EXPORT_FUNCTIONS[shader_model.id()](
+                looks_stage,
+                material_shader,
+                mari_shader,
+                shader_model_input,
+                export_item,
+                texture_root_path
+            )
 
     for material_assign_location in material_assign_locations:
         material_assign_sdf_path = Sdf.Path(material_assign_location)
@@ -273,7 +278,14 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
 
     if assembly_filename:
         # setup the assembly stage
-        assembly_path = os.path.join(target_dir, ".".join((assembly_filename, usd_format)))
+        if os.path.isabs(assembly_filename):
+            assembly_path = assembly_filename
+        else:
+            assembly_path = os.path.join(target_dir, assembly_filename)
+        assembly_path = os.path.normpath(assembly_path)
+        
+        assembly_dir = os.path.dirname(assembly_path)
+
         if os.path.exists(assembly_path):
             os.remove(assembly_path)
         assembly_stage = _create_new_stage(assembly_path, root_name)
@@ -282,37 +294,38 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         # add the payload asset
         if not payload_path:
             raise ValueError("Assembly file requested, however no payload asset filename was specified!")
-        payload = Sdf.Payload(payload_path)
+            
+        # add the look file as a reference
+        try:
+            payload_path_rel = os.path.relpath(payload_path, assembly_dir)
+        except ValueError:
+            payload_path_rel = payload_path # ValueError on Windows if drive differs. Cannot be relative in that case.
+            
+        payload = Sdf.Payload(payload_path_rel)
         assembly_root_prim.GetPayloads().AddPayload(
             payload,
             position=Usd.ListPositionBackOfAppendList
         )
 
         # add the look file as a reference
+        try:
+            looks_path_rel = os.path.relpath(looks_path, assembly_dir)
+        except ValueError:
+            looks_path_rel = looks_path # ValueError on Windows if drive differs. Cannot be relative in that case.
+
         assembly_root_prim.GetReferences().AddReference(
-            os.path.sep.join((".", looks_filename + "." + usd_format)),
+            looks_path_rel,
             # looks_path,
             position=Usd.ListPositionBackOfAppendList
         )
         assembly_stage.GetRootLayer().Save()
-
-
-if __name__ == '__main__':
+        
+if mari.app.isRunning():
+    # Register the USD Preview Surface exporter.
     registerRendererExportPlugin(
         "USD Preview Surface",
         "UsdPreviewSurface",
         writeUsdPreviewSurfaceInput,
         "surface",
         None
-    )
-    exportShaderAsUsdShadeLook(
-        r"G:\My Drive\Mari\resource\usd\mariExport",
-        "mariLooks",
-        "mariAssembly",
-        r"G:\My Drive\Mari\resource\usd\mariExport\shaderBall.usda",
-        "textures",
-        "usda",
-        mari.current.shader(),
-        ["/shaderBall_GEO"],
-        "/shaderBall_GEO"
     )
