@@ -739,6 +739,7 @@ class FileBrowseWidget(widgets.QWidget):
         self.completer.setCompletionMode(widgets.QCompleter.PopupCompletion)
         
         layout = widgets.QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         self.combo_box = widgets.QComboBox()
         self.combo_box.setCompleter(self.completer)
         self.combo_box.setEditable(True)
@@ -843,14 +844,22 @@ class USDExportWidget(widgets.QWidget):
         shader_export_item_layout.addWidget(self.export_item_view)
         
         main_layout.addWidget(shader_export_item_layout)
-        
-        options_layout = widgets.QVBoxLayout()
-        
-        options_layout_row1 = widgets.QHBoxLayout()
-        
+
+        # USD Export Options
+        options_group_box = widgets.QGroupBox(self)
+        options_group_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
+        options_layout = widgets.QGridLayout(options_group_box)
+        options_layout.setContentsMargins(3, 3, 3, 3)
+        options_layout.setHorizontalSpacing(5)
+        options_layout.setVerticalSpacing(15)
+        for index, stretch in enumerate((10, 20, 10, 20)):
+            options_layout.setColumnStretch(index, stretch)
+
         self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", self.load_usd_target_dir_paths())
-        options_layout_row1.addWidget(widgets.QLabel("Target Directory", self))
-        options_layout_row1.addWidget(self.export_usd_target_dir_widget)
+        target_dir_label = widgets.QLabel("Target Directory", self)
+        target_dir_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(target_dir_label, 0, 0)
+        options_layout.addWidget(self.export_usd_target_dir_widget, 0, 1)
         
         self.default_depth_combo_box = widgets.QComboBox(self)
         self.default_depth_combo_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
@@ -858,17 +867,17 @@ class USDExportWidget(widgets.QWidget):
         self.default_depth_combo_box.setToolTip("Overrides the bit depth of exported export items.\nWill not change export item until Export is triggered, will not change export items which are not exported.")
         for depth in mari.exports.depthList():
             self.default_depth_combo_box.addItem(depth, depth)
-        options_layout_row1.addWidget(widgets.QLabel("Override Depth", self))
-        options_layout_row1.addWidget(self.default_depth_combo_box)
-        
-        options_layout.addLayout(options_layout_row1)
-        
-        options_layout_row2 = widgets.QHBoxLayout()
+        override_depth_label = widgets.QLabel("Override Depth", self)
+        override_depth_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(override_depth_label, 0, 2)
+        options_layout.addWidget(self.default_depth_combo_box, 0, 3)
         
         image_filter = "Images (" + " ".join(["*.%s" % ext for ext in mari.exports.imageFileExtensionList()]) + ")"
         self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, self.load_usd_texture_file_paths())
-        options_layout_row2.addWidget(widgets.QLabel("Texture File Name", self))
-        options_layout_row2.addWidget(self.export_texture_file_widget)
+        export_texture_file_label = widgets.QLabel("Texture File Name", self)
+        export_texture_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(export_texture_file_label, 1, 0)
+        options_layout.addWidget(self.export_texture_file_widget, 1, 1)
         
         self.default_size_combo_box = widgets.QComboBox(self)
         self.default_size_combo_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
@@ -876,48 +885,47 @@ class USDExportWidget(widgets.QWidget):
         self.default_size_combo_box.setToolTip("Overrides the resolution of exported export items.\nWill not change export item until Export is triggered, will not change export items which are not exported.")
         for size in mari.exports.resolutionList():
             self.default_size_combo_box.addItem(size, size)
-        options_layout_row2.addWidget(widgets.QLabel("Override Resolution", self))
-        options_layout_row2.addWidget(self.default_size_combo_box)
-        
-        options_layout.addLayout(options_layout_row2)
-        
-        options_layout_row3 = widgets.QHBoxLayout()
+        override_resolution_label = widgets.QLabel("Override Resolution", self)
+        override_resolution_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(override_resolution_label, 1, 2)
+        options_layout.addWidget(self.default_size_combo_box, 1, 3)
         
         look_file_filter = "USD Look File (*.usd *.usda *.usdz)"
         self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, self.load_usd_look_file_paths())
-        options_layout_row3.addWidget(widgets.QLabel("USD Look File", self))
-        options_layout_row3.addWidget(self.look_file_widget)
+        look_file_label = widgets.QLabel("USD Look File", self)
+        look_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(look_file_label, 2, 0)
+        options_layout.addWidget(self.look_file_widget, 2, 1)
         
         self.root_name_widget = widgets.QLineEdit(self)
         self.root_name_widget.setText(self.load_root_name(default_root_name="Root"))
-        options_layout_row3.addWidget(widgets.QLabel("Root Name", self))
-        options_layout_row3.addWidget(self.root_name_widget)
-        
-        options_layout.addLayout(options_layout_row3)
-        
-        options_layout_row4 = widgets.QHBoxLayout()
+        root_name_label = widgets.QLabel("Root Name", self)
+        root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(root_name_label, 2, 2)
+        options_layout.addWidget(self.root_name_widget, 2, 3)
         
         assembly_file_filter = "USD Assembly File (*.usd *.usda *.usdz)"
         self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, self.load_usd_assembly_file_paths())
-        options_layout_row4.addWidget(widgets.QLabel("USD Assembly File", self))
-        options_layout_row4.addWidget(self.assembly_file_widget)
+        assembly_file_label= widgets.QLabel("USD Assembly File", self)
+        assembly_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(assembly_file_label, 3, 0)
+        options_layout.addWidget(self.assembly_file_widget, 3, 1)
         
         payload_file_filter = "USD (*.usd *.usda *.usdz)"
         self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, self.load_usd_payload_file_paths())
-        options_layout_row4.addWidget(widgets.QLabel("USD Payload", self))
-        options_layout_row4.addWidget(self.payload_file_widget)
-        
-        options_layout.addLayout(options_layout_row4)
-        
-        options_group_box = widgets.QGroupBox(self)
-        options_group_box.setLayout(options_layout)
+        payload_label = widgets.QLabel("USD Payload", self)
+        payload_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(payload_label, 3, 2)
+        options_layout.addWidget(self.payload_file_widget, 3, 3)
         
         main_layout.addWidget(options_group_box)
         
         export_layout = widgets.QHBoxLayout()
-        self.export_button = widgets.QPushButton("Export")
+        self.export_button = widgets.QPushButton("Export to USD")
         export_layout.addWidget(self.export_button)
         main_layout.addLayout(export_layout)
+        for index, stretch in enumerate((20, 10, 5)):
+            main_layout.setStretch(index, stretch)
         
         self.export_item_view.expandAll()
         self.on_shader_assignment_changed(None)
