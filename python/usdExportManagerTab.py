@@ -1,4 +1,5 @@
 import os
+import traceback
 import mari
 import PySide2.QtCore as core
 import PySide2.QtGui as gui
@@ -1148,7 +1149,21 @@ class USDExportWidget(widgets.QWidget):
 
             mesh_locations = current_geo_version.sourceMeshLocationList()
 
-            usd_shade_export.exportShaderAsUsdShadeLook(export_usd_target_dir, export_look_file_path, export_assembly_path, export_payload_path, export_texture_file_dir, shader, mesh_locations, root)
+            try:
+                usd_shade_export.exportShaderAsUsdShadeLook(
+                    export_usd_target_dir,
+                    export_look_file_path,
+                    export_assembly_path,
+                    export_payload_path,
+                    export_texture_file_dir,
+                    shader,
+                    mesh_locations,
+                    root
+                )
+            except Exception as error:
+                error_message = "\n".join((str(error), traceback.format_exc()))
+                mari.app.log("USD Export Error : %s" % error_message)
+                widgets.QMessageBox.critical(self, "Error", error_message)
 
     def save_paths(self, name, values):
         # Save the current entry with the project.
