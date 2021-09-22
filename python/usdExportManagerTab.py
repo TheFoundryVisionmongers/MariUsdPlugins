@@ -1145,10 +1145,9 @@ class USDExportWidget(widgets.QWidget):
             if not current_geo_version:
                 print("current_geo_version is %s" % current_geo_version)
                 continue
-                
-            #mesh_locations = current_geo_version.sourceMeshLocationList()
-            mesh_locations = ["/shaderBall_GEO"]
-            
+
+            mesh_locations = current_geo_version.sourceMeshLocationList()
+
             usd_shade_export.exportShaderAsUsdShadeLook(export_usd_target_dir, export_look_file_path, export_assembly_path, export_payload_path, export_texture_file_dir, shader, mesh_locations, root)
 
     def save_paths(self, name, values):
