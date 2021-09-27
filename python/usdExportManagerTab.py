@@ -282,10 +282,11 @@ class ExportItem_ShaderItem(gui.QStandardItem):
         return gui.QStandardItem.data(self, role)
         
 class ExportItem_ShaderInputItem(gui.QStandardItem):
-    def __init__(self, object = None, text = ""):
+    def __init__(self, object = None, text = "", input_name = ""):
         gui.QStandardItem.__init__(self, text)
-        self.setData(object, qt.UserRole)
-        self.setData(None,   qt.UserRole+1)
+        self.setData(object,     qt.UserRole)
+        self.setData(None,       qt.UserRole+1)
+        self.setData(input_name, qt.UserRole+2)
 
     def setData(self, data, role):
         if role == qt.CheckStateRole:
@@ -521,9 +522,13 @@ class ExportItem_Model(gui.QStandardItemModel):
     def _advancedInputList(self, shader):
         result = []
         shader_node = shader.shaderNode()
+        shader_model = shader.shaderModel()
         for input_name in shader_node.inputPortNames():
             input_node, output_port = shader_node.inputConnection(input_name)
             if input_node:
+                shader_model_input = shader_model.input(input_name)
+                shader_model_input_name = shader_model_input.name()
+
                 if isinstance(input_node, mari.GroupNode):
                     output_node = input_node.groupOutputNode(output_port)
                     if output_node:
@@ -532,12 +537,12 @@ class ExportItem_Model(gui.QStandardItemModel):
                         input_node = None
 
                     if not input_node:
-                        continue                  
+                        continue
 
                 if isinstance(input_node, mari.ChannelNode):
-                    result.append((input_name, input_node))
+                    result.append((input_name, input_node, shader_model_input_name))
                 elif isinstance(input_node, mari.BakePointNode):
-                    result.append((input_name, input_node))
+                    result.append((input_name, input_node, shader_model_input_name))
         
         return result
 
@@ -549,7 +554,7 @@ class ExportItem_Model(gui.QStandardItemModel):
         shader = shader_item.data(qt.UserRole)
         if shader:            
             new_shader_input_infos = self._advancedInputList(shader)
-            for input_name, shader_input in new_shader_input_infos:
+            for input_name, shader_input, shader_input_name in new_shader_input_infos:
                 shader_input_set.add(shader_input)
         
         if len(new_shader_input_infos) == 0:
@@ -566,7 +571,7 @@ class ExportItem_Model(gui.QStandardItemModel):
                 del row_items
         
         for new_row, shader_input_info in enumerate(new_shader_input_infos):
-            input_name, shader_input = shader_input_info
+            input_name, shader_input, shader_input_name = shader_input_info
             for old_row in range(shader_item.rowCount()):
                 child = shader_item.child(old_row, COL_EXPORT_SHADER_INPUT_NODE)
                 if child and child.data(qt.UserRole) == shader_input:
@@ -574,7 +579,7 @@ class ExportItem_Model(gui.QStandardItemModel):
                         shader_item.insertRow(new_row, shader_item.takeRow(old_row))
                     break
             else:
-                shader_input_item = ExportItem_ShaderInputItem(shader_input, input_name)
+                shader_input_item = ExportItem_ShaderInputItem(shader_input, input_name, shader_input_name)
                 size_item = ExportItem_SettingsItem()
                 colorspace_item = ExportItem_SettingsItem()
                 depth_item = ExportItem_SettingsItem()
@@ -697,6 +702,7 @@ class ExportItem_Model(gui.QStandardItemModel):
 
     def get_items_for_export(self):
         for_export = {}
+        export_item_to_shader_input_name = {}
         for row in range(self.rowCount()):
             shader_item = self.item(row, COL_EXPORT_SHADER)
             shader = shader_item.data(qt.UserRole)
@@ -705,9 +711,10 @@ class ExportItem_Model(gui.QStandardItemModel):
                 for child_row in range(shader_item.rowCount()):
                     shader_input_item = shader_item.child(child_row, COL_EXPORT_SHADER_INPUT_NODE)
                     export_item = shader_input_item.data(qt.UserRole+1)
+                    shader_input_name = shader_input_item.data(qt.UserRole+2)
                     if export_item and export_item.exportEnabled():
-                        export_items.append(export_item)
-                    
+                        export_items.append((export_item, shader_input_name))
+                
                 if len(export_items) > 0:
                     for_export[shader] = export_items
 
@@ -1055,7 +1062,7 @@ class USDExportWidget(widgets.QWidget):
 
         override_depth = self.export_item_model.override(COL_EXPORT_DEPTH)
         for shader, export_items in for_export.items():
-            for export_item in export_items:
+            for export_item, shader_input_name in export_items:
                 if override_depth is None:
                     export_item_depth = export_item.depth()
                 else:
@@ -1087,7 +1094,7 @@ class USDExportWidget(widgets.QWidget):
         override_size = self.export_item_model.override(COL_EXPORT_SIZE)
         override_color_space = self.export_item_model.override(COL_EXPORT_COLOR_SPACE)
         for shader, export_items in for_export.items():
-            for export_item in export_items:
+            for export_item, shader_input_name in export_items:
                 export_file_name, export_file_ext = split_ext(export_item.fileTemplate())
                 export_file_template = "%s.%s" % (file_name, export_file_ext)
 
@@ -1122,32 +1129,40 @@ class USDExportWidget(widgets.QWidget):
         
         root = self.root_name_widget.text()
         
+        geo_versions = []
+        geo_version_to_mesh_locations = {}
+        geo_version_to_shader = {}
+        geo_version_to_export_items = {}
+        export_item_to_shader_input_name = {}
+        
         for shader, export_items in for_export.items():
             if not shader:
-                print("shader is %s" % shader)
                 continue
                 
             node = shader.shaderNode()
             if not node:
-                print("node is %s" % node)
                 continue
             
             node_graph = node.parentNodeGraph()
             if not node_graph:
-                print("node_graph is %s" % node_graph)
                 continue
                 
             geo_entity = node_graph.parentGeoEntity()
             if not geo_entity:
-                print("geo_entity is %s" % geo_entity)
                 continue
                 
             current_geo_version = geo_entity.currentVersion()
             if not current_geo_version:
-                print("current_geo_version is %s" % current_geo_version)
                 continue
 
-            mesh_locations = current_geo_version.sourceMeshLocationList()
+            geo_versions.append(current_geo_version)
+            geo_version_to_shader[current_geo_version] = shader
+            geo_version_export_items = []
+            for export_item, shader_input_name in export_items:
+                geo_version_export_items.append(export_item)
+                export_item_to_shader_input_name[export_item] = shader_input_name
+            geo_version_to_export_items[current_geo_version] = geo_version_export_items
+            geo_version_to_mesh_locations[current_geo_version] = current_geo_version.sourceMeshLocationList()
 
             try:
                 usd_shade_export.exportShaderAsUsdShadeLook(
@@ -1156,10 +1171,12 @@ class USDExportWidget(widgets.QWidget):
                     export_assembly_path,
                     export_payload_path,
                     export_texture_file_dir,
-                    shader,
-                    mesh_locations,
-                    root
-                )
+                    geo_versions,
+                    geo_version_to_shader,
+                    geo_version_to_export_items,
+                    geo_version_to_mesh_locations,
+                    export_item_to_shader_input_name,
+                    root)
             except Exception as error:
                 error_message = "\n".join((str(error), traceback.format_exc()))
                 mari.app.log("USD Export Error : %s" % error_message)
