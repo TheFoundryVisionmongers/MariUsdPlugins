@@ -1127,14 +1127,10 @@ class USDExportWidget(widgets.QWidget):
         export_texture_file_name = os.path.basename(export_texture_path)
         export_texture_file_dir = os.path.dirname(export_texture_path)
         
-        root = self.root_name_widget.text()
-        
-        geo_versions = []
-        geo_version_to_mesh_locations = {}
-        geo_version_to_shader = {}
-        geo_version_to_export_items = {}
-        export_item_to_shader_input_name = {}
-        
+        export_root = self.root_name_widget.text()
+
+        usd_material_sources = []
+
         for shader, export_items in for_export.items():
             if not shader:
                 continue
@@ -1155,32 +1151,31 @@ class USDExportWidget(widgets.QWidget):
             if not current_geo_version:
                 continue
 
-            geo_versions.append(current_geo_version)
-            geo_version_to_shader[current_geo_version] = shader
-            geo_version_export_items = []
+            usd_material_source = usd_shade_export.UsdMaterialSource(shader.name())
+            usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
+            usd_shader_source = usd_shade_export.UsdShaderSource(shader)
             for export_item, shader_input_name in export_items:
-                geo_version_export_items.append(export_item)
-                export_item_to_shader_input_name[export_item] = shader_input_name
-            geo_version_to_export_items[current_geo_version] = geo_version_export_items
-            geo_version_to_mesh_locations[current_geo_version] = current_geo_version.sourceMeshLocationList()
+                usd_shader_source.setInputExportItem(shader_input_name, export_item)
+            usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
+            usd_material_sources.append(usd_material_source)
 
-            try:
-                usd_shade_export.exportShaderAsUsdShadeLook(
-                    export_usd_target_dir,
-                    export_look_file_path,
-                    export_assembly_path,
-                    export_payload_path,
-                    export_texture_file_dir,
-                    geo_versions,
-                    geo_version_to_shader,
-                    geo_version_to_export_items,
-                    geo_version_to_mesh_locations,
-                    export_item_to_shader_input_name,
-                    root)
-            except Exception as error:
-                error_message = "\n".join((str(error), traceback.format_exc()))
-                mari.app.log("USD Export Error : %s" % error_message)
-                widgets.QMessageBox.critical(self, "Error", error_message)
+        try:
+            usd_shade_export.exportUsdShadeLook(
+                export_usd_target_dir,
+                export_look_file_path,
+                export_assembly_path,
+                export_payload_path,
+                export_texture_file_dir,
+                export_root,
+                usd_material_sources,
+            )
+        except ValueError as error:
+            mari.app.log("USD Export Error : %s" % error)
+            widgets.QMessageBox.critical(self, "USD Export Error", error)
+        except Exception as error:
+            error_message = "\n".join((str(error), traceback.format_exc()))
+            mari.app.log("USD Export Error : %s" % error_message)
+            widgets.QMessageBox.critical(self, "Error", error_message)
 
     def save_paths(self, name, values):
         # Save the current entry with the project.

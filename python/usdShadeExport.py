@@ -14,6 +14,129 @@ USD_SHADER_INPUT_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
 USD_MATERIAL_TERMINALS = {}
 
+class UsdShaderSource(object):
+    """Container class for all Mari Entity instances required to author a UsdShade network for a
+    specific render target context.
+    """
+    def __init__(self, source_shader):
+        super(UsdShaderSource, self).__init__()
+
+        self._source_shader = source_shader
+        self._export_items = {}
+
+    def shaderModel(self):
+        """Convenience function to return Shader Model of source Shader
+
+        Returns:
+            mari.ShaderModel: Shader Model of source Shader
+        """
+        return self._source_shader.shaderModel()
+
+    def sourceShader(self):
+        """ Returns the contained source shader.
+
+        Returns:
+            mari.Shader: Source shader
+        """
+        return self._source_shader
+
+    def setInputExportItem(self, shader_input_name, export_item):
+        """ Sets the export item for the specified shader input.
+
+        Args:
+            shader_input_name (str): Shader input name.
+            export_item (mari.ExportItem): Export Item
+
+        Raises:
+            ValueError: When the shader input name is not from the associated shader model
+        """
+        if shader_input_name not in self.shaderModel().inputNames():
+            raise ValueError(
+                "Given input name ({0}) is not a member of the represented shader's model ({1})".format(
+                    shader_input_name,
+                    self.shaderModel().id()
+                )
+            )
+        self._export_items[shader_input_name] = export_item
+
+    def getInputExportItem(self, shader_input_name):
+        """ Returns the export item for the specified shader input.
+
+        Args:
+            shader_input_name (str): Shader input name.
+
+        Returns:
+            mari.ExportItem: Export Item source
+        """
+        return self._export_items.get(shader_input_name)
+
+
+class UsdMaterialSource(object):
+    """Container class for all Mari Entity instances required to author a UsdShade Look
+    """
+    def __init__(self, name):
+        super(UsdMaterialSource, self).__init__()
+
+        self._name = name
+        self._shader_sources = {}
+        self._binding_locations = []
+
+    def name(self):
+        """ Returns name of Usd Material
+
+        Returns:
+            str. Name of Usd Material
+        """
+        return self._name
+
+    def shaderSource(self, mari_shader_type_name):
+        """ Returns the source Mari Shader of the specified shader type.
+        Args:
+            mari_shader_type_name (str): Mari Shader type name.
+
+        Returns:
+            UsdShaderSource: Mari shader source container
+        """
+        return self._shader_sources.get(mari_shader_type_name)
+
+    def setShaderSource(self, mari_shader_type_name, shader_source):
+        """ Populates the given shader source container into the specified shader type
+
+        Args:
+            mari_shader_type_name (str): Mari Shader type name.
+            shader_source (UsdShaderSource): Shader source container
+        """
+        if not isinstance(shader_source, UsdShaderSource):
+            raise ValueError(
+                "Only UsdShaderSource instances can be set as the shader source of a UsdMaterialSource instance. "
+                "Instance of %s given instead." % type(shader_source)
+            )
+        self._shader_sources[mari_shader_type_name] = shader_source
+
+    def shaderSourceList(self):
+        """ Returns the list of contained Usd Shader source containers
+
+        Returns:
+            list of UsdShaderSource: Usd Shader source containers
+        """
+        return list(self._shader_sources.values())
+
+    def bindingLocations(self):
+        """ Returns the material binding locations
+
+        Returns:
+            list of str. Material binding locations
+        """
+        return self._binding_locations
+
+    def setBindingLocations(self, binding_locations):
+        """ Sets the container's material binding locations.
+
+        Args:
+            binding_locations (list of str): Material binding locations
+        """
+        self._binding_locations = binding_locations
+
 
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
     material_terminal_name, material_surface_context
@@ -206,12 +329,12 @@ def getInputExportItems(mari_shader):
     mari_shader_model = mari_shader.shaderModel()
     for shader_model_input in list(mari_shader_model.inputs().values()):
         export_item = getExportItemForShaderInput(mari_shader, shader_model_input)
-        if export_item.exportEnabled():
+        if export_item and export_item.exportEnabled():
             yield shader_model_input, export_item
 
 
-def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_path,
-    textures_dir_name, geo_versions, geo_version_to_shader, geo_version_to_export_items, geo_version_to_mesh_locations, export_item_to_shader_input_name, root_name
+def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_path,
+    textures_dir_name, root_name, usd_material_sources
 ):
     """Exports a Mari Shader as a UsdShade look file.
 
@@ -221,44 +344,24 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         assembly_filename (str): Name of Usd Assembly file
         payload_path (str): Path to Usd payload
         textures_dir_name (str): Name of textures sub directory
-        geo_versions (list of mari.GeoVersion): Geo versions to export
-        geo_version_to_shader (dict of mari.GeoVersion : mari.Shader): Shader to export for each geo version exported
-        geo_version_to_export_items (dict of mari.GeoVersion : list of mari.ExportItem): Export items to export for each geo version exported
-        geo_version_to_mesh_locations (dict of mari.GeoVersion : list of str): Usd locations to assign material to for each geo version exported
-        export_item_to_shader_input_name (dict of mari.ExportItem : str): The shader model input name associated with a given export item
         root_name (str): Usd root location
+        usd_material_sources (list of UsdMaterialSource): List of source Mari entity containers to export from
     """
-    
-    geo_versions_set = set(geo_versions)
-    if not geo_versions_set.issubset(set(geo_version_to_shader.keys())):
-        raise ValueError("Missing shader associations for geo versions, please ensure each geo version to be exported has an associated shader to export.")
-    if not geo_versions_set.issubset(set(geo_version_to_export_items.keys())):
-        raise ValueError("Missing export item associations for geo versions, please ensure each geo version to be exported has an associated list of export items to export.")
-    if not geo_versions_set.issubset(set(geo_version_to_mesh_locations.keys())):
-        raise ValueError("Missing mesh location associations for geo versions, please ensure each geo version to be exported has an associated list of mesh locations to export to.")
-    
-    export_item_set = set()
-    for export_items in geo_version_to_export_items.values():
-        export_item_set |= set(export_items)
-    
-    if not set(export_item_to_shader_input_name.keys()).issubset(export_item_set):
-        raise ValueError("Missing shader input name associations for export items, please ensure each export item to be exported has an associated shader input name.")
-    
-    for geo_version in geo_versions:
-        mari_shader = geo_version_to_shader[geo_version]
-        shader_model_id = mari_shader.shaderModel().id()
-        if shader_model_id not in MARI_TO_USD_SHADER_MAPPING or\
-                shader_model_id not in USD_SHADER_INPUT_EXPORT_FUNCTIONS:
-            raise ValueError("Shader type {0} has no plugin registered for UsdShade export.".format(shader_model_id))
-
     sanitized_shader_names = set()
-    for geo_version in geo_versions:
-        mari_shader = geo_version_to_shader[geo_version]
-        sanitized_shader_name = _sanitize(mari_shader.name())
-        if sanitized_shader_name in sanitized_shader_names:
-            raise ValueError("Conflicting shader name '{0}', please ensure that shaders have unique names to avoid conflicts in the exported Look File.".format(sanitized_shader_name))
-        else:
-            sanitized_shader_names.add(sanitized_shader_name)
+    for usd_material_source in usd_material_sources:
+        for usd_shader_source in usd_material_source.shaderSourceList():
+            # Check for duplicate shader names
+            sanitized_shader_name = _sanitize(usd_shader_source.sourceShader().name())
+            if sanitized_shader_name in sanitized_shader_names:
+                raise ValueError("Conflicting shader name '{0}', please ensure that shaders have unique names to avoid conflicts in the exported Look File.".format(sanitized_shader_name))
+            else:
+                sanitized_shader_names.add(sanitized_shader_name)
+
+            # Check for unregistered shader types
+            shader_model_id = usd_shader_source.shaderModel().id()
+            if shader_model_id not in MARI_TO_USD_SHADER_MAPPING or\
+                    shader_model_id not in USD_SHADER_INPUT_EXPORT_FUNCTIONS:
+                raise ValueError("Shader type {0} has no plugin registered for UsdShade export.".format(shader_model_id))
 
     if os.path.isabs(looks_filename):
         looks_path = looks_filename
@@ -271,38 +374,37 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
     looks_stage = _create_new_stage(looks_path, root_name)
     root_sdf_path = Sdf.Path(root_name)
 
-    # Define shaders for materials
-    for geo_version in geo_versions:
-        mari_shader = geo_version_to_shader[geo_version]
-        shader_model = mari_shader.shaderModel()
-        sanitized_shader_name = _sanitize(mari_shader.name())
-        material_sdf_path = root_sdf_path.AppendChild(sanitized_shader_name)
+    for usd_material_source in usd_material_sources:
+        # Define shader for material
+        material_sdf_path = root_sdf_path.AppendChild(_sanitize(usd_material_source.name()))
         material = UsdShade.Material.Define(looks_stage, material_sdf_path)
-        material_shader = UsdShade.Shader.Define(looks_stage, material_sdf_path.AppendChild(sanitized_shader_name))
-        shader_model_id = shader_model.id()
-        material_shader.SetShaderId(MARI_TO_USD_SHADER_MAPPING[shader_model_id])
-        material_surface_context, material_terminal_name = USD_MATERIAL_TERMINALS[shader_model_id]
-        if material_surface_context is not None:
-            material_output = material.CreateSurfaceOutput(material_surface_context)
-        else:
-            material_output = material.CreateSurfaceOutput()
-        material_output.ConnectToSource(material_shader, material_terminal_name)
+        for usd_shader_source in usd_material_source.shaderSourceList():
+            mari_shader = usd_shader_source.sourceShader()
+            shader_model = mari_shader.shaderModel()
+            material_shader = UsdShade.Shader.Define(looks_stage, material_sdf_path.AppendChild(_sanitize(mari_shader.name())))
+            material_shader.SetShaderId(MARI_TO_USD_SHADER_MAPPING[shader_model.id()])
+            material_surface_context, material_terminal_name = USD_MATERIAL_TERMINALS[shader_model.id()]
+            if material_surface_context is not None:
+                material_output = material.CreateSurfaceOutput(material_surface_context)
+            else:
+                material_output = material.CreateSurfaceOutput()
+            material_output.ConnectToSource(material_shader, material_terminal_name)
 
-        texture_root_path = os.path.normpath(textures_dir_name)
+            texture_root_path = os.path.normpath(textures_dir_name)
 
-        for export_item in geo_version_to_export_items[geo_version]:
-            shader_input_name = export_item_to_shader_input_name[export_item]
-            if export_item and export_item.exportEnabled():
-                USD_SHADER_INPUT_EXPORT_FUNCTIONS[shader_model_id](
-                    looks_stage,
-                    material_shader,
-                    mari_shader,
-                    shader_input_name,
-                    export_item,
-                    texture_root_path
-                )
+            for shader_model_input in list(shader_model.inputs().values()):
+                export_item = usd_shader_source.getInputExportItem(shader_model_input.name())
+                if export_item and export_item.exportEnabled():
+                    USD_SHADER_INPUT_EXPORT_FUNCTIONS[shader_model.id()](
+                        looks_stage,
+                        material_shader,
+                        mari_shader,
+                        shader_model_input,
+                        export_item,
+                        texture_root_path
+                    )
 
-        for material_assign_location in geo_version_to_mesh_locations[geo_version]:
+        for material_assign_location in usd_material_source.bindingLocations():
             material_assign_sdf_path = Sdf.Path(material_assign_location)
             material_assign_prim = looks_stage.OverridePrim(material_assign_sdf_path)
             UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
@@ -316,7 +418,7 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         else:
             assembly_path = os.path.join(target_dir, assembly_filename)
         assembly_path = os.path.normpath(assembly_path)
-        
+
         assembly_dir = os.path.dirname(assembly_path)
 
         if os.path.exists(assembly_path):
@@ -327,13 +429,13 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
         # add the payload asset
         if not payload_path:
             raise ValueError("Assembly file requested, however no payload asset filename was specified!")
-            
+
         # add the look file as a reference
         try:
             payload_path_rel = os.path.relpath(payload_path, assembly_dir)
         except ValueError:
             payload_path_rel = payload_path # ValueError on Windows if drive differs. Cannot be relative in that case.
-            
+
         payload = Sdf.Payload(payload_path_rel)
         assembly_root_prim.GetPayloads().AddPayload(
             payload,
@@ -352,7 +454,7 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
             position=Usd.ListPositionBackOfAppendList
         )
         assembly_stage.GetRootLayer().Save()
-        
+
 if mari.app.isRunning():
     # Register the USD Preview Surface exporter.
     registerRendererExportPlugin(
