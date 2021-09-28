@@ -34,9 +34,9 @@ def get_relevant_shaders(geo_entity):
     return [shader for shader in geo_entity.shaderList() if not shader.isSystemShader()]
 
 class ShaderAssignment_Item(gui.QStandardItem):
-    def __init__(self, object = None):
+    def __init__(self, source_object = None):
         gui.QStandardItem.__init__(self)
-        self.setData(object, qt.UserRole)
+        self.setData(source_object, qt.UserRole)
 
     def set_geo_entity_meta_data(self, value):
         index = self.index()
@@ -75,9 +75,9 @@ class ShaderAssignment_Item(gui.QStandardItem):
 
     def data(self, role):
         if role == qt.DisplayRole:
-            object = self.data(qt.UserRole)
-            if object:
-                return object.name()
+            source_object = self.data(qt.UserRole)
+            if source_object:
+                return source_object.name()
             return ""
 
         return gui.QStandardItem.data(self, role)
@@ -268,24 +268,24 @@ def split_ext(path):
     return file_name, file_ext
 
 class ExportItem_ShaderItem(gui.QStandardItem):
-    def __init__(self, object = None):
+    def __init__(self, source_object = None):
         gui.QStandardItem.__init__(self)
-        self.setData(object, qt.UserRole)
+        self.setData(source_object, qt.UserRole)
 
     def data(self, role):
         if role == qt.DisplayRole:
-            object = self.data(qt.UserRole)
-            if object:
-                return object.name()
+            source_object = self.data(qt.UserRole)
+            if source_object:
+                return source_object.name()
             return ""
     
         return gui.QStandardItem.data(self, role)
         
 class ExportItem_ShaderInputItem(gui.QStandardItem):
-    def __init__(self, object = None, text = "", input_name = ""):
+    def __init__(self, source_object = None, text = "", input_name = ""):
         gui.QStandardItem.__init__(self, text)
-        self.setData(object,     qt.UserRole)
-        self.setData(None,       qt.UserRole+1)
+        self.setData(source_object, qt.UserRole)
+        self.setData(None, qt.UserRole+1)
         self.setData(input_name, qt.UserRole+2)
 
     def setData(self, data, role):
@@ -1062,7 +1062,7 @@ class USDExportWidget(widgets.QWidget):
 
         override_depth = self.export_item_model.override(COL_EXPORT_DEPTH)
         for shader, export_items in for_export.items():
-            for export_item, shader_input_name in export_items:
+            for export_item, _ in export_items:
                 if override_depth is None:
                     export_item_depth = export_item.depth()
                 else:
@@ -1094,7 +1094,7 @@ class USDExportWidget(widgets.QWidget):
         override_size = self.export_item_model.override(COL_EXPORT_SIZE)
         override_color_space = self.export_item_model.override(COL_EXPORT_COLOR_SPACE)
         for shader, export_items in for_export.items():
-            for export_item, shader_input_name in export_items:
+            for export_item, _ in export_items:
                 export_file_name, export_file_ext = split_ext(export_item.fileTemplate())
                 export_file_template = "%s.%s" % (file_name, export_file_ext)
 

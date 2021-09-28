@@ -290,7 +290,6 @@ def exportShaderAsUsdShadeLook(target_dir, looks_filename, assembly_filename, pa
 
         texture_root_path = os.path.normpath(textures_dir_name)
 
-        # for shader_model_input in list(shader_model.inputs().values()):
         for export_item in geo_version_to_export_items[geo_version]:
             shader_input_name = export_item_to_shader_input_name[export_item]
             if export_item and export_item.exportEnabled():
