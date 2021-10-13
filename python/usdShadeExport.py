@@ -402,7 +402,7 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
                         looks_stage,
                         material_shader,
                         mari_shader,
-                        shader_model_input,
+                        shader_model_input.name(),
                         export_item,
                         texture_root_path
                     )
