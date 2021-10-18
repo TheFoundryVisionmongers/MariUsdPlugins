@@ -24,6 +24,47 @@ class UsdShaderSource(object):
         self._source_shader = source_shader
         self._export_items = {}
 
+    def to_dict(self):
+        """ Returns the contents of the class instance as a dictionary.
+
+        Returns:
+            dict: Dictionary representation of data
+        """
+        usd_shader_source_data = {
+            "source_shader": self._source_shader,
+            "export_items": {},
+        }
+        for shader_input_name, export_item in self._export_items.items():
+            usd_shader_source_data["export_items"][shader_input_name] = export_item
+
+        return usd_shader_source_data
+
+    @classmethod
+    def from_dict(cls, usd_shader_source_data):
+        """Generates a UsdShaderSource instance from the given data dictionary.
+
+        The dictionary needs to match the following structure::
+            {
+                "source_shader": mari.Shader instance
+                "export_items": { # Dict of stream name keys and mari.ExportItem instance values
+                    "BaseColor": mari.ExportItem instance,
+                },
+            }
+
+        Args:
+            usd_shader_source_data (dict) : UsdShaderSource data dictionary
+
+        Returns:
+            UsdShaderSource: New UsdShaderSource instance
+        """
+        if "source_shader" not in usd_shader_source_data:
+            raise ValueError("source_shader key not in usd_shader_source_data")
+        usd_shader_source = cls(usd_shader_source_data["source_shader"])
+        for shader_input_name, export_item in usd_shader_source_data.get("export_items", {}).items():
+            usd_shader_source.setInputExportItem(shader_input_name, export_item)
+
+        return usd_shader_source
+
     def shaderModel(self):
         """Convenience function to return Shader Model of source Shader
 
@@ -80,6 +121,55 @@ class UsdMaterialSource(object):
         self._name = name
         self._shader_sources = {}
         self._binding_locations = []
+
+    def to_dict(self):
+        """ Returns the contents of the class instance as a dictionary.
+
+        Returns:
+            dict: Dictionary representation of data
+        """
+        usd_material_source_data = {
+            "name": self._name,
+            "shader_sources": {},
+            "binding_locations": list(self._binding_locations),
+        }
+        for mari_shader_type_name, usd_shader_source in self._shader_sources.items():
+            usd_material_source_data["shader_sources"][mari_shader_type_name] = usd_shader_source.to_dict()
+
+        return usd_material_source_data
+
+    @classmethod
+    def from_dict(cls, usd_material_source_data):
+        """Generates a UsdMaterialSource instance from the given data dictionary.
+
+        The dictionary needs to match the following structure::
+            {
+                "name": str # Name of USD Material
+                "binding_locations": list # Mesh locations to apply material bindings
+                "shader_sources": { # Dict of Mari shader type keys and UsdShaderSource dict values
+                    "UsdPreviewSurface": {
+                        "source_shader": mari.Shader instance
+                        "export_items": { # Dict of stream name keys and mari.ExportItem instance values
+                            "BaseColor": mari.ExportItem instance,
+                        },
+                    }
+                },
+            }
+
+        Args:
+            usd_material_source_data (dict) : UsdMaterialSource data dictionary
+
+        Returns:
+            UsdMaterialSource: New UsdMaterialSource instance
+        """
+        if "name" not in usd_material_source_data:
+            raise ValueError("name key not in usd_material_source_data")
+        usd_material_source = cls(usd_material_source_data["name"])
+        usd_material_source.setBindingLocations(usd_material_source_data.get("binding_locations", []))
+        for mari_shader_type_name, shader_source_data in usd_material_source_data.get("shader_sources", {}).items():
+            usd_material_source.setShaderSource(mari_shader_type_name, UsdShaderSource.from_dict(shader_source_data))
+
+        return usd_material_source
 
     def name(self):
         """ Returns name of Usd Material
