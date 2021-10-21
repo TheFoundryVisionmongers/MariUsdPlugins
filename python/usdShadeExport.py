@@ -14,6 +14,25 @@ USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
 USD_MATERIAL_TERMINALS = {}
 
+
+class UsdShadeExportError(Exception):
+    """Custom Exception for known errors hit when exporting to UsdShade
+    """
+
+    def __init__(self, title, message, details=None):
+        super(UsdShadeExportError, self).__init__()
+
+        self.title = title
+        self.message = message
+        self.details = details
+
+    def __repr__(self):
+        return "UsdShadeExportError({0}:{1})".format(self.title, self.message)
+
+    def __str__(self):
+        return "{0}:{1}".format(self.title, self.message)
+
+
 class UsdShaderSource(object):
     """Container class for all Mari Entity instances required to author a UsdShade network for a
     specific render target context.
@@ -228,6 +247,256 @@ class UsdMaterialSource(object):
         self._binding_locations = binding_locations
 
 
+class UsdExportParameters(object):
+    """Container class for all parameters necessary for exporting Mari project data to UsdShade Looks.
+    """
+
+    def __init__(self):
+        super(UsdExportParameters, self).__init__()
+
+        self._export_root_path = ""
+        self._lookfile_target_filename = "Lookfile.usda"
+        self._assembly_target_filename = ""
+        self._payload_source_path = ""
+        self._stage_root_path = "/root"
+
+    def setExportRootPath(self, export_root_path):
+        """ Sets the export root path location
+
+        Args:
+            export_root_path (str): Export root path
+
+        Returns:
+            bool. Export root path has changed
+
+        Raises:
+            UsdShadeExportError: When the specified path does not exist.
+        """
+        if not os.path.exists(export_root_path):
+            raise UsdShadeExportError(
+                "Export Root Path Does Not Exist",
+                "The specified export root path does not exist:\n\n    {0}".format(export_root_path)
+            )
+        if export_root_path != self._export_root_path:
+            self._export_root_path = export_root_path
+            return True
+        return False
+
+    def exportRootPath(self):
+        """ Returns the set export root path
+
+        Returns:
+            str. Export root path
+        """
+        return os.path.normpath(self._export_root_path)
+
+    def setLookfileTargetFilename(self, lookfile_target_filename):
+        """ Sets the filename for the Lookfile export target
+
+        Args:
+            lookfile_target_filename (str): Lookfile target filename
+
+        Returns:
+            bool. Lookfile export target path has changed
+
+        Raises:
+            UsdShadeExportError: Target path does not exist
+        """
+        # Is target just a filename
+        if os.path.basename(lookfile_target_filename) == lookfile_target_filename:
+            if not self._export_root_path:
+                raise UsdShadeExportError(
+                    "Export Root Path Undefined",
+                    "The export root path has not yet been defined"
+                )
+            lookfile_target_filename = os.path.normpath(os.path.join(self._export_root_path, lookfile_target_filename))
+
+        # Ensure directory exists
+        if not os.path.exists(os.path.dirname(lookfile_target_filename)):
+            raise UsdShadeExportError(
+                "Target Directory does not Exist",
+                "{0}\n\n    {1} does not exist".format(
+                    "The given directory for the Lookfile file to be written to does not exist.",
+                    os.path.dirname(lookfile_target_filename)
+                )
+            )
+        if self._lookfile_target_filename != lookfile_target_filename:
+            self._lookfile_target_filename = lookfile_target_filename
+            return True
+        else:
+            return False
+
+    def lookfileTargetFilename(self):
+        """ Returns the set Lookfile target filename
+
+        Returns:
+            str. Lookfile target filename
+        """
+        return self._lookfile_target_filename
+
+    def lookfileTargetPath(self):
+        """ Returns the set Lookfile target path
+
+        Returns:
+            str. Lookfile target path
+        """
+        if os.path.isabs(self._lookfile_target_filename):
+            looks_path = self._lookfile_target_filename
+        else:
+            looks_path = os.path.join(self._export_root_path, self._lookfile_target_filename)
+        return os.path.normpath(looks_path)
+
+    def setAssemblyTargetFilename(self, assembly_target_filename):
+        """ Sets the filename for the Assembly export target
+
+        Args:
+            assembly_target_filename (str): Assembly target filename
+
+        Returns:
+            bool. Assembly export target path has changed
+
+        Raises:
+            UsdShadeExportError: Target path does not exist
+        """
+        # Is target just a filename
+        if os.path.basename(assembly_target_filename) == assembly_target_filename:
+            if not self._export_root_path:
+                raise UsdShadeExportError(
+                    "Export Root Path Undefined",
+                    "The export root path has not yet been defined"
+                )
+            assembly_target_filename = os.path.normpath(os.path.join(self._export_root_path, assembly_target_filename))
+
+        if not os.path.exists(os.path.dirname(assembly_target_filename)):
+            raise UsdShadeExportError(
+                "Target Directory does not Exist",
+                "{0}\n\n    {1} does not exist".format(
+                    "The given directory for the assembly file to be written to does not exist.",
+                    os.path.dirname(assembly_target_filename)
+                )
+            )
+        if self._assembly_target_filename != assembly_target_filename:
+            self._assembly_target_filename = assembly_target_filename
+            return True
+        else:
+            return False
+
+    def assemblyTargetFilename(self):
+        """ Returns the set Assembly target filename
+
+        Returns:
+            str. Assembly target filename
+        """
+        return self._assembly_target_filename
+
+    def assemblyTargetPath(self):
+        """ Returns the set Assembly target path
+
+        Returns:
+            str. Assembly target path
+
+        Raises:
+            ValueError. When assembly target filename is not set
+        """
+        if not self._assembly_target_filename:
+            raise ValueError("Cannot resolve absolute path for assembly target as filename is empty")
+        if os.path.isabs(self._assembly_target_filename):
+            assembly_path = self._assembly_target_filename
+        else:
+            assembly_path = os.path.join(self._export_root_path, self._assembly_target_filename)
+        return os.path.normpath(assembly_path)
+
+    def setPayloadSourcePath(self, payload_source_path):
+        """ Sets the path of the payload file
+
+        Args:
+            payload_source_path (str): Payload source path
+
+        Returns:
+            bool. Assembly export target path has changed
+
+        Raises:
+            UsdShadeExportError: Target path does not exist
+        """
+        if not os.path.isabs(payload_source_path):
+            if not self._export_root_path:
+                raise UsdShadeExportError(
+                    "Export Root Path Undefined",
+                    "The export root path has not yet been defined"
+                )
+            payload_source_path = os.path.normpath(os.path.join(self._export_root_path, payload_source_path))
+        if not os.path.exists(payload_source_path):
+            raise UsdShadeExportError(
+                "Payload File does not Exist",
+                "{0}\n\n    {1} does not exist".format(
+                    "The given payload USD file does not exist.",
+                    payload_source_path
+                )
+            )
+        if self._payload_source_path != payload_source_path:
+            self._payload_source_path = payload_source_path
+            return True
+        else:
+            return False
+
+    def payloadSourcePath(self):
+        """ Returns the set payload source path
+
+        Returns:
+            str. Payload source path
+        """
+        return self._payload_source_path
+
+    def setStageRootPath(self, stage_root_path):
+        """ Validates and sets the root path of the Stage to be created
+
+        Args:
+            stage_root_path (str): Stage root path
+
+        Returns:
+            bool. Stage root path has changed
+
+        Raises:
+            UsdShadeExportError: Various reasons for the root path to be invalid
+        """
+        if not stage_root_path:
+                raise UsdShadeExportError(
+                    "Empty Root Name",
+                    "No root name has been specified for the exporting USD stage."
+                )
+        if not stage_root_path.startswith("/"):
+                raise UsdShadeExportError(
+                    "Invalid Root Name",
+                    "The given path is not absolute.\nPlease ensure it starts with a '/'"
+                )
+        if stage_root_path.endswith("/"):
+                raise UsdShadeExportError(
+                    "Invalid Root Name",
+                    "The given root path has a trailing `/`"
+                )
+        if self._stage_root_path != stage_root_path:
+            self._stage_root_path = stage_root_path
+            return True
+        else:
+            return False
+
+    def stageRootPath(self):
+        """ Returns the set stage root path name
+
+        Returns:
+            str. Stage root path name
+        """
+        return self._stage_root_path
+
+    def stageSdfRootPath(self):
+        """ Returns the set payload source path
+
+        Returns:
+            Sdf.Path. Stage root path
+        """
+        return Sdf.Path(self._stage_root_path)
+
+
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
     material_terminal_name, material_surface_context
 ):
@@ -236,7 +505,7 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
 
         Usd.Stage: Stage to write to
         Usd.Shader: Shader to connect to
-        str: Export texture root path
+        UsdExportParameters: Container for export parameters
         UsdShaderSource: Container for source Shader and Export Items to export
 
     Args:
@@ -253,13 +522,13 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
     USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
 
 
-def writeUsdPreviewSurface(looks_stage, usd_shader, export_root_path, usdShaderSource):
+def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usdShaderSource):
     """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to
         usd_shader (Usd.Shader): Shader to connect to
-        export_root_path (str): Export texture root path
+        usd_export_parameters (UsdExportParameters): Container for export parameters
         usdShaderSource (UsdShaderSource): Container of source Shader and Export Item instances
     """
     mari_to_usd_input_map = {
@@ -280,6 +549,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, export_root_path, usdShaderS
         "Vector": (None, None),
         "Displacement": ("displacement", Sdf.ValueTypeNames.Float),
     }
+    _debuglog("Writing USD Preview Surface shader network for %s" % usdShaderSource.sourceShader().name())
     material_sdf_path = usd_shader.GetPath().GetParentPath()
 
     shader_model = usdShaderSource.shaderModel()
@@ -305,7 +575,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, export_root_path, usdShaderS
             usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
             if usd_shader_input_name is not None:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-                texture_usd_file_path = os.path.join(export_root_path, texture_usd_file_name)
+                texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
                 texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
                 texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
                 texture_sampler.CreateIdAttr("UsdUVTexture")
@@ -320,14 +590,27 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, export_root_path, usdShaderS
                 texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
                 export_items.append(export_item)
-    mari.exports.exportTextures(export_items, export_root_path)
+    _debuglog(
+        "Exporting %d export items for %s to %s" % (
+            len(export_items),
+            usdShaderSource.sourceShader().name(),
+            usd_export_parameters.exportRootPath()
+        )
+    )
+    mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
 
 
 def _sanitize(location_path):
     return location_path.replace(" ", "_")
 
 
+def _debuglog(message):
+    """Wrap message in a USD Export specific log message"""
+    mari.app.log("USD Export: %s" % message)
+
+
 def _create_new_stage(file_path, root_prim_name):
+    _debuglog("Creating Stage at %s" % file_path)
     stage = Usd.Stage.CreateNew(file_path)
     now = datetime.datetime.now()
     stage.SetMetadata(
@@ -428,18 +711,11 @@ def getInputExportItems(mari_shader):
             yield shader_model_input, export_item
 
 
-def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_path,
-    textures_dir_name, root_name, usd_material_sources
-):
+def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
     """Exports a Mari Shader as a UsdShade look file.
 
     Args:
-        target_dir (str): Target location to save Usd files
-        looks_filename (str): Name of UsdShade look file
-        assembly_filename (str): Name of Usd Assembly file
-        payload_path (str): Path to Usd payload
-        textures_dir_name (str): Name of textures sub directory
-        root_name (str): Usd root location
+        usd_export_parameters (UsdExportParameters): Container of export parameters
         usd_material_sources (list of UsdMaterialSource): List of source Mari entity containers to export from
     """
     sanitized_shader_names = set()
@@ -448,7 +724,13 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
             # Check for duplicate shader names
             sanitized_shader_name = _sanitize(usd_shader_source.sourceShader().name())
             if sanitized_shader_name in sanitized_shader_names:
-                raise ValueError("Conflicting shader name '{0}', please ensure that shaders have unique names to avoid conflicts in the exported Look File.".format(sanitized_shader_name))
+                raise UsdShadeExportError(
+                    "Shader Name Conflict",
+                    " ".join((
+                        "Conflicting shader name '{0}',".format(sanitized_shader_name),
+                        "please ensure that shaders have unique names to avoid conflicts in the exported Look File."
+                    ))
+                )
             else:
                 sanitized_shader_names.add(sanitized_shader_name)
 
@@ -456,21 +738,20 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
             shader_model_id = usd_shader_source.shaderModel().id()
             if shader_model_id not in MARI_TO_USD_SHADER_MAPPING or\
                     shader_model_id not in USD_SHADER_EXPORT_FUNCTIONS:
-                raise ValueError("Shader type {0} has no plugin registered for UsdShade export.".format(shader_model_id))
+                raise UsdShadeExportError(
+                    "No Exporter for Shader Type",
+                    "Shader type {0} has no plugin registered for UsdShade export.".format(shader_model_id)
+                )
 
-    if os.path.isabs(looks_filename):
-        looks_path = looks_filename
-    else:
-        looks_path = os.path.join(target_dir, looks_filename)
-    looks_path = os.path.normpath(looks_path)
-
+    looks_path = usd_export_parameters.lookfileTargetPath()
     if os.path.exists(looks_path):
         os.remove(looks_path)
-    looks_stage = _create_new_stage(looks_path, root_name)
-    root_sdf_path = Sdf.Path(root_name)
+    looks_stage = _create_new_stage(looks_path, usd_export_parameters.stageRootPath())
+    root_sdf_path = usd_export_parameters.stageSdfRootPath()
 
     for usd_material_source in usd_material_sources:
         # Define shader for material
+        _debuglog("Defining material for %s" % usd_material_source.name())
         material_sdf_path = root_sdf_path.AppendChild(_sanitize(usd_material_source.name()))
         material = UsdShade.Material.Define(looks_stage, material_sdf_path)
         for usd_shader_source in usd_material_source.shaderSourceList():
@@ -485,46 +766,44 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
                 material_output = material.CreateSurfaceOutput()
             material_output.ConnectToSource(material_shader.ConnectableAPI(), material_terminal_token)
 
-            texture_root_path = os.path.normpath(textures_dir_name)
-
             USD_SHADER_EXPORT_FUNCTIONS[shader_model.id()](
                 looks_stage,
                 material_shader,
-                texture_root_path,
+                usd_export_parameters,
                 usd_shader_source
             )
 
+        _debuglog("Assigning locations to material %s" % usd_material_source.name())
         for material_assign_location in usd_material_source.bindingLocations():
             material_assign_sdf_path = Sdf.Path(material_assign_location)
             material_assign_prim = looks_stage.OverridePrim(material_assign_sdf_path)
             UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
 
+    _debuglog("Saving Lookfile stage to disk: %s" % looks_path)
     looks_stage.GetRootLayer().Save()
 
-    if assembly_filename:
+    if usd_export_parameters.assemblyTargetFilename():
         # setup the assembly stage
-        if os.path.isabs(assembly_filename):
-            assembly_path = assembly_filename
-        else:
-            assembly_path = os.path.join(target_dir, assembly_filename)
-        assembly_path = os.path.normpath(assembly_path)
-
+        assembly_path = usd_export_parameters.assemblyTargetPath()
+        _debuglog("About to write Assembly file: %s" % assembly_path)
         assembly_dir = os.path.dirname(assembly_path)
-
         if os.path.exists(assembly_path):
             os.remove(assembly_path)
-        assembly_stage = _create_new_stage(assembly_path, root_name)
+        assembly_stage = _create_new_stage(assembly_path, usd_export_parameters.stageRootPath())
         assembly_root_prim = assembly_stage.GetDefaultPrim()
 
         # add the payload asset
-        if not payload_path:
-            raise ValueError("Assembly file requested, however no payload asset filename was specified!")
+        if not usd_export_parameters.payloadSourcePath():
+            raise UsdShadeExportError(
+                "Missing Payload File",
+                "Assembly file requested, however no payload asset filename was specified."
+            )
 
         # add the look file as a reference
         try:
-            payload_path_rel = os.path.relpath(payload_path, assembly_dir)
+            payload_path_rel = os.path.relpath(usd_export_parameters.payloadSourcePath(), assembly_dir)
         except ValueError:
-            payload_path_rel = payload_path # ValueError on Windows if drive differs. Cannot be relative in that case.
+            payload_path_rel = usd_export_parameters.payloadSourcePath() # ValueError on Windows if drive differs. Cannot be relative in that case.
 
         payload = Sdf.Payload(payload_path_rel)
         assembly_root_prim.GetPayloads().AddPayload(
@@ -543,6 +822,7 @@ def exportUsdShadeLook(target_dir, looks_filename, assembly_filename, payload_pa
             # looks_path,
             position=Usd.ListPositionBackOfAppendList
         )
+        _debuglog("Saving assembly stage to disk: %s" % assembly_path)
         assembly_stage.GetRootLayer().Save()
 
 if mari.app.isRunning():

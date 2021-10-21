@@ -1104,7 +1104,7 @@ class USDExportWidget(widgets.QWidget):
                     export_file_template = export_file_template.replace("$CHANNEL", "$NODE")
 
                 export_item.setFileTemplate(export_file_template)
-                
+
                 if override_depth is not None:
                     export_item.setDepth(override_depth)
 
@@ -1115,20 +1115,19 @@ class USDExportWidget(widgets.QWidget):
                     export_item.setColorspace(override_color_space)
 
         print("Export Items updated with file template and overrides.")
-        
+
         self.saveSettings()
-        
-        export_usd_target_dir = self.export_usd_target_dir_widget.path()
-        
-        export_look_file_path = self.look_file_widget.path()
-        export_assembly_path = self.assembly_file_widget.path()
-        export_payload_path = self.payload_file_widget.path()
-        export_texture_path = self.export_texture_file_widget.path()
-        export_texture_file_path, export_texture_ext = split_ext(export_texture_path)
-        export_texture_file_name = os.path.basename(export_texture_path)
-        export_texture_file_dir = os.path.dirname(export_texture_path)
-        
-        export_root = self.root_name_widget.text()
+        usd_export_parameters = usd_shade_export.UsdExportParameters()
+        try:
+            usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
+            usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())
+            usd_export_parameters.setAssemblyTargetFilename(self.assembly_file_widget.path())
+            usd_export_parameters.setPayloadSourcePath(self.payload_file_widget.path())
+            usd_export_parameters.setStageRootPath(self.root_name_widget.text())
+        except usd_shade_export.UsdShadeExportError as error:
+            mari.app.log("USD Export Error : %s" % error.message)
+            mari.utils.message(error.message, error.title, icon=widgets.QMessageBox.Critical, details=error.details)
+            return
 
         usd_material_sources = []
 
@@ -1161,18 +1160,10 @@ class USDExportWidget(widgets.QWidget):
             usd_material_sources.append(usd_material_source)
 
         try:
-            usd_shade_export.exportUsdShadeLook(
-                export_usd_target_dir,
-                export_look_file_path,
-                export_assembly_path,
-                export_payload_path,
-                export_texture_file_dir,
-                export_root,
-                usd_material_sources,
-            )
-        except ValueError as error:
-            mari.app.log("USD Export Error : %s" % error)
-            widgets.QMessageBox.critical(self, "USD Export Error", error)
+            usd_shade_export.exportUsdShadeLook(usd_export_parameters, usd_material_sources)
+        except usd_shade_export.UsdShadeExportError as error:
+            mari.app.log("USD Export Error : %s" % error.message)
+            mari.utils.message(error.message, error.title, icon=widgets.QMessageBox.Critical, details=error.details)
         except Exception as error:
             error_message = "\n".join((str(error), traceback.format_exc()))
             mari.app.log("USD Export Error : %s" % error_message)
