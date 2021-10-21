@@ -641,6 +641,7 @@ class ExportItem_Model(gui.QStandardItemModel):
                             shader_input_node_export_item = mari.ExportItem()
                             shader_input_node_export_item.setSourceNode(shader_input_node)
                             shader_input_node_export_item.setFileTemplate(self.parentObject().default_texture_pattern)
+                            shader_input_node_export_item.setMetadata("_HIDDEN", True)
                             mari.exports.addExportItem(shader_input_node_export_item, geo_entity)
                             shader_input_item.setData(shader_input_node_export_item, qt.UserRole+1)
 
