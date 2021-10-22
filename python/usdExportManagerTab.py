@@ -654,6 +654,16 @@ class ExportItem_Model(gui.QStandardItemModel):
                     if child:
                         child.emitDataChanged()
 
+    def update_texture_pattern(self, file_template):
+        for row in range(self.rowCount()):
+            shader_item = self.item(row, COL_EXPORT_SHADER)
+            for child_row in range(shader_item.rowCount()):
+                shader_input_item = shader_item.child(child_row, COL_EXPORT_SHADER_INPUT_NODE)
+                file_ext_item = shader_item.child(child_row, COL_EXPORT_FORMAT)
+                export_item = shader_input_item.data(qt.UserRole + 1)
+                export_item.setFileTemplate(file_template)
+                file_ext_item.emitDataChanged()
+
     def flags(self, index = core.QModelIndex()):
         flags = gui.QStandardItemModel.flags(self, index)
         
@@ -1024,6 +1034,16 @@ class USDExportWidget(widgets.QWidget):
         file_name, file_ext = split_ext(path)
         self.default_format = file_ext
         self.default_texture_pattern = path
+
+        # Replace texture pattern of all export items
+        export_root_path = self.export_usd_target_dir_widget.path()
+        file_template = self.default_texture_pattern
+        if export_root_path and os.path.isabs(file_template):
+            try:
+                file_template = os.path.relpath(file_template, export_root_path)
+            except ValueError:
+                pass
+        self.export_item_model.update_texture_pattern(file_template)
 
     def on_export_texture_file_name_browse_button_pressed(self):
         pass
