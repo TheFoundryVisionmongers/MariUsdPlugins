@@ -413,10 +413,7 @@ class ExportItem_ItemDelegate(widgets.QStyledItemDelegate):
                 editor = widgets.QComboBox(parent)
                 for i, depth in enumerate(mari.exports.depthList()):
                     if i == 0:
-                        export_item_depth = export_item.depth()
-                        if export_item_depth == depth:
-                            export_item_depth = export_item.sourceDepth()
-                        editor.addItem(depth + " (%s)" % BIT_DEPTHS[export_item_depth], depth)
+                        editor.addItem("{0} ({1})".format(depth, BIT_DEPTHS[export_item.sourceDepth()]), depth)
                     else:
                         editor.addItem(depth, depth)
                 editor.currentIndexChanged.connect(self.finishEdit)
