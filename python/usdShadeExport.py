@@ -42,6 +42,7 @@ class UsdShaderSource(object):
 
         self._source_shader = source_shader
         self._export_items = {}
+        self._uv_set_name = "st"
 
     def to_dict(self):
         """ Returns the contents of the class instance as a dictionary.
@@ -129,6 +130,22 @@ class UsdShaderSource(object):
             mari.ExportItem: Export Item source
         """
         return self._export_items.get(shader_input_name)
+
+    def uvSetName(self):
+        """ Returns the UV set name.
+
+        Returns:
+            str. UV set name
+        """
+        return self._uv_set_name
+
+    def setUvSetName(self, uv_set_name):
+        """ Sets the container's UV set name.
+
+        Args:
+            uv_set_name (str): Material binding locations
+        """
+        self._uv_set_name = uv_set_name
 
 
 class UsdMaterialSource(object):
@@ -564,7 +581,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
             if st_reader.GetPath().isEmpty:
                 st_reader = UsdShade.Shader.Define(looks_stage, st_reader_path)
                 st_reader.CreateIdAttr('UsdPrimvarReader_float2')
-                st_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+                st_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
 
             # TODO: Implement a override option for export that gets passed into this function
             # Perform the texture export

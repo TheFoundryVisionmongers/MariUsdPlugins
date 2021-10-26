@@ -760,6 +760,7 @@ class FileBrowseWidget(widgets.QWidget):
         self.combo_box.setCompleter(self.completer)
         self.combo_box.setEditable(True)
         self.combo_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
+        self.combo_box.setMinimumContentsLength(20)
         self.combo_box.setMaximumHeight(32)
         self.adding_paths = True
         self.combo_box.addItems(self.history)
@@ -915,11 +916,18 @@ class USDExportWidget(widgets.QWidget):
         options_layout.addWidget(self.look_file_widget, 2, 1)
         
         self.root_name_widget = widgets.QLineEdit(self)
-        self.root_name_widget.setText(self.load_root_name(default_root_name="Root"))
+        self.root_name_widget.setText(self.load_text_value("UsdRootName", "/root"))
         root_name_label = widgets.QLabel("Root Name", self)
         root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(root_name_label, 2, 2)
         options_layout.addWidget(self.root_name_widget, 2, 3)
+
+        self.uv_set_name_widget = widgets.QLineEdit(self)
+        self.uv_set_name_widget.setText(self.load_text_value("UsdUvSetName", "st"))
+        uv_set_name_label = widgets.QLabel("UV Set Name", self)
+        uv_set_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        options_layout.addWidget(uv_set_name_label, 3, 2)
+        options_layout.addWidget(self.uv_set_name_widget, 3, 3)
         
         assembly_file_filter = "USD Assembly File (*.usd *.usda *.usdz)"
         self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, self.load_usd_assembly_file_paths())
@@ -932,8 +940,8 @@ class USDExportWidget(widgets.QWidget):
         self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, self.load_usd_payload_file_paths())
         payload_label = widgets.QLabel("USD Payload", self)
         payload_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
-        options_layout.addWidget(payload_label, 3, 2)
-        options_layout.addWidget(self.payload_file_widget, 3, 3)
+        options_layout.addWidget(payload_label, 4, 0)
+        options_layout.addWidget(self.payload_file_widget, 4, 1)
         
         main_layout.addWidget(options_group_box)
         
@@ -959,8 +967,10 @@ class USDExportWidget(widgets.QWidget):
         paths = []
         settings_paths = settings.value("UsdExportDialog/%s" % name)
         if isinstance(settings_paths, str):
+            mari.app.log("USD Export: Settings has value for {0}: {1}".format(name, settings_paths))
             paths.append(settings_paths)
         elif isinstance(settings_paths, list):
+            mari.app.log("USD Export: Settings has values for {0}:\n    {1}".format(name, "\n    ".join(settings_paths)))
             paths = settings_paths
         paths = [os.path.normpath(path) for path in paths]
 
@@ -969,6 +979,7 @@ class USDExportWidget(widgets.QWidget):
         if project:
             if project.hasMetadata(name):
                 project_path = os.path.normpath(str(project.metadata(name)))
+                mari.app.log("USD Export: Project has metadata value for {0}: {1}".format(name, project_path))
                 if len(project_path) > 0:
                     try:
                         index = paths.index(project_path)
@@ -985,6 +996,32 @@ class USDExportWidget(widgets.QWidget):
             paths[0] = os.path.normpath(default_path)
 
         return paths
+
+    def load_text_value(self, name, default_value):
+        """ Attempts to load a text value from the project metadata, then the user settings and
+        finally uses the given default value.
+
+        Args:
+            name (str): Name of property
+            default_value: Text value to fall back on
+
+        Returns:
+            str. Text value for named property
+        """
+        project = mari.projects.current()
+        if project:
+            if project.hasMetadata(name):
+                project_property_value = project.metadata(name)
+                mari.app.log("USD Export: Project has metadata for {0}: {1}".format(name, project_property_value))
+                if len(project_property_value) != 0:
+                    return project_property_value
+
+        settings_property_value = mari.Settings().value("UsdExportDialog/%s" % name)
+        if isinstance(settings_property_value, str) and len(settings_property_value) != 0:
+            mari.app.log("USD Export: User Settings has value for {0}: {1}".format(name, settings_property_value))
+            return settings_property_value
+
+        return default_value
 
     def load_usd_target_dir_paths(self):
         default = mari.resources.path("MARI_DEFAULT_EXPORT_PATH")
@@ -1005,24 +1042,7 @@ class USDExportWidget(widgets.QWidget):
     def load_usd_payload_file_paths(self):
         default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Payload.usd")
         return self.load_paths("UsdPayloadPaths", default)
-        
-    def load_root_name(self, default_root_name):
-        name = "UsdRootName"
 
-        project = mari.projects.current()
-        if project:
-            if project.hasMetadata(name):
-                project_root_name = project.metadata(name)
-
-                if len(project_root_name) != 0:
-                    return project_root_name
-
-        settings_root_name = str(mari.Settings().value("UsdExportDialog/%s" % name))
-        if len(settings_root_name) != 0:
-            return settings_root_name
-
-        return default_root_name
-        
     def on_default_depth_combo_box_changed(self, text):
         self.on_default_depth_changed(text)
 
@@ -1149,6 +1169,7 @@ class USDExportWidget(widgets.QWidget):
             return
 
         usd_material_sources = []
+        uv_set_name = self.uv_set_name_widget.text()
 
         for shader, export_items in for_export.items():
             if not shader:
@@ -1173,6 +1194,7 @@ class USDExportWidget(widgets.QWidget):
             usd_material_source = usd_shade_export.UsdMaterialSource(shader.name())
             usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
             usd_shader_source = usd_shade_export.UsdShaderSource(shader)
+            usd_shader_source.setUvSetName(uv_set_name)
             for export_item, shader_input_name in export_items:
                 usd_shader_source.setInputExportItem(shader_input_name, export_item)
             usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
@@ -1217,20 +1239,23 @@ class USDExportWidget(widgets.QWidget):
     def save_usd_payload_file_paths(self):
         self.save_paths("UsdPayloadPaths", self.payload_file_widget.paths())
 
-    def save_root_name(self):
-        root_name = self.root_name_widget.text()
-        
-        name = "UsdRootName"
-        
+    def save_text_value(self, name, text):
+        """ Saves text value to the project metadata and the user settings using the given property name.
+
+        Args:
+            name (str): Name of property
+            text: Text value to save
+        """
+        text = self.root_name_widget.text()
         project = mari.projects.current()
         if project:
             if project.hasMetadata(name):
-                project.setMetadata(name, root_name)
-            elif len(root_name) > 0:
-                project.setMetadata(name, root_name)
+                project.setMetadata(name, text)
+            elif len(text) > 0:
+                project.setMetadata(name, text)
 
         settings = mari.Settings()
-        settings.setValue("UsdExportDialog/%s" % name, root_name)
+        settings.setValue("UsdExportDialog/%s" % name, text)
 
     def onCloseTab(self):
         self.saveSettings()
@@ -1241,7 +1266,8 @@ class USDExportWidget(widgets.QWidget):
         self.save_usd_look_file_paths()
         self.save_usd_assembly_file_paths()
         self.save_usd_payload_file_paths()
-        self.save_root_name()
+        self.save_text_value("UsdRootName", self.root_name_widget.text())
+        self.save_text_value("UsdUvSetName", self.uv_set_name_widget.text())
 
 def generate_usd_export_widget():
     return USDExportWidget()
