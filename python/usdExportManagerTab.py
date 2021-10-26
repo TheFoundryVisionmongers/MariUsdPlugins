@@ -814,6 +814,7 @@ class FileBrowseWidget(widgets.QWidget):
     def new_path_added(self, new_path):
         if len(new_path) == 0:
             return
+        new_path = os.path.normpath(new_path)
 
         old_path = self.path()
         
@@ -964,12 +965,13 @@ class USDExportWidget(widgets.QWidget):
             paths.append(settings_paths)
         elif isinstance(settings_paths, list):
             paths = settings_paths
+        paths = [os.path.normpath(path) for path in paths]
 
         # If the project has a path saved with it, put that first in the list.
         project = mari.projects.current()
         if project:
             if project.hasMetadata(name):
-                project_path = str(project.metadata(name))
+                project_path = os.path.normpath(str(project.metadata(name)))
                 if len(project_path) > 0:
                     try:
                         index = paths.index(project_path)
@@ -980,11 +982,11 @@ class USDExportWidget(widgets.QWidget):
 
         if len(paths) == 0:
             # If the list is empty, add the default path.
-            paths.insert(0, default_path)
+            paths.insert(0, os.path.normpath(default_path))
         elif len(paths[0]) == 0:
             # If the first entry in the list is empty, replace it with the default path.
-            paths[0] = default_path
-            
+            paths[0] = os.path.normpath(default_path)
+
         return paths
 
     def load_usd_target_dir_paths(self):
