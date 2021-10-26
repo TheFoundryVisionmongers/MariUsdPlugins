@@ -522,14 +522,14 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
     USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
 
 
-def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usdShaderSource):
+def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to
         usd_shader (Usd.Shader): Shader to connect to
         usd_export_parameters (UsdExportParameters): Container for export parameters
-        usdShaderSource (UsdShaderSource): Container of source Shader and Export Item instances
+        usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
     """
     mari_to_usd_input_map = {
         "diffuseColor": ("diffuseColor", Sdf.ValueTypeNames.Color3f),
@@ -549,13 +549,13 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usdSh
         "Vector": (None, None),
         "Displacement": ("displacement", Sdf.ValueTypeNames.Float),
     }
-    _debuglog("Writing USD Preview Surface shader network for %s" % usdShaderSource.sourceShader().name())
+    _debuglog("Writing USD Preview Surface shader network for %s" % usd_shader_source.sourceShader().name())
     material_sdf_path = usd_shader.GetPath().GetParentPath()
 
-    shader_model = usdShaderSource.shaderModel()
+    shader_model = usd_shader_source.shaderModel()
     export_items = []
     for shader_input_name in shader_model.inputNames():
-        export_item = usdShaderSource.getInputExportItem(shader_input_name)
+        export_item = usd_shader_source.getInputExportItem(shader_input_name)
         if export_item is not None:
 
             # find or define texture coordinate reader
@@ -593,7 +593,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usdSh
     _debuglog(
         "Exporting %d export items for %s to %s" % (
             len(export_items),
-            usdShaderSource.sourceShader().name(),
+            usd_shader_source.sourceShader().name(),
             usd_export_parameters.exportRootPath()
         )
     )
