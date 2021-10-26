@@ -1246,7 +1246,6 @@ class USDExportWidget(widgets.QWidget):
             name (str): Name of property
             text: Text value to save
         """
-        text = self.root_name_widget.text()
         project = mari.projects.current()
         if project:
             if project.hasMetadata(name):
