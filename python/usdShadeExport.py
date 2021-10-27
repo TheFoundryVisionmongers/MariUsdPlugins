@@ -572,6 +572,9 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
     shader_model = usd_shader_source.shaderModel()
     export_items = []
     for shader_input_name in shader_model.inputNames():
+        usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
+        if usd_shader_input_name is None:
+            continue
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
         if export_item is not None:
 
@@ -589,32 +592,55 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
             #     mari.exports.exportTextures([export_item], export_root_path)
 
             # Create and connect the texture reading shading node
-            usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
-            if usd_shader_input_name is not None:
-                texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-                texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-                texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
-                texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-                texture_sampler.CreateIdAttr("UsdUVTexture")
-                texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-                    st_reader.ConnectableAPI(),
-                    "result"
-                )
-                usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                    texture_sampler.ConnectableAPI(),
-                    "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
-                )
-                texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
+            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
+            texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
+            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
+            texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
+            texture_sampler.CreateIdAttr("UsdUVTexture")
+            texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
+                st_reader.ConnectableAPI(),
+                "result"
+            )
+            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
+                texture_sampler.ConnectableAPI(),
+                "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
+            )
+            texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
-                export_items.append(export_item)
-    _debuglog(
-        "Exporting %d export items for %s to %s" % (
-            len(export_items),
-            usd_shader_source.sourceShader().name(),
-            usd_export_parameters.exportRootPath()
+            export_items.append(export_item)
+        else:
+            if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
+                continue
+            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
+            default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
+            value_not_default = False
+            if isinstance(input_value, mari.Color):
+                if input_value.rgb() != default_color.rgb():
+                    value_not_default = True
+            elif isinstance(input_value, float):
+                if input_value != default_color.r():
+                    value_not_default = True
+            elif isinstance(input_value, bool):
+                if input_value != bool(default_color.r()):
+                    value_not_default = True
+
+            if value_not_default:
+                usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
+                if sdf_type == Sdf.ValueTypeNames.Color3f:
+                    usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
+                elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Bool):
+                    usd_shader_parameter.Set(input_value)
+
+    # Export textures from export items
+    if export_items:
+        _debuglog(
+            "Exporting %d export items for %s to %s" % (
+                len(export_items),
+                usd_shader_source.sourceShader().name(),
+                usd_export_parameters.exportRootPath()
+            )
         )
-    )
-    mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
+        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
 
 
 def _sanitize(location_path):
