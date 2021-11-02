@@ -742,7 +742,7 @@ class ExportItem_View(widgets.QTreeView):
 class FileBrowseWidget(widgets.QWidget):
     pathChanged = core.Signal(str)
     
-    def __init__(self, parent = None, type = widgets.QFileDialog.AnyFile, filters = "", history = []):
+    def __init__(self, parent = None, type = widgets.QFileDialog.AnyFile, filters = "", history = [], show_browse_button = True):
         widgets.QWidget.__init__(self, parent)
         self.history = history
         self.type = type
@@ -765,16 +765,20 @@ class FileBrowseWidget(widgets.QWidget):
         self.adding_paths = True
         self.combo_box.addItems(self.history)
         self.adding_paths = False
-        self.browse_button = widgets.QPushButton("...")
-        self.browse_button.setMaximumSize(32, 32)
         layout.addWidget(self.combo_box)
-        layout.addWidget(self.browse_button)
+
+        if show_browse_button:
+            self.browse_button = widgets.QPushButton("...")
+            self.browse_button.setMaximumSize(32, 32)
+            layout.addWidget(self.browse_button)
         
         self.setLayout(layout)
         
         mari.utils.connect(self.combo_box.lineEdit().editingFinished, self.on_combo_box_editing_finished)
         mari.utils.connect(self.combo_box.currentIndexChanged, self.on_combo_box_index_changed)
-        mari.utils.connect(self.browse_button.pressed, self.browse)
+
+        if show_browse_button:
+            mari.utils.connect(self.browse_button.pressed, self.browse)
         
     def path(self):
         if len(self.history) > 0:
@@ -874,7 +878,7 @@ class USDExportWidget(widgets.QWidget):
             options_layout.setColumnStretch(index, stretch)
 
         self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", self.load_usd_target_dir_paths())
-        target_dir_label = widgets.QLabel("Target Directory", self)
+        target_dir_label = widgets.QLabel("Texture Target Directory", self)
         target_dir_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(target_dir_label, 0, 0)
         options_layout.addWidget(self.export_usd_target_dir_widget, 0, 1)
@@ -891,7 +895,7 @@ class USDExportWidget(widgets.QWidget):
         options_layout.addWidget(self.default_depth_combo_box, 0, 3)
         
         image_filter = "Images (" + " ".join(["*.%s" % ext for ext in mari.exports.imageFileExtensionList()]) + ")"
-        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, self.load_usd_texture_file_paths())
+        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, self.load_usd_texture_file_paths(), False)
         export_texture_file_label = widgets.QLabel("Texture File Name", self)
         export_texture_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(export_texture_file_label, 1, 0)
