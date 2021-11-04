@@ -1,0 +1,19 @@
+#version 150
+
+//! include | GlobalUniforms.glslh
+//! include | mriUsdPreviewSurfaceFuncs.glslh
+
+float mriUSDPreviewSurface_Normal(float Roughness2, float NdotH)
+{
+    float a2 = Roughness2 * Roughness2;
+    float d = (NdotH * NdotH * (a2 - 1.0)) + 1.0;
+    return (a2 + 0.001) / (d * d * M_PI);
+}
+
+// Note: Assumes roughness has already been squared.
+float mriUSDPreviewSurface_Geometric(float Roughness2, float NdotV, float NdotL)
+{
+    float k = Roughness2 * 0.5;
+    return (NdotV / ( NdotV * ( 1.0 - k ) + k )) *
+           (NdotL / ( NdotL * ( 1.0 - k ) + k ));
+}

@@ -1,0 +1,2 @@
+float mriUSDPreviewSurface_Normal(float Roughness2, float NdotH);
+float mriUSDPreviewSurface_Geometric(float Roughness2, float NdotV, float NdotL);

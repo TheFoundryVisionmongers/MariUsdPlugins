@@ -1,0 +1,259 @@
+<!-- Copyright 2018 Pixar
+
+Licensed under the Apache License, Version 2.0 (the "Apache License")
+with the following modification; you may not use this file except in
+compliance with the Apache License and the following modification to it:
+Section 6. Trademarks. is deleted and replaced with:
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor
+   and its affiliates, except as required to comply with Section 4(c) of
+   the License and to reproduce the content of the NOTICE file.
+
+You may obtain a copy of the Apache License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the Apache License with the above modification is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the Apache License for the specific
+language governing permissions and limitations under the Apache License. -->
+
+<Node>
+    <DefaultName>USD Preview Surface</DefaultName>
+    <ID>mriUsdPreviewSurface</ID>
+    <Inputs>
+        <Input Name="diffuseColor"          PrettyName="Diffuse Color"          ShortName="Diff"  Scalar="False"   DefaultColor="(0.18,0.18,0.18,1)"   PreferredInput='1'   />
+        <Input Name="emissiveColor"         PrettyName="Emissive Color"         ShortName="Emis"  Scalar="False"   DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="useSpecularWorkflow"   PrettyName="Use Specular Workflow"  ShortName="Work"  Scalar="True"    DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="specularColor"         PrettyName="Specular Color"         ShortName="Spec"  Scalar="False"   DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="metallic"              PrettyName="Metallic"               ShortName="Metl"  Scalar="True"    DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="roughness"             PrettyName="Roughness"              ShortName="Rgh"   Scalar="True"    DefaultColor="(0.5,0.5,0.5,1)"                           />
+        <Input Name="clearcoat"             PrettyName="Clearcoat"              ShortName="Clct"  Scalar="True"    DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="clearcoatRoughness"    PrettyName="Clearcoat Roughness"    ShortName="ClcR"  Scalar="True"    DefaultColor="(0.01,0.01,0.01,1)"                        />
+        <Input Name="opacity"               PrettyName="Opacity"                ShortName="Opac"  Scalar="True"    DefaultColor="(1,1,1,1)"                                 />
+        <Input Name="opacityThreshold"      PrettyName="Opacity Threshold"      ShortName="OpTh"  Scalar="True"    DefaultColor="(0,0,0,1)"                                 />
+        <Input Name="ior"                   PrettyName="Index of Refraction"    ShortName="IOR"   Scalar="True"    DefaultColor="(1.5,1.5,1.5,1)"                           />
+        <Input Name="Normal"                PrettyName="Normal"                 ShortName="Norm"  Scalar="True"    DefaultColor="(0.5,0.5,1,1)"                             />
+        <Input Name="occlusion"             PrettyName="Occlusion"              ShortName="Occl"  Scalar="True"    DefaultColor="(1,1,1,1)"                                 />
+    </Inputs>
+    <Attributes>
+        <Attribute Name="diffuseColor"        PrettyName="Diffuse Color"          Type="color"                  >(0.18,0.18,0.18,1)</Attribute>
+        <Attribute Name="emissiveColor"       PrettyName="Emissive Color"         Type="color"                  >(0,0,0,1)</Attribute>
+        <Attribute Name="useSpecularWorkflow" PrettyName="Use Specular Workflow"  Type="bool"                   >false</Attribute>
+        <Attribute Name="specularColor"       PrettyName="Specular"               Type="color"                  >(0,0,0,1)</Attribute>
+        <Attribute Name="metallic"            PrettyName="Metallic"               Type="float" Min="0" Max="1"  >0</Attribute>
+        <Attribute Name="roughness"           PrettyName="Roughness"              Type="float" Min="0" Max="1"  >0.5</Attribute>
+        <Attribute Name="clearcoat"           PrettyName="Clearcoat"              Type="float" Min="0" Max="1"  >0</Attribute>
+        <Attribute Name="clearcoatRoughness"  PrettyName="Clearcoat Roughness"    Type="float" Min="0" Max="1"  >0.01</Attribute>
+        <Attribute Name="opacity"             PrettyName="Opacity"                Type="float" Min="0" Max="1"  >1</Attribute>
+        <Attribute Name="opacityThreshold"    PrettyName="Opacity Threshold"      Type="float" Min="0" Max="1"  >0</Attribute>
+        <Attribute Name="ior"                 PrettyName="Index of Refraction"    Type="float" Min="0" Max="10" >1.5</Attribute>
+        <Attribute Name="occlusion"           PrettyName="Occlusion"              Type="float" Min="0" Max="1"  >1</Attribute>
+        <Attribute Name="fakeEnvironmentOpacity" PrettyName="Transparency to Environment" Type="bool" Group="Mari Only" Description="Fake transparency by rendering the environment behind the object. Works best in Perspective camera mode.">false</Attribute>
+    </Attributes>
+    <Tags>
+        <Tag>_notcacheable</Tag>
+        <Tag>_standalone</Tag>
+    </Tags>
+    <Contexts>
+        <Context Type="GLSL">
+            <Shader ShaderType="Fragment">
+                <Inputs>
+                    <Input Name="diffuseColor"          ><Default>$diffuseColor</Default></Input>
+                    <Input Name="emissiveColor"         ><Default>$emissiveColor</Default></Input>
+                    <Input Name="useSpecularWorkflow"   ><Default>vec4(vec3(float($useSpecularWorkflow)),1)</Default></Input>
+                    <Input Name="specularColor"         ><Default>$specularColor</Default></Input>
+                    <Input Name="metallic"              ><Default>vec4(vec3($metallic),1)</Default></Input>
+                    <Input Name="roughness"             ><Default>vec4(vec3($roughness),1)</Default></Input>
+                    <Input Name="clearcoat"             ><Default>vec4(vec3($clearcoat),1)</Default></Input>
+                    <Input Name="clearcoatRoughness"    ><Default>vec4(vec3($clearcoatRoughness),1)</Default></Input>
+                    <Input Name="opacity"               ><Default>vec4(vec3($opacity),1)</Default></Input>
+                    <Input Name="opacityThreshold"      ><Default>vec4(vec3($opacityThreshold),1)</Default></Input>
+                    <Input Name="ior"                   ><Default>vec4(vec3($ior),1)</Default></Input>
+                    <Input Name="Normal"                ><Default>vec4(State.NormalInEyeSpaceFromViewCamera.xyz,1)</Default></Input>
+                    <Input Name="occlusion"             ><Default>vec4(vec3($occlusion),1)</Default></Input>
+                </Inputs>
+                <Body><![CDATA[
+    vec4 diffuseColor = mriBlendToDefault($diffuseColor, #diffuseColor);
+
+    float opacityThreshold = mriSaturate(mriBlendToDefault($opacityThreshold, #opacityThreshold));
+    float opacity = mriSaturate(mriBlendToDefault($opacity, #opacity));
+    opacity = (opacityThreshold > 0.0) ? step(opacityThreshold, opacity) : opacity;
+    Output.a = opacity;
+
+    if (u_MriLightingMode == 0)
+    {
+        Output.rgb = diffuseColor.rgb;
+    }
+    else
+    {
+        vec3 result = vec3(0.0);
+
+        if (u_MriEnvironmentLightOn || (u_MriActiveLights > 0))
+        {
+            mat3 ViewToWorld = transpose(mat3(u_MriViewMatrix));
+
+            // View and normal vectors in eye space.
+            vec3 V = normalize(-State.ViewVectorInEyeSpaceFromViewCamera);
+            vec3 N = normalize(mriBlendToDefault(State.NormalInEyeSpaceFromViewCamera, #Normal));
+
+            // On the wrong side of the face? Flip the normal.
+            N = (dot(State.NormalInEyeSpaceFromViewCamera, V) < 0.0) ? -N : N;
+
+            // Convert view and normal vectors from eye to world space.
+            V = ViewToWorld * V;
+            N = ViewToWorld * N;
+
+            float NdotV = mriSaturate(dot(N, V));
+
+            vec3 diffuseEnergy = vec3(0.0);
+            vec3 specularEnergy = vec3(0.0);
+
+            vec3 specularColor = mriBlendToDefault($specularColor.rgb, #specularColor);
+            float metallic = mriSaturate(mriBlendToDefault($metallic, #metallic));
+            float roughness = clamp(mriBlendToDefault($roughness, #roughness), 0.001, 1.0);
+            float clearcoatRoughness = clamp(mriBlendToDefault($clearcoatRoughness, #clearcoatRoughness), 0.001, 1.0);
+            float clearcoat = mriSaturate(mriBlendToDefault($clearcoat, #clearcoat));
+            float ior = max(0.0, mriBlendToDefault($ior, #ior));
+            float useSpecularWorkflow = mriSaturate(mriBlendToDefault(float($useSpecularWorkflow), #useSpecularWorkflow));
+
+            float roughness2 = roughness * roughness;
+            float clearcoatRoughness2 = clearcoatRoughness * clearcoatRoughness;
+
+            float ior0 = (1.0 - ior)/(1.0 + ior);
+            ior0 *= ior0;
+
+            vec3 spec0 = specularColor;
+            vec3 spec90 = vec3(1.0);
+
+            vec3 metlColor = mix(vec3(1.0), diffuseColor.rgb, metallic);
+            vec3 metl0 = mix(ior0 * metlColor, metlColor, metallic);
+            vec3 metl90 = metlColor;
+
+            vec3 F0 = mix(metl0, spec0, useSpecularWorkflow);
+            vec3 F90 = mix(metl90, spec90, useSpecularWorkflow);
+
+            // Only account for metallic in full lighting mode.
+            float diffuseFactor = (u_MriLightingMode > 1) ? mix(1.0, useSpecularWorkflow, metallic) : 1.0;
+
+            for (int i = 0; i < u_MriActiveLights; i++)
+            {
+                // Light Direction
+                vec3 L = normalize(u_MriLightSources[i].Position.xyz - State.FragmentPositionInEyeSpaceFromViewCamera);
+                L = ViewToWorld * L;
+
+                float NdotL = mriSaturate(dot(N,L));
+                if (NdotL == 0.0)
+                {
+                    continue;
+                }
+
+                float lightVisibility = NdotL * mriLightVisibility( i, State.Position);
+                if (lightVisibility <= 0.01)
+                {
+                    continue;
+                }
+
+                vec3 lightDiffuseEnergy = vec3(M_INV_PI);
+
+                if (u_MriLightingMode > 1)
+                {
+                    vec3 lightSpecularEnergy = vec3(0.0);
+
+                    vec3 H = normalize(L+V);
+                    float NdotH = mriSaturate(dot(N, H));
+                    float VdotH = mriSaturate(dot(V, H));
+                    float FH = mriBRDF_SchlickFresnel(VdotH);
+
+                    vec3 Fs = mix(F0, F90, FH);
+                    float Ds = mriUSDPreviewSurface_Normal(roughness2, NdotH);
+                    float Gs = mriUSDPreviewSurface_Geometric(roughness2, NdotV, NdotL);
+
+                    float RDenom = (4.0 * NdotL * NdotV + 0.001);
+
+                    lightSpecularEnergy += (Fs*(Ds*Gs)) / RDenom;
+                    lightDiffuseEnergy *= vec3(1.0) - Fs; // Energy conservation for diffuse light.
+
+                    if (clearcoat > 0.0)
+                    {
+                        float Fc = mix(ior0, 1.0, FH);
+                        float Dc = mriUSDPreviewSurface_Normal(clearcoatRoughness2, NdotH);
+                        float Gc = mriUSDPreviewSurface_Geometric(clearcoatRoughness2, NdotV, NdotL);
+                        lightSpecularEnergy += clearcoat * ((Fc*Dc*Gc)/RDenom);
+                    }
+
+                    specularEnergy += lightVisibility * (lightSpecularEnergy * u_MriLightSources[i].SpecularColor.rgb);
+                }
+
+                diffuseEnergy += lightVisibility * (lightDiffuseEnergy * u_MriLightSources[i].DiffuseColor.rgb);
+            }
+
+            if (mriEnvironmentLightOn())
+            {
+                vec3 L = reflect(-V, N);
+
+                vec3 lightDiffuseEnergy = vec3(1.0);
+
+                if (u_MriLightingMode > 1)
+                {
+                    float NdotV = mriSaturate(dot(N, V));
+
+                    vec2 ABs = mriBRDF_EnvBRDF_GGX_Lookup(roughness, NdotV);
+                    vec3 Fs = (ABs.xxx * F0 + ABs.yyy * F90);
+                    specularEnergy += mriSampleEnvironment(GGX, L, roughness) * Fs;
+
+                    lightDiffuseEnergy *= vec3(1.0) - Fs;
+
+                    if (clearcoat > 0.0)
+                    {
+                        vec2 ABc = mriBRDF_EnvBRDF_GGX_Lookup(clearcoatRoughness, NdotV);
+                        specularEnergy += mriSampleEnvironment(GGX, L, clearcoatRoughness) * dot(vec2(ior0, 1.0), ABc) * clearcoat;
+                    }
+                }
+
+                float occlusion = mriSaturate(mriBlendToDefault($occlusion, #occlusion));
+                diffuseEnergy += lightDiffuseEnergy * mriSampleEnvironment(Lambert, N, 0.0) * occlusion;
+            }
+
+            Output.rgb = (diffuseColor.rgb * diffuseEnergy + mriBlendToDefault($emissiveColor.rgb, #emissiveColor)) * diffuseFactor;
+
+            if (u_MriLightingMode > 1)
+            {
+                // Only full shading gets specular and fake opacity.
+
+                if (u_MriEnvironmentLightOn && $fakeEnvironmentOpacity && (opacity < 1.0))
+                {
+                    // TODO: Better fake background sampling for non-perspective viewports.
+
+                    vec3 L = (u_MriViewType == 0) ? (ViewToWorld * State.ViewVectorInEyeSpaceFromViewCamera) : (ViewToWorld * State.FragmentPositionInEyeSpaceFromViewCamera);
+                    vec3 background = mriSampleEnvironment(Environment, L, 0.0).rgb;
+
+                    if (opacityThreshold > 0.0)
+                    {
+                        // Cutout - alphatest opacity, no specular where transparent.
+                        Output.rgb += specularEnergy;
+                        Output.rgb = mix(background, Output.rgb, opacity);
+                    }
+                    else
+                    {
+                        // Blended - variable opacity, allow specular where transparent.
+                        Output.rgb = mix(background, Output.rgb, opacity);
+                        Output.rgb += specularEnergy;
+                    }
+
+                    Output.a = 1.0;
+                }
+                else
+                {
+                    Output.rgb += specularEnergy;
+                }
+            }
+        }
+    }
+                ]]></Body>
+            </Shader>
+        </Context>
+    </Contexts>
+</Node>
