@@ -856,7 +856,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
         frameString = Value.m_pString;
 
     _GetFrameList(frameString, frames);
-    _host.trace("%s:%d] requested %d frames", _pluginName, __LINE__,
+    _host.trace("%s:%d] requested %lu frames", _pluginName, __LINE__,
                 frames.size());
 
     // detect requested gprim names

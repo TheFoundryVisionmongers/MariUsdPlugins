@@ -18,21 +18,21 @@ For information about USD, please visit https://graphics.pixar.com/usd/docs/inde
 Dependencies
 ------------
 The following dependencies are required:
- - C++ 11 compiler
+ - C++ 14 compiler
  - [CMake](https://cmake.org/documentation/) (3.11 onwards)
- - [Boost](https://boost.org) (1.61.1 onwards)
- - [Intel TBB](https://www.threadingbuildingblocks.org/) (2018 onwards)
+ - [Boost](https://boost.org) (1.70.0 onwards)
+ - [Intel TBB](https://www.threadingbuildingblocks.org/) (2019U6 onwards)
  - [Ninja](https://ninja-build.org/) (1.8.2 onwards)
- - [Usd](https://github.com/PixarAnimationStudios/USD) (19.05)
+ - [Usd](https://github.com/PixarAnimationStudios/USD) (21.05)
 
 The following dependencies are optional:
- - [Python](https://python.org) (2.7.13 onwards)
+ - [Python](https://python.org) (3.7.7 onwards)
 
 
 Required environment variables
 ------------------------------
 We're using CMake to configure our project, with Ninja as the generator. The latter is chosen because it is cross-platform and works out of the box on both Linux and Windows.
-The code requires a C++11 compiler and we've tested it with GCC 4.8.5 on Linux and Visual Studio 2015 on Windows.
+The code requires a C++14 compiler and we've tested it with GCC 6.3.1 on Linux and Visual Studio 2017 on Windows.
 
 The following paths are required and need to be set as environment variables:
 - USD_ROOT : path to the USD libraries
@@ -53,16 +53,16 @@ export TBB_DIR=/tmp/TBB
 export BOOST_ROOT=/tmp/Boost
 export BOOST_INCLUDEDIR=/tmp/Boost/include
 export BOOST_LIBRARYDIR=/tmp/Boost/lib
-export MARI_SDK_INCLUDE_DIR=/tmp/Mari4.5v2/SDK/include
+export MARI_SDK_INCLUDE_DIR=/tmp/Mari5.0v1/SDK/include
 export PYTHON_ROOT=/tmp/Python
 
-Example on Windows 10 in VS2015 x64 Native Tools Command Prompt:
+Example on Windows 10 in VS2017 x64 Native Tools Command Prompt:
 set USD_ROOT=C:/Build/usd
 set TBB_DIR=C:/Build/tbb
 set BOOST_ROOT=C:/Build/Boost
 set BOOST_INCLUDEDIR=C:/Build/Boost/include
 set BOOST_LIBRARYDIR=C:/Build/Boost/lib
-set MARI_SDK_INCLUDE_DIR=C:/Installation/Mari4.5v2/Bundle/SDKinclude
+set MARI_SDK_INCLUDE_DIR=C:/Installation/Mari5.0v1/Bundle/SDK/include
 
 
 Building the Code
@@ -110,3 +110,4 @@ export PYTHONPATH=$ROOT/lib/python/:$PYTHONPATH
 (Windows, assuming the "lib" folder is found at C:\MyPlugin\lib)
 - Update the environment registry PATH to C:\MyPlugin\lib
 - Update the environment registry PYTHONPATH to C:\MyPlugin\lib\python
+
