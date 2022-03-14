@@ -1,4 +1,9 @@
-<!-- Copyright 2018 Pixar
+<!-- Copyright 2022 Foundry
+The GLSL code embedded within this XML file was initially authored by
+Pixar as part of USD under the Modified Apache 2.0 license below.
+The code has been modified by Foundry to work with Mari.
+
+Copyright 2018 Pixar
 
 Licensed under the Apache License, Version 2.0 (the "Apache License")
 with the following modification; you may not use this file except in

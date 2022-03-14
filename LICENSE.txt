@@ -172,3 +172,10 @@
       defend, and hold each Contributor harmless for any liability
       incurred by, or claims asserted against, such Contributor by reason
       of your accepting any such warranty or additional liability.
+
+
+This product bundles GLSL code for the USD Preview Surface
+implementation  from the USD library, which is available under
+USD's Modified Apache 2.0 license.
+For details, see mriUsdPreviewSurface.xml.
+
