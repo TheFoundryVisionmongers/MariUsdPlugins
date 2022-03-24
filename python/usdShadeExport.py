@@ -837,7 +837,10 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
         for material_assign_location in usd_material_source.bindingLocations():
             material_assign_sdf_path = Sdf.Path(material_assign_location)
             material_assign_prim = looks_stage.OverridePrim(material_assign_sdf_path)
-            UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
+            try:
+                UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
+            except Tf.ErrorException:
+                _debuglog("Warning: Unable to bind material to %s" % material_assign_prim)
 
     _debuglog("Saving Lookfile stage to disk: %s" % looks_path)
     looks_stage.GetRootLayer().Save()
