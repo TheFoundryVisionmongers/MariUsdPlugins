@@ -91,12 +91,12 @@ Note : CMake uses a temporary path as install directory. Please specify where to
 (Windows)
 - C:\Installation\Ninja\1.8.2\bin\ninja.exe install
 
-The plugin will be built as libUsSDImport.so on Linux and USDImport.dll on Windows. A "lib" folder will also be created which contains all the required libraries to make the plugin run.
+The plugin will be built as libUSDImport.so on Linux and USDImport.dll on Windows. A "lib" folder will also be created which contains all the required libraries to make the plugin run.
 
 
 Running the Code
 ----------------
-1. Copy the plugin (libUsSDImport.so on Linux and USDImport.dll on Windows) to your Mari "Plugins" folder.
+1. Copy the plugin (libUSDImport.so on Linux and USDImport.dll on Windows) to your Mari "Plugins" folder.
 This will normally be "~/Mari/Plugins" on Linux and "C:\users\<username>\Documents\Mari\Plugins" on Window.
 
 2. We then need to point Mari to the "lib" folder so the usd plugin loads.
