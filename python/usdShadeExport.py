@@ -293,6 +293,7 @@ class UsdExportParameters(object):
         self._assembly_target_filename = ""
         self._payload_source_path = ""
         self._stage_root_path = "/root"
+        self._export_overrides = {}
 
     def setExportRootPath(self, export_root_path):
         """ Sets the export root path location
@@ -323,6 +324,29 @@ class UsdExportParameters(object):
             str. Export root path
         """
         return os.path.normpath(self._export_root_path)
+
+    def setExportOverrides(self, export_overrides):
+        """ Sets the export overrides mapping for mari.exports.exportTextures()
+
+        Args:
+            export_overrides (dict): The map of export settings
+
+        Returns:
+            bool. Export override map has changed
+        """
+
+        if export_overrides != self._export_overrides:
+            self._export_overrides = export_overrides
+            return True
+        return False
+
+    def exportOverrides(self):
+        """ Returns the map of export overrides
+
+        Returns:
+            dict. Export overrides
+        """
+        return self._export_overrides
 
     def setLookfileTargetFilename(self, lookfile_target_filename):
         """ Sets the filename for the Lookfile export target
@@ -657,7 +681,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
                 usd_export_parameters.exportRootPath()
             )
         )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
+        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), usd_export_parameters.exportOverrides())
 
 
 def _sanitize(location_path):

@@ -58,6 +58,43 @@ def resolveSourceIndex(index):
         return index.model().mapToSource(index)
     return index
 
+def getExportItems(shader):
+    """Gets ExportItems for the shader. If necessary, this creates ExportItems. Furthermore, this updates the allowlist of ExportItems to display in the view.
+
+    Args:
+        shader (mari.Shader): Shader to get ExportItems for.
+    """
+    if not shader:
+        return []
+
+    shader_node = shader.shaderNode()
+    shader_model = shader.shaderModel()
+
+    geo_entity = mari.geo.current()
+
+    input_list = usdExportManagerTab.ExportItem_Model.advancedInputList(shader)
+
+    exportItems = []
+
+    for _, shader_input, shader_model_input_name in input_list:
+        for export_item in mari.exports.exportItemList(geo_entity):
+            if export_item and export_item.sourceNode() == shader_input and export_item.hasMetadata("_HIDDEN") and export_item.metadata("_HIDDEN"):
+                exportItems.append((export_item, shader_model_input_name))
+                break
+        else:
+            export_item = mari.ExportItem()
+            export_item.setSourceNode(shader_input)
+            template = shader_node.name().replace(" ","_")+ "." + shader_model_input_name.replace(" ","_")+ ".$UDIM.png"
+            if template.endswith(".png") and shader_input.depth() != mari.Image.DEPTH_BYTE:
+                template = template[:-4]+".exr"
+            export_item.setFileTemplate(template)
+            export_item.setMetadata("_STREAM", shader_model_input_name)
+            export_item.setMetadata("_HIDDEN", True)
+            mari.exports.addExportItem(export_item, geo_entity)
+            exportItems.append((export_item, shader_model_input_name))
+
+    return exportItems
+
 class Material_Item():
     def __init__(self, name):
         self._name = name
@@ -509,7 +546,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
         self.default_depth_combo_box = widgets.QComboBox(self)
         self.default_depth_combo_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
-        self.default_depth_combo_box.addItem("No Override", None)
+        self.default_depth_combo_box.addItem("No Overrides", None)
         self.default_depth_combo_box.setToolTip("Overrides the bit depth of exported export items.\nWill not change export item until Export is triggered, will not change export items which are not exported.")
         for depth in mari.exports.depthList():
             self.default_depth_combo_box.addItem(depth, depth)
@@ -520,7 +557,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
         self.default_size_combo_box = widgets.QComboBox(self)
         self.default_size_combo_box.setSizePolicy(widgets.QSizePolicy.Expanding, widgets.QSizePolicy.Fixed)
-        self.default_size_combo_box.addItem("No Override", None)
+        self.default_size_combo_box.addItem("No Overrides", None)
         self.default_size_combo_box.setToolTip("Overrides the resolution of exported export items.\nWill not change export item until Export is triggered, will not change export items which are not exported.")
         for size in mari.exports.resolutionList():
             self.default_size_combo_box.addItem(size, size)
@@ -569,11 +606,83 @@ class MultiShaderExportWidget(widgets.QWidget):
 
         self.updateSelectionGroups()
 
-    def editShaderInputs(self):
-        dialog = widgets.QDialog()
-        dialog_layout = widgets.QVBoxLayout()
-        dialog.setLayout(dialog_layout)
+    def exportRootPath(self):
+        return self.export_usd_target_dir_widget.path()
 
+    def currentMaterial(self):
+        current_index = self.view.currentIndex()
+        row = current_index.row()
+        if row >= 0 and row < len(self.model._material_list):
+            return self.model._material_list[row]
+        return None
+
+    def assignSelectionGroups(self):
+        material = self.currentMaterial()
+        if not material:
+            return
+        material._selectionGroups = ["AAA", "BBB", "CCC"]
+        self.updateSelectionGroups()
+        self.emitDataChangedForCurrentRow(SELECTION_GRAOUP_COLUMN, [qt.DecorationRole])
+
+    def emitDataChangedForCurrentRow(self, column, roles):
+        index = self.view.currentIndex()
+        index = self.model.createIndex(index.row(), column)
+        self.model.dataChanged.emit(index, index, roles)
+
+    def updateSelectionGroups(self):
+        material = self.currentMaterial()
+        if not material:
+            return
+        self.selection_group_widget.clear()
+        self.selection_group_widget.addItems(material._selectionGroups)
+
+    def exportUsd(self):
+        usd_export_parameters = usdShadeExport.UsdExportParameters()
+        usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
+        usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())
+        usd_export_parameters.setAssemblyTargetFilename(self.assembly_file_widget.path())
+        usd_export_parameters.setPayloadSourcePath(self.payload_file_widget.path())
+        usd_export_parameters.setStageRootPath(self.root_name_widget.text())
+        usd_export_parameters.setExportOverrides({"RESOLUTION":self.default_size_combo_box.currentText(), "DEPTH":self.default_depth_combo_box.currentText()})
+
+        usd_material_sources = []
+        for material in self.model._material_list:
+            if not material._checked:
+                continue
+
+            for shader_model_name in material._assignments:
+                shader = material._assignments[shader_model_name]
+                if not shader:
+                    continue
+
+                node = shader.shaderNode()
+                if not node:
+                    continue
+
+                node_graph = node.parentNodeGraph()
+                if not node_graph:
+                    continue
+
+                geo_entity = node_graph.parentGeoEntity()
+                if not geo_entity:
+                    continue
+
+                current_geo_version = geo_entity.currentVersion()
+                if not current_geo_version:
+                    continue
+
+                usd_material_source = usdShadeExport.UsdMaterialSource(material._name)
+                usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
+                usd_shader_source = usdShadeExport.UsdShaderSource(shader)
+                usd_shader_source.setUvSetName("st")
+                for export_item, shader_input_name in getExportItems(shader):
+                    usd_shader_source.setInputExportItem(shader_input_name, export_item)
+                usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
+                usd_material_sources.append(usd_material_source)
+
+        usdShadeExport.exportUsdShadeLook(usd_export_parameters, usd_material_sources)
+
+    def editShaderInputs(self):
         index = self.view.currentIndex()
         shader_model_name = self.model._shader_model_list[index.column()-SHADER_COLUMN]
         assignments = self.model._material_list[index.row()]._assignments
@@ -581,37 +690,69 @@ class MultiShaderExportWidget(widgets.QWidget):
         if shader_model_name in assignments:
             current_shader = assignments[shader_model_name]
 
+        shader_list = []
+        for shader_name, shader in self.model._shader_map[shader_model_name]:
+            shader_list.append((shader_name, shader))
+
+        dialog = EditShaderInputsDialog(shader_model_name, current_shader, shader_list, self.getOverrides())
+
+        dialog.resize(1200, 600)
+        dialog.exec_()
+
+    def getOverrides(self):
+        """Returns a dictionary of overrides from the various UI elements.
+
+        Returns:
+            dict: Override name key and override data values
+
+        """
+        overrides = {}
+        overrides["RESOLUTION"] = self.default_size_combo_box.currentText()
+        overrides["DEPTH"] = self.default_depth_combo_box.currentText()
+        overrides["COLORSPACE"] = "No Overrides"
+        overrides["POST_PROCESS"] = "No Overrides"
+        return overrides
+
+class EditShaderInputsDialog(widgets.QDialog):
+    def __init__(self, shader_model_name, current_shader, shader_list, overrides, parent = None):
+        widgets.QDialog.__init__(self, parent = parent)
+
+        self._overrides = overrides
+
+        dialog_layout = widgets.QVBoxLayout()
+        self.setLayout(dialog_layout)
+
         # Shader selection
         shader_layout = widgets.QHBoxLayout()
         dialog_layout.addLayout(shader_layout)
 
-        shader_layout.addWidget(widgets.QLabel("Shader:", dialog))
-        self.shader_combobox = widgets.QComboBox(dialog)
-        for shader_name, shader in self.model._shader_map[shader_model_name]:
+        shader_layout.addWidget(widgets.QLabel("Shader:", self))
+        self.shader_combobox = widgets.QComboBox(self)
+        for shader_name, shader in shader_list:
             self.shader_combobox.addItem(shader_name, shader)
         self.shader_combobox.setCurrentIndex(self.shader_combobox.findData(current_shader))
         self.shader_combobox.currentIndexChanged.connect(self.onShaderInputEditCurrentShaderChanged)
         shader_layout.addWidget(self.shader_combobox)
-        hide_unchecked_inputs_button = widgets.QPushButton(mari.resources.createIcon("ViewChecked.svg"), "", dialog)
+        hide_unchecked_inputs_button = widgets.QPushButton(mari.resources.createIcon("ViewChecked.svg"), "", self)
         hide_unchecked_inputs_button.setCheckable(True)
         shader_layout.addWidget(hide_unchecked_inputs_button)
         shader_layout.addSpacerItem(widgets.QSpacerItem(0, 0, widgets.QSizePolicy.MinimumExpanding))
-        save_preset_button = widgets.QPushButton(mari.resources.createIcon("SaveFile.svg"), "", dialog)
+        save_preset_button = widgets.QPushButton(mari.resources.createIcon("SaveFile.svg"), "", self)
         save_preset_button.pressed.connect(self.onSavePreset)
         shader_layout.addWidget(save_preset_button)
-        load_preset_button = widgets.QPushButton(mari.resources.createIcon("ImportFile.svg"), "", dialog)
+        load_preset_button = widgets.QPushButton(mari.resources.createIcon("ImportFile.svg"), "", self)
         load_preset_button.pressed.connect(self.onLoadPreset)
         shader_layout.addWidget(load_preset_button)
 
         # Shader info
         shader_info_layout = widgets.QHBoxLayout()
-        shader_info_label = widgets.QLabel("Shader Model - "+shader_model_name, dialog)
+        shader_info_label = widgets.QLabel("Shader Model - "+shader_model_name, self)
         shader_info_layout.addWidget(shader_info_label)
         shader_info_layout.addSpacerItem(widgets.QSpacerItem(0, 0, widgets.QSizePolicy.MinimumExpanding))
-        self.shader_inputs_missing_label_icon = widgets.QLabel(dialog)
+        self.shader_inputs_missing_label_icon = widgets.QLabel(self)
         self.shader_inputs_missing_label_icon.setPixmap(SHADER_ERROR_PIXMAP)
         shader_info_layout.addWidget(self.shader_inputs_missing_label_icon)
-        self.shader_inputs_missing_label = widgets.QLabel("No MultiChannelBakePoint or Channel node attached to the Shader", dialog)
+        self.shader_inputs_missing_label = widgets.QLabel("No MultiChannelBakePoint or Channel node attached to the Shader", self)
         shader_info_layout.addWidget(self.shader_inputs_missing_label)
         shader_info_layout.addSpacerItem(widgets.QSpacerItem(0, 0, widgets.QSizePolicy.MinimumExpanding))
         dialog_layout.addLayout(shader_info_layout)
@@ -638,7 +779,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         dialog_layout.addWidget(export_item_view)
 
         close_button = widgets.QPushButton("Close", self)
-        close_button.pressed.connect(dialog.accept)
+        close_button.pressed.connect(self.accept)
         dialog_layout.addWidget(close_button, alignment = qt.AlignRight)
 
         # Populate ExportItems + update the stated
@@ -647,48 +788,30 @@ class MultiShaderExportWidget(widgets.QWidget):
         # Initial check of validity of export items
         export_item_model.updateStatus()
 
-        dialog.resize(1200, 600)
-        dialog.exec_()
+    def getOverrides(self):
+        return self._overrides
 
-    def exportRootPath(self):
-        return self.export_usd_target_dir_widget.path()
+    def updateExportItems(self, shader):
+        export_items = []
+        if shader:
+            export_items = getExportItems(shader)
 
-    def getExportItems(self, shader):
-        """Gets ExportItems for the shader. If necessary, this creates ExportItems. Furthermore, this updates the allowlist of ExportItems to display in the view.
+        self.exportItems = set([export_item for export_item, _ in export_items])
 
-        Args:
-            shader (mari.Shader): Shader to get ExportItems for.
-        """
-        if not shader:
-            return []
+        self.export_item_filter_model.setExportItems(self.exportItems)
 
-        shader_node = shader.shaderNode()
-        shader_model = shader.shaderModel()
+        return export_items
 
-        geo_entity = mari.geo.current()
+    def onShaderInputEditCurrentShaderChanged(self):
+        current_shader = self.shader_combobox.currentData()
 
-        input_list = usdExportManagerTab.ExportItem_Model.advancedInputList(shader)
+        # We call updateExportItems to populate the export item list of the filter model and also to determine whether to show the warning message
+        export_items = self.updateExportItems(current_shader)
+        no_inputs = len(export_items)==0
+        self.shader_inputs_missing_label.setVisible(no_inputs)
+        self.shader_inputs_missing_label_icon.setVisible(no_inputs)
 
-        exportItems = []
-
-        for _, shader_input, shader_model_input_name in input_list:
-            for export_item in mari.exports.exportItemList(geo_entity):
-                if export_item and export_item.sourceNode() == shader_input and export_item.hasMetadata("_HIDDEN") and export_item.metadata("_HIDDEN"):
-                    exportItems.append((export_item, shader_model_input_name))
-                    break
-            else:
-                export_item = mari.ExportItem()
-                export_item.setSourceNode(shader_input)
-                template = shader_node.name().replace(" ","_")+ "." + shader_model_input_name.replace(" ","_")+ ".$UDIM.png"
-                if template.endswith(".png") and shader_input.depth() != mari.Image.DEPTH_BYTE:
-                    template = template[:-4]+".exr"
-                export_item.setFileTemplate(template)
-                export_item.setMetadata("_STREAM", shader_model_input_name)
-                export_item.setMetadata("_HIDDEN", True)
-                mari.exports.addExportItem(export_item, geo_entity)
-                exportItems.append((export_item, shader_model_input_name))
-
-        return exportItems
+        self.export_item_filter_model.invalidate()
 
     def onSavePreset(self):
         save_file_name = mari.utils.getSaveFileName(parent=self, caption="Save Export Settings", filter="*.mumm")
@@ -736,111 +859,6 @@ class MultiShaderExportWidget(widgets.QWidget):
         # Update the model and view
         self.export_item_filter_model.invalidate()
 
-    def updateExportItems(self, shader):
-        export_items = self.getExportItems(shader)
-
-        self.exportItems = set([export_item for export_item, _ in export_items])
-
-        self.export_item_filter_model.setExportItems(self.exportItems)
-
-        return export_items
-
-    def onShaderInputEditCurrentShaderChanged(self):
-        current_shader = self.shader_combobox.currentData()
-        if current_shader:
-            # We call updateExportItems to populate the export item list of the filter model and also to determine whether to show the warning message
-            export_items = self.updateExportItems(current_shader)
-            no_inputs = len(export_items)==0
-            self.shader_inputs_missing_label.setVisible(no_inputs)
-            self.shader_inputs_missing_label_icon.setVisible(no_inputs)
-        self.export_item_filter_model.invalidate()
-
-    def getOverrides(self):
-        """Returns a dictionary of overrides from the various UI elements.
-
-        Returns:
-            dict: Override name key and override data values
-
-        """
-        overrides = {}
-        overrides["RESOLUTION"] = "No Overrides"
-        overrides["DEPTH"] = "No Overrides"
-        overrides["COLORSPACE"] = "No Overrides"
-        overrides["POST_PROCESS"] = "No Overrides"
-        return overrides
-
-
-    def currentMaterial(self):
-        current_index = self.view.currentIndex()
-        row = current_index.row()
-        if row >= 0 and row < len(self.model._material_list):
-            return self.model._material_list[row]
-        return None
-
-    def assignSelectionGroups(self):
-        material = self.currentMaterial()
-        if not material:
-            return
-        material._selectionGroups = ["AAA", "BBB", "CCC"]
-        self.updateSelectionGroups()
-        self.emitDataChangedForCurrentRow(SELECTION_GRAOUP_COLUMN, [qt.DecorationRole])
-
-    def emitDataChangedForCurrentRow(self, column, roles):
-        index = self.view.currentIndex()
-        index = self.model.createIndex(index.row(), column)
-        self.model.dataChanged.emit(index, index, roles)
-
-    def updateSelectionGroups(self):
-        material = self.currentMaterial()
-        if not material:
-            return
-        self.selection_group_widget.clear()
-        self.selection_group_widget.addItems(material._selectionGroups)
-
-    def exportUsd(self):
-        usd_export_parameters = usdShadeExport.UsdExportParameters()
-        usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
-        usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())
-        usd_export_parameters.setAssemblyTargetFilename(self.assembly_file_widget.path())
-        usd_export_parameters.setPayloadSourcePath(self.payload_file_widget.path())
-        usd_export_parameters.setStageRootPath(self.root_name_widget.text())
-
-        usd_material_sources = []
-        for material in self.model._material_list:
-            if not material._checked:
-                continue
-
-            for shader_model_name in material._assignments:
-                shader = material._assignments[shader_model_name]
-                if not shader:
-                    continue
-
-                node = shader.shaderNode()
-                if not node:
-                    continue
-                
-                node_graph = node.parentNodeGraph()
-                if not node_graph:
-                    continue
-                    
-                geo_entity = node_graph.parentGeoEntity()
-                if not geo_entity:
-                    continue
-                    
-                current_geo_version = geo_entity.currentVersion()
-                if not current_geo_version:
-                    continue
-
-                usd_material_source = usdShadeExport.UsdMaterialSource(material._name)
-                usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
-                usd_shader_source = usdShadeExport.UsdShaderSource(shader)
-                usd_shader_source.setUvSetName("st")
-                for export_item, shader_input_name in self.getExportItems(shader):
-                    usd_shader_source.setInputExportItem(shader_input_name, export_item)
-                usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
-                usd_material_sources.append(usd_material_source)
-
-        usdShadeExport.exportUsdShadeLook(usd_export_parameters, usd_material_sources)
 
 def showUsdMultiShaderExportWidget():
     widget = MultiShaderExportWidget()
