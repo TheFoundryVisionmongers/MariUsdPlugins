@@ -421,12 +421,6 @@ class Material_Model(core.QAbstractItemModel):
                     shader = shader_assignments[shader_model_name]
                     if self.__shader_inputs_empty[shader]:
                         return self.__shader_error_icon
-
-                    '''
-                    input_list = usdExportManagerTab.ExportItem_Model.advancedInputList(shader)
-                    if not input_list:
-                        return self.__shader_error_icon
-                        '''
         elif role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
             material = self.material_list[index.row()]
             return material.checked
@@ -767,12 +761,6 @@ class MultiShaderExportWidget(widgets.QWidget):
         dialog.exec_()
 
     def getOverrides(self):
-        """Returns a dictionary of overrides from the various UI elements.
-
-        Returns:
-            dict: Override name key and override data values
-
-        """
         overrides = {}
         overrides["RESOLUTION"] = self.default_size_combo_box.currentText()
         overrides["DEPTH"] = self.default_depth_combo_box.currentText()
@@ -934,6 +922,19 @@ def showUsdMultiShaderExportWidget():
     widget.show()
     globals()["USD_MULTI_SHADER_WIDGET"] = widget
 
-if mari.app.isRunning() and mari.projects.current():
-    showUsdMultiShaderExportWidget()
+if mari.app.isRunning():
+    usd_multi_shader_export_action = mari.actions.find("/Mari/Scripts/Export/USD Multi Shader Export")
+    if usd_multi_shader_export_action is None:
+        usd_multi_shader_export_action = mari.actions.create("/Mari/Scripts/Export/USD Multi Shader Export", "mariUsd.usdMultiShaderExportDialog.showUsdMultiShaderExportWidget()")
+        iconPath = mari.resources.path(mari.resources.ICONS) + '/ExportManager.png'
+        usd_multi_shader_export_action.setIconPath(iconPath)
+        mari.utils.connect(mari.projects.opened, lambda: usd_multi_shader_export_action.setEnabled(True))
+        mari.utils.connect(mari.projects.aboutToClose, lambda: usd_multi_shader_export_action.setEnabled(False))
+        if mari.projects.current() is None:
+            usd_multi_shader_export_action.setEnabled(False)
+
+    if "USD Multi Shader Export" in mari.menus.itemNames("MainWindow", "&Channels"):
+        mari.menus.removeAction("MainWindow/&Channels/USD Multi Shader Export")
+    mari.menus.addAction(usd_multi_shader_export_action, "MainWindow/&Channels", "&Export")
+
 
