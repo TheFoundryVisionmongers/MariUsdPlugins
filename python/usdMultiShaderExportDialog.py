@@ -267,6 +267,7 @@ class Material_Model(core.QAbstractItemModel):
 
         self.__shader_model_list = []
         self.__shader_map = {}
+        self.__shader_inputs_empty = {}
         self._refreshShaders()
 
         self.__material_list = []
@@ -386,6 +387,7 @@ class Material_Model(core.QAbstractItemModel):
             if not shader_model_name in self.__shader_map:
                 self.shader_map[shader_model_name] = [("", None)]
             self.__shader_map[shader_model_name].append((shader.name(), shader))
+            self.__shader_inputs_empty[shader] = len(usdExportManagerTab.ExportItem_Model.advancedInputList(shader))==0
         for shader_names in self.__shader_map.values():
             shader_names.sort(key=lambda x:x[0])
         self.__shader_model_list = list(self.__shader_map.keys())
@@ -413,13 +415,18 @@ class Material_Model(core.QAbstractItemModel):
             if col == SELECTION_GRAOUP_COLUMN:
                 return self.__selection_group_history_icon if self.material_list[row].selection_groups else None 
             if col >= SHADER_COLUMN:
-                shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
+                shader_model_name = self.shader_model_list[col-SHADER_COLUMN]
                 shader_assignments = self.material_list[row].shader_assignments
                 if shader_model_name in shader_assignments and shader_assignments[shader_model_name] != None:
                     shader = shader_assignments[shader_model_name]
+                    if self.__shader_inputs_empty[shader]:
+                        return self.__shader_error_icon
+
+                    '''
                     input_list = usdExportManagerTab.ExportItem_Model.advancedInputList(shader)
                     if not input_list:
                         return self.__shader_error_icon
+                        '''
         elif role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
             material = self.material_list[index.row()]
             return material.checked
@@ -427,6 +434,13 @@ class Material_Model(core.QAbstractItemModel):
             if self.material_list[index.row()].checked == qt.Unchecked:
                 palette = gui.QPalette()
                 return palette.brush(palette.Disabled, palette.Foreground)
+        elif role == qt.ToolTipRole:
+            shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
+            shader_assignments = self.material_list[index.row()].shader_assignments
+            if shader_model_name in shader_assignments and shader_assignments[shader_model_name] != None:
+                shader = shader_assignments[shader_model_name]
+                if self.__shader_inputs_empty[shader]:
+                    return "No MultiChannel Bake Point or Channel node attached to the Shader"
         return None
 
     def setData(self, index, value, role):
@@ -525,10 +539,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         # Buttons
         add_material_button = widgets.QPushButton(mari.resources.createIcon("AddMaterial.svg"), "", self)
         add_material_button.pressed.connect(self.model.addMaterial)
+        add_material_button.setToolTip("Add New Material")
         button_layout.addWidget(add_material_button)
 
         remove_material_button = widgets.QPushButton(mari.resources.createIcon("DeleteMaterial.svg"), "", self)
         remove_material_button.pressed.connect(self.removeSelectedMaterials)
+        remove_material_button.setToolTip("Remove Selected Materials")
         button_layout.addWidget(remove_material_button)
 
         button_layout.addSpacerItem(widgets.QSpacerItem(0, 0, widgets.QSizePolicy.MinimumExpanding))
