@@ -97,42 +97,77 @@ def getExportItems(shader):
 
 class Material_Item():
     def __init__(self, name):
-        self._name = name
-        self._checked = qt.Checked
-        self._assignments = {}
-        self._selectionGroups = []
+        self.__name = name
+        self.__checked = qt.Checked
+        self.__shader_assignments = {}
+        self.__selection_groups = []
+
+    @property
+    def name(self):
+        return self.__name
+
+    @name.setter
+    def name(self, name):
+        self.__name = name
+
+    @property
+    def checked(self):
+        return self.__checked
+
+    @checked.setter
+    def checked(self, checked):
+        self.__checked = checked
+
+    @property
+    def shader_assignments(self):
+        return self.__shader_assignments
+
+    @shader_assignments.setter
+    def shader_assignments(self, shader_assignments):
+        self.__shader_assignments = shader_assignments
+
+    @property
+    def selection_groups(self):
+        return self.__selection_groups
+
+    @selection_groups.setter
+    def selection_groups(self, selection_groups):
+        self.__selection_groups = selection_groups
 
     def to_dict(self):
-        assignments = {}
-        for key in self._assignments:
-            assignments[key] = self._assignments[key].uuid()
+        shader_assignments = {}
+        for key in self.shader_assignments:
+            shader_assignments[key] = self.shader_assignments[key].uuid()
         usd_material_data = {
-            "_name": self._name,
-            "_checked": True if self._checked == qt.Checked else False,
-            "_assignments": assignments,
-            "_selectionGroups": self._selectionGroups,
+            "name": self.name,
+            "checked": True if self.checked == qt.Checked else False,
+            "shader_assignments": shader_assignments,
+            "selection_groups": self.selection_groups,
         }
         return usd_material_data
 
     @classmethod
     def from_dict(cls, usd_material_data):
-        name = usd_material_data["_name"]
-        material = cls(name)
+        try:
+            name = usd_material_data["name"]
+            material = cls(name)
 
-        material._name = name 
-        material._checked = qt.Checked if usd_material_data["_checked"] else qt.Unchecked 
-        material._selectionGroups = usd_material_data["_selectionGroups"] 
-        material._assignments = {}
+            material.name = name
+            material.checked = qt.Checked if usd_material_data["checked"] else qt.Unchecked
+            material.selection_groups = usd_material_data["selection_groups"]
+            material.shader_assignments = {}
 
-        shader_map = {}
-        for shader in mari.geo.current().shaderList():
-            shader_map[shader.uuid()] = shader
+            shader_map = {}
+            for shader in mari.geo.current().shaderList():
+                shader_map[shader.uuid()] = shader
 
-        assignments = usd_material_data["_assignments"]
-        for key in assignments:
-            uuid = assignments[key]
-            if uuid in shader_map:
-                material._assignments[key] = shader_map[uuid]
+            shader_assignments = usd_material_data["shader_assignments"]
+            for key in shader_assignments:
+                uuid = shader_assignments[key]
+                if uuid in shader_map:
+                    material.shader_assignments[key] = shader_map[uuid]
+        except Exception as e:
+            print("Failed to load saved material data")
 
         return material
             
@@ -175,7 +210,7 @@ class ShaderAssignment_Item_Delegate(widgets.QStyledItemDelegate):
         if index.column() >= SHADER_COLUMN:
             model = index.model()
             editor = widgets.QComboBox(parent)
-            for shader_name, shader in model._shader_map[model._shader_model_list[index.column()-SHADER_COLUMN]]:
+            for shader_name, shader in model.shader_map[model.shader_model_list[index.column()-SHADER_COLUMN]]:
                 editor.addItem(shader_name, shader)
             editor.currentIndexChanged.connect(self.finishEdit)
 
@@ -189,26 +224,26 @@ class ShaderAssignment_Item_Delegate(widgets.QStyledItemDelegate):
     def setEditorData(self, editor, index):
         if index.column() >= SHADER_COLUMN and isinstance(editor, widgets.QComboBox):
             model = index.model()
-            shader_model_name = model._shader_model_list[index.column()-SHADER_COLUMN]
-            assignments = model._material_list[index.row()]._assignments
+            shader_model_name = model.shader_model_list[index.column()-SHADER_COLUMN]
+            shader_assignments = model.material_list[index.row()].shader_assignments
             shader_name = ""
-            if shader_model_name in assignments:
-                shader_name = assignments[shader_model_name].name()
+            if shader_model_name in shader_assignments:
+                shader_name = shader_assignments[shader_model_name].name()
             editor.setCurrentText(shader_name)
             return
         elif index.column() == MATERIAL_COLUMN:
-            material_name = index.model()._material_list[index.row()]._name
+            material_name = index.model().material_list[index.row()].name
             editor.setText(material_name)
             return
         widgets.QStyledItemDelegate.setEditorData(self, editor, index)
 
     def setModelData(self, editor, model, index):
         if index.column() >= SHADER_COLUMN and isinstance(editor, widgets.QComboBox):
-            shader_model_name = model._shader_model_list[index.column()-SHADER_COLUMN]
-            model._material_list[index.row()]._assignments[shader_model_name] = editor.currentData()
+            shader_model_name = model.shader_model_list[index.column()-SHADER_COLUMN]
+            model.material_list[index.row()].shader_assignments[shader_model_name] = editor.currentData()
             return
         elif index.column() == MATERIAL_COLUMN and isinstance(editor, widgets.QLineEdit):
-            model._material_list[index.row()]._name = editor.text()
+            model.material_list[index.row()].name = editor.text()
             return
 
         widgets.QStyledItemDelegate.setModelData(self, editor, model, index)
@@ -230,15 +265,31 @@ class Material_Model(core.QAbstractItemModel):
     def __init__(self, parent = None):
         core.QAbstractItemModel.__init__(self, parent = parent)
 
-        self._shader_model_list = []
-        self._shader_map = {}
+        self.__shader_model_list = []
+        self.__shader_map = {}
         self._refreshShaders()
 
-        self._material_list = []
+        self.__material_list = []
 
-        self._selection_group_icon = mari.resources.createIcon("SelectionSet.png")
-        self._selection_group_history_icon = gui.QIcon(mari.resources.path(mari.resources.ICONS) + '/SelectionGroupsHistory.svg')
-        self._shader_error_icon = gui.QIcon(SHADER_ERROR_PIXMAP)
+        self.__selection_group_icon = mari.resources.createIcon("SelectionSet.png")
+        self.__selection_group_history_icon = gui.QIcon(mari.resources.path(mari.resources.ICONS) + '/SelectionGroupsHistory.svg')
+        self.__shader_error_icon = gui.QIcon(SHADER_ERROR_PIXMAP)
+
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def shader_model_list(self):
+        return self.__shader_model_list
+
+    @property
+    def shader_map(self):
+        return self.__shader_map
+
+    @property
+    def material_list(self):
+        return self.__material_list
 
     def headerData(self, section, orientation, role):
         if orientation == qt.Horizontal:
@@ -247,11 +298,11 @@ class Material_Model(core.QAbstractItemModel):
                     return None 
                 elif section == MATERIAL_COLUMN:
                     return "Material"
-                elif section < len(self._shader_model_list)+SHADER_COLUMN:
-                    return self._shader_model_list[section-2]
+                elif section < len(self.shader_model_list)+SHADER_COLUMN:
+                    return self.shader_model_list[section-2]
             elif role == qt.DecorationRole:
                 if section == SELECTION_GRAOUP_COLUMN:
-                    return self._selection_group_icon 
+                    return self.__selection_group_icon
             elif role == qt.TextAlignmentRole:
                 return qt.AlignHCenter
         return None
@@ -260,7 +311,7 @@ class Material_Model(core.QAbstractItemModel):
         if not mari.projects.current():
             return
 
-        material_list = [material.to_dict() for material in self._material_list]
+        material_list = [material.to_dict() for material in self.material_list]
 
         json_data = json.dumps(material_list)
 
@@ -273,7 +324,7 @@ class Material_Model(core.QAbstractItemModel):
         if mari.projects.current().hasMetadata("_USDMultiShaderExport_Materials"):
             self.layoutAboutToBeChanged.emit()
 
-            self._material_list = []
+            self.__material_list = []
 
             json_data = mari.projects.current().metadata("_USDMultiShaderExport_Materials")
 
@@ -281,13 +332,13 @@ class Material_Model(core.QAbstractItemModel):
 
             for material_dict in material_list:
                 material = Material_Item.from_dict(material_dict) 
-                self._material_list.append(material)
+                self.__material_list.append(material)
 
             # Trigger redraw
             self.layoutChanged.emit()
 
     def addMaterial(self):
-        existing_material_names = set([material._name for material in self._material_list])
+        existing_material_names = set([material.name for material in self.material_list])
         i=1
         material_name = ""
         while True:
@@ -299,7 +350,7 @@ class Material_Model(core.QAbstractItemModel):
         self.layoutAboutToBeChanged.emit()
 
         material = Material_Item(material_name)
-        self._material_list.append(material)
+        self.material_list.append(material)
 
         # Trigger redraw
         self.layoutChanged.emit()
@@ -312,8 +363,8 @@ class Material_Model(core.QAbstractItemModel):
         rows_to_remove.reverse()
 
         for row in rows_to_remove:
-            if row >= 0 and row < len(self._material_list):
-                del self._material_list[row]
+            if row >= 0 and row < len(self.material_list):
+                del self.material_list[row]
 
         # Trigger redraw
         self.layoutChanged.emit()
@@ -321,8 +372,8 @@ class Material_Model(core.QAbstractItemModel):
         self.saveMaterials()
 
     def _refreshShaders(self):
-        self._shader_model_list = []
-        self._shader_map = {}
+        self.__shader_model_list = []
+        self.__shader_map = {}
 
         if not mari.geo.current():
             return
@@ -332,56 +383,56 @@ class Material_Model(core.QAbstractItemModel):
             if not shader_model:
                 continue
             shader_model_name = shader_model.id()
-            if not shader_model_name in self._shader_map:
-                self._shader_map[shader_model_name] = [("", None)]
-            self._shader_map[shader_model_name].append((shader.name(), shader))
-        for shader_names in self._shader_map.values():
+            if not shader_model_name in self.__shader_map:
+                self.shader_map[shader_model_name] = [("", None)]
+            self.__shader_map[shader_model_name].append((shader.name(), shader))
+        for shader_names in self.__shader_map.values():
             shader_names.sort(key=lambda x:x[0])
-        self._shader_model_list = list(self._shader_map.keys())
-        self._shader_model_list.sort()
+        self.__shader_model_list = list(self.__shader_map.keys())
+        self.__shader_model_list.sort()
 
     def data(self, index, role):
         if role == qt.DisplayRole:
             row = index.row()
             col = index.column()
-            material = self._material_list[row] 
+            material = self.material_list[row]
             if col == MATERIAL_COLUMN:
-                return material._name
+                return material.name
             elif col == SELECTION_GRAOUP_COLUMN:
                 return None
             else:
-                shader_model_name = self._shader_model_list[index.column()-SHADER_COLUMN]
-                assignments = self._material_list[row]._assignments
-                if shader_model_name in assignments and assignments[shader_model_name] != None:
-                    return assignments[shader_model_name].name()
+                shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
+                shader_assignments = self.material_list[row].shader_assignments
+                if shader_model_name in shader_assignments and shader_assignments[shader_model_name] != None:
+                    return shader_assignments[shader_model_name].name()
                 else:
                     return ""
         elif role == qt.DecorationRole:
             row = index.row()
             col = index.column()
             if col == SELECTION_GRAOUP_COLUMN:
-                return self._selection_group_history_icon if self._material_list[row]._selectionGroups else None 
+                return self.__selection_group_history_icon if self.material_list[row].selection_groups else None 
             if col >= SHADER_COLUMN:
-                shader_model_name = self._shader_model_list[index.column()-SHADER_COLUMN]
-                assignments = self._material_list[row]._assignments
-                if shader_model_name in assignments and assignments[shader_model_name] != None:
-                    shader = assignments[shader_model_name]
+                shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
+                shader_assignments = self.material_list[row].shader_assignments
+                if shader_model_name in shader_assignments and shader_assignments[shader_model_name] != None:
+                    shader = shader_assignments[shader_model_name]
                     input_list = usdExportManagerTab.ExportItem_Model.advancedInputList(shader)
                     if not input_list:
-                        return self._shader_error_icon
+                        return self.__shader_error_icon
         elif role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
-            material = self._material_list[index.row()] 
-            return material._checked
+            material = self.material_list[index.row()]
+            return material.checked
         elif role == qt.ForegroundRole:
-            if self._material_list[index.row()]._checked == qt.Unchecked:
+            if self.material_list[index.row()].checked == qt.Unchecked:
                 palette = gui.QPalette()
                 return palette.brush(palette.Disabled, palette.Foreground)
         return None
 
     def setData(self, index, value, role):
         if role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
-            material = self._material_list[index.row()] 
-            material._checked = value
+            material = self.material_list[index.row()]
+            material.checked = value
             self.dataChanged.emit(index, index, [role])
             self.dataChanged.emit(index, self.createIndex(index.row(), self.columnCount()-1), [qt.ForegroundRole])
             return True
@@ -402,10 +453,10 @@ class Material_Model(core.QAbstractItemModel):
         return core.QModelIndex()
 
     def rowCount(self, parent=core.QModelIndex()):
-        return len(self._material_list)
+        return len(self.material_list)
 
     def columnCount(self, parent=core.QModelIndex()):
-        return len(self._shader_model_list) + SHADER_COLUMN
+        return len(self.shader_model_list) + SHADER_COLUMN
 
 class ExportItemModel(mari.system.batch_export_dialog.ExportItemModel):
     def __init__(self, geoEntities, view):
@@ -427,14 +478,14 @@ class ExportItemModel(mari.system.batch_export_dialog.ExportItemModel):
 class ExportItemFilterModel(core.QSortFilterProxyModel):
     def __init__(self, parent=None):
         super(ExportItemFilterModel, self).__init__(parent)
-        self.export_items = set()
-        self._hide_unchecked = False
+        self.__export_items = set()
+        self.__hide_unchecked = False
 
     def setExportItems(self, export_items):
-        self.export_items = export_items
+        self.__export_items = export_items
 
     def setHideUnchecked(self, hide):
-        self._hide_unchecked = hide
+        self.__hide_unchecked = hide
         self.invalidate()
 
     def filterAcceptsRow(self, sourceRow, sourceParent):
@@ -445,11 +496,11 @@ class ExportItemFilterModel(core.QSortFilterProxyModel):
             return True
 
         # Hide the items not in the allowlist
-        if not item in self.export_items:
+        if not item in self.__export_items:
             return False
 
         # Hide the item if the hide button is checked and the item is unchecked
-        if self._hide_unchecked and not item.exportEnabled():
+        if self.__hide_unchecked and not item.exportEnabled():
             return False
 
         return True
@@ -612,15 +663,15 @@ class MultiShaderExportWidget(widgets.QWidget):
     def currentMaterial(self):
         current_index = self.view.currentIndex()
         row = current_index.row()
-        if row >= 0 and row < len(self.model._material_list):
-            return self.model._material_list[row]
+        if row >= 0 and row < len(self.model.material_list):
+            return self.model.material_list[row]
         return None
 
     def assignSelectionGroups(self):
         material = self.currentMaterial()
         if not material:
             return
-        material._selectionGroups = ["AAA", "BBB", "CCC"]
+        material.selection_groups = ["AAA", "BBB", "CCC"]
         self.updateSelectionGroups()
         self.emitDataChangedForCurrentRow(SELECTION_GRAOUP_COLUMN, [qt.DecorationRole])
 
@@ -634,7 +685,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         if not material:
             return
         self.selection_group_widget.clear()
-        self.selection_group_widget.addItems(material._selectionGroups)
+        self.selection_group_widget.addItems(material.selection_groups)
 
     def exportUsd(self):
         usd_export_parameters = usdShadeExport.UsdExportParameters()
@@ -646,12 +697,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         usd_export_parameters.setExportOverrides({"RESOLUTION":self.default_size_combo_box.currentText(), "DEPTH":self.default_depth_combo_box.currentText()})
 
         usd_material_sources = []
-        for material in self.model._material_list:
-            if not material._checked:
+        for material in self.model.material_list:
+            if not material.checked:
                 continue
 
-            for shader_model_name in material._assignments:
-                shader = material._assignments[shader_model_name]
+            for shader_model_name in material.shader_assignments:
+                shader = material.shader_assignments[shader_model_name]
                 if not shader:
                     continue
 
@@ -671,7 +722,7 @@ class MultiShaderExportWidget(widgets.QWidget):
                 if not current_geo_version:
                     continue
 
-                usd_material_source = usdShadeExport.UsdMaterialSource(material._name)
+                usd_material_source = usdShadeExport.UsdMaterialSource(material.name)
                 usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
                 usd_shader_source = usdShadeExport.UsdShaderSource(shader)
                 usd_shader_source.setUvSetName("st")
@@ -684,14 +735,14 @@ class MultiShaderExportWidget(widgets.QWidget):
 
     def editShaderInputs(self):
         index = self.view.currentIndex()
-        shader_model_name = self.model._shader_model_list[index.column()-SHADER_COLUMN]
-        assignments = self.model._material_list[index.row()]._assignments
+        shader_model_name = self.model.shader_model_list[index.column()-SHADER_COLUMN]
+        shader_assignments = self.model.material_list[index.row()].shader_assignments
         current_shader = None 
-        if shader_model_name in assignments:
-            current_shader = assignments[shader_model_name]
+        if shader_model_name in shader_assignments:
+            current_shader = shader_assignments[shader_model_name]
 
         shader_list = []
-        for shader_name, shader in self.model._shader_map[shader_model_name]:
+        for shader_name, shader in self.model.shader_map[shader_model_name]:
             shader_list.append((shader_name, shader))
 
         dialog = EditShaderInputsDialog(shader_model_name, current_shader, shader_list, self.getOverrides())
@@ -717,7 +768,7 @@ class EditShaderInputsDialog(widgets.QDialog):
     def __init__(self, shader_model_name, current_shader, shader_list, overrides, parent = None):
         widgets.QDialog.__init__(self, parent = parent)
 
-        self._overrides = overrides
+        self.__overrides = overrides
 
         dialog_layout = widgets.QVBoxLayout()
         self.setLayout(dialog_layout)
@@ -789,7 +840,7 @@ class EditShaderInputsDialog(widgets.QDialog):
         export_item_model.updateStatus()
 
     def getOverrides(self):
-        return self._overrides
+        return self.__overrides
 
     def updateExportItems(self, shader):
         export_items = []
