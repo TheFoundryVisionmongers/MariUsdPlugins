@@ -917,7 +917,7 @@ class USDExportWidget(widgets.QWidget):
         options_layout.addWidget(self.default_depth_combo_box, 0, 3)
         
         image_filter = "Images (" + " ".join(["*.%s" % ext for ext in mari.exports.imageFileExtensionList()]) + ")"
-        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, USDExportWidget.load_usd_texture_file_paths(), False)
+        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, USDExportWidget.load_usd_texture_file_paths(self.default_texture_pattern), False)
         export_texture_file_label = widgets.QLabel("Texture File Name", self)
         export_texture_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(export_texture_file_label, 1, 0)
@@ -1057,8 +1057,8 @@ class USDExportWidget(widgets.QWidget):
         return USDExportWidget.load_paths("UsdTargetDirPaths", default)
 
     @staticmethod
-    def load_usd_texture_file_paths():
-        default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), self.default_texture_pattern)
+    def load_usd_texture_file_paths(default_texture_pattern):
+        default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), default_texture_pattern)
         return USDExportWidget.load_paths("UsdTexturePaths", default)
 
     @staticmethod
