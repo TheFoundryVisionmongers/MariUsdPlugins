@@ -29,7 +29,11 @@ from pxr import Sdf, Usd, UsdShade, Tf
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
 USD_MATERIAL_TERMINALS = {}
+USD_FUNCTION_CALLBACKS = {}
 
+CALLBACK_NAME_SETTINGS_WIDGET = "SettingsWidget"
+CALLBACK_NAME_SETUP_EXPORT_ITEM = "SetupExportItem"
+CALLBACK_NAME_EXPORT_EXPORT_ITEM = "ExportExportItem"
 
 class UsdShadeExportError(Exception):
     """Custom Exception for known errors hit when exporting to UsdShade
@@ -555,7 +559,7 @@ class UsdExportParameters(object):
 
 
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
-    material_terminal_name, material_surface_context
+    material_terminal_name, material_surface_context, function_callbacks=None
 ):
     """Registers mappings for renderer specific UsdShade export functions.
     The callback function for exporting a shader input will be called with the following arguments:
@@ -571,13 +575,50 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
         shader_input_export_func (function): Callback function to write UsdShade data
         material_terminal_name (str): Name of material terminal
         material_surface_context (str): Name of surface output context
+        function_callbacks (dict{str: function}): Optional function table
+        
+    Callback Functions:
+        A named function table in the format of a dictionary ({name: function}) for shader specific functionality
+        Not all functions must be present
+        Names:
+            CALLBACK_NAME_SETTINGS_WIDGET: Return a QWidget to display in the settings dialog. Takes no parameters
+            CALLBACK_NAME_SETUP_EXPORT_ITEM: Called just after an export item is created. Takes one parameter of type mari.ExportItem
+            CALLBACK_NAME_EXPORT_EXPORT_ITEM: Called just before an export item is exported. Takes one parameter of type mari.ExportItem
     """
     MARI_TO_USD_SHADER_MAPPING[mari_shader_type_name] = usd_shader_id
     if type(shader_input_export_func).__name__ != "function":
         raise ValueError("No shader input export callback function specified for registerRendererExportPlugin")
     USD_SHADER_EXPORT_FUNCTIONS[mari_shader_type_name] = shader_input_export_func
     USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
+    
+    if function_callbacks is None:
+        pass
+    elif isinstance(function_callbacks, dict):
+        for callback_name in function_callbacks:
+            callback_func = function_callbacks[callback_name]
+            if callback_func is not None and type(callback_func).__name__ != "function":
+                raise ValueError("Supplied value for callback '%s' is not a function." % callback_name)
+        
+        USD_FUNCTION_CALLBACKS[mari_shader_type_name] = function_callbacks
+    else:
+        raise ValueError("Function callbacks must be a dictionary")
 
+def shaderIDsWithFunctionCallbacks(callback_name=None):
+    if callback_name is None:
+        return USD_FUNCTION_CALLBACKS.keys()
+
+    shader_ids = []
+    for mari_shader_model_id in USD_FUNCTION_CALLBACKS.keys():
+        if USD_FUNCTION_CALLBACKS[mari_shader_model_id].get(callback_name, None) is not None:
+            shader_ids.append(mari_shader_model_id)
+
+    return shader_ids
+
+def functionCallbacksForShader(mari_shader_model_id):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {})
+
+def functionCallbackForShader(mari_shader_model_id, callback_name):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {}).get(callback_name, None)
 
 def _sanitize(location_path):
     return location_path.replace(" ", "_")
