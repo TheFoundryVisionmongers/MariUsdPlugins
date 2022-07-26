@@ -1,8 +1,16 @@
 import mari
 import os
 import re
+import PySide2.QtWidgets as widgets
 from . import usdShadeExport
 from pxr import Sdf, UsdShade
+
+PRMAN_SETTINGS_GROUP = "PRManUSDExportSettings"
+PRMAN_SETTING_POSTPROCESS = "PostProcessCommand"
+
+PRMAN_DEFAULT_SETTINGS = {
+    PRMAN_SETTING_POSTPROCESS: "txmake $EXPORTED $EXPORTDIR/$EXPORTBASE.tx"
+}
 
 def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
@@ -222,12 +230,60 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
         )
         mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
 
+class PRMan_SettingsWidget(widgets.QWidget):
+    def __init__(self, parent = None):
+        widgets.QWidget.__init__(self, parent)
+        
+        settings = mari.Settings()
+        settings.beginGroup(PRMAN_SETTINGS_GROUP)
+        post_process_command = settings.value(PRMAN_SETTING_POSTPROCESS, PRMAN_DEFAULT_SETTINGS[PRMAN_SETTING_POSTPROCESS])
+        settings.endGroup()
+        
+        main_layout = widgets.QVBoxLayout()
+        post_process_layout = widgets.QHBoxLayout()
+        post_process_layout.addWidget(widgets.QLabel("Default Post Process Command"))
+        self.post_process_editbox = widgets.QLineEdit()
+        self.post_process_editbox.setText(post_process_command)
+        self.post_process_editbox.editingFinished.connect(self.onPostProcessCommandEdited)
+        post_process_layout.addWidget(self.post_process_editbox)
+        main_layout.addLayout(post_process_layout)
+        
+        self.setLayout(main_layout)
+        
+    def onPostProcessCommandEdited(self):
+        settings = mari.Settings()
+        settings.beginGroup(PRMAN_SETTINGS_GROUP)
+        value = self.post_process_editbox.text()
+        settings.setValue(PRMAN_SETTING_POSTPROCESS, value)
+        settings.endGroup()
+
+def PRMan_Callback_SettingsWidget():
+    return PRMan_SettingsWidget()
+
+def PRMan_Callback_SetupExportItem(export_item):
+    if not isinstance(export_item, mari.ExportItem):
+        print("Invalid Export Item received for PRMax SetupExportItem callback.")
+        return
+    
+    settings = mari.Settings()
+    settings.beginGroup(PRMAN_SETTINGS_GROUP)
+    post_process_command = settings.value(PRMAN_SETTING_POSTPROCESS, PRMAN_DEFAULT_SETTINGS[PRMAN_SETTING_POSTPROCESS])
+    settings.endGroup()
+    
+    export_item.setPostProcessCommand(post_process_command)
+
 if mari.app.isRunning():
-    registerRendererExportPlugin(
+    callback_functions = {
+        usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM:  PRMan_Callback_SetupExportItem,
+        usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM: PRMan_Callback_SetupExportItem,
+        usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET:    PRMan_Callback_SettingsWidget
+    }
+    
     usdShadeExport.registerRendererExportPlugin(
         "PxrSurface",
         "PxrSurface",
         writePrManSurface,
         "out",
-        None
+        None,
+        callback_functions
     )
