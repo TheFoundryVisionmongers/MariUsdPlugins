@@ -755,7 +755,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         for shader_name, shader in self.model.shader_map[shader_model_name]:
             shader_list.append((shader_name, shader))
 
-        dialog = EditShaderInputsDialog(shader_model_name, current_shader, shader_list, self.getOverrides())
+        dialog = EditShaderInputsDialog(shader_model_name, current_shader, shader_list, self.getOverrides(), self.exportRootPath())
 
         dialog.resize(1200, 600)
         dialog.exec_()
@@ -769,10 +769,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         return overrides
 
 class EditShaderInputsDialog(widgets.QDialog):
-    def __init__(self, shader_model_name, current_shader, shader_list, overrides, parent = None):
+    def __init__(self, shader_model_name, current_shader, shader_list, overrides, export_root_path, parent = None):
         widgets.QDialog.__init__(self, parent = parent)
 
         self.__overrides = overrides
+
+        self.__export_root_path = export_root_path
 
         dialog_layout = widgets.QVBoxLayout()
         self.setLayout(dialog_layout)
@@ -845,6 +847,9 @@ class EditShaderInputsDialog(widgets.QDialog):
 
     def getOverrides(self):
         return self.__overrides
+
+    def exportRootPath(self):
+        return self.__export_root_path
 
     def updateExportItems(self, shader):
         export_items = []
