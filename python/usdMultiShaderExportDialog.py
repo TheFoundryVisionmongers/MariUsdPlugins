@@ -39,11 +39,13 @@ load_text_value = usdExportManagerTab.USDExportWidget.load_text_value
 
 USD_MULTI_SHADER_WIDGET = None
 
-SELECTION_GRAOUP_COLUMN = 0
+SELECTION_GROUP_COLUMN = 0
 MATERIAL_COLUMN = 1
 SHADER_COLUMN = 2
 
 SHADER_ERROR_PIXMAP = gui.QPixmap(mari.resources.path(mari.resources.ICONS) + '/ShaderError.svg')
+
+FACE_SELECTION_GROUP_MIMETYPE = "faceselectiongroup_uuid"
 
 def resolveSourceIndex(index):
     """Returns the index of the source model if the index belongs to a proxy model.
@@ -182,11 +184,11 @@ class Material_View(widgets.QTableView):
         widgets.QTableView.__init__(self, parent = parent)
 
     def initialize(self):
-        self.horizontalHeader().setSectionResizeMode(SELECTION_GRAOUP_COLUMN, widgets.QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(SELECTION_GROUP_COLUMN, widgets.QHeaderView.Fixed)
         self.resizeColumnsToContents()
 
     def currentChanged(self, current, previous):
-        self.horizontalHeader().setSectionResizeMode(SELECTION_GRAOUP_COLUMN, widgets.QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(SELECTION_GROUP_COLUMN, widgets.QHeaderView.Fixed)
         result = super(Material_View, self).currentChanged(current, previous)
         self.currentIndexChanged.emit(current)
         return result
@@ -295,14 +297,14 @@ class Material_Model(core.QAbstractItemModel):
     def headerData(self, section, orientation, role):
         if orientation == qt.Horizontal:
             if role == qt.DisplayRole:
-                if section == SELECTION_GRAOUP_COLUMN:
+                if section == SELECTION_GROUP_COLUMN:
                     return None 
                 elif section == MATERIAL_COLUMN:
                     return "Material"
                 elif section < len(self.shader_model_list)+SHADER_COLUMN:
                     return self.shader_model_list[section-2]
             elif role == qt.DecorationRole:
-                if section == SELECTION_GRAOUP_COLUMN:
+                if section == SELECTION_GROUP_COLUMN:
                     return self.__selection_group_icon
             elif role == qt.TextAlignmentRole:
                 return qt.AlignHCenter
@@ -400,7 +402,7 @@ class Material_Model(core.QAbstractItemModel):
             material = self.material_list[row]
             if col == MATERIAL_COLUMN:
                 return material.name
-            elif col == SELECTION_GRAOUP_COLUMN:
+            elif col == SELECTION_GROUP_COLUMN:
                 return None
             else:
                 shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
@@ -412,7 +414,7 @@ class Material_Model(core.QAbstractItemModel):
         elif role == qt.DecorationRole:
             row = index.row()
             col = index.column()
-            if col == SELECTION_GRAOUP_COLUMN:
+            if col == SELECTION_GROUP_COLUMN:
                 return self.__selection_group_history_icon if self.material_list[row].selection_groups else None 
             if col >= SHADER_COLUMN:
                 shader_model_name = self.shader_model_list[col-SHADER_COLUMN]
@@ -513,6 +515,90 @@ class ExportItemFilterModel(core.QSortFilterProxyModel):
 
         return True
 
+class SelectionGroupListWidget(widgets.QListWidget):
+    def __init__(self, parent = None):
+        widgets.QListWidget.__init__(self, parent = parent)
+
+        self.__material = None
+
+        self.setAcceptDrops(True)
+        self.setDragDropMode(widgets.QAbstractItemView.DropOnly)
+
+    def supportedDropActions(self):
+        return qt.CopyAction | qt.MoveAction
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
+            event.acceptProposedAction()
+            event.accept()
+            return
+        else:
+            return super(SelectionGroupListWidget, self).dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
+            event.acceptProposedAction()
+            event.accept()
+            return
+        else:
+            return super(SelectionGroupListWidget, self).dragMoveEvent(event)
+
+    def updateSelectionGroups(self):
+        self.clear()
+
+        selection_group_map = {}
+        for selection_group in mari.selection_groups.list():
+            selection_group_map[selection_group.uuid()] = selection_group
+
+            # Maintain a single signal connection to a name change of geometry selection group so that the names in this list are dynamically updated
+            selection_group.nameChanged.connect(self.updateSelectionGroups, qt.UniqueConnection)
+
+        for uuid in self.__material.selection_groups:
+            if uuid in selection_group_map:
+                selection_group = selection_group_map[uuid]
+                item = widgets.QListWidgetItem(selection_group.name())
+                item.setData(qt.UserRole, selection_group.uuid())
+                self.addItem(item)
+
+    def setMaterial(self, material):
+        self.__material = material
+
+        self.clear()
+        self.updateSelectionGroups()
+
+    def dropMimeData(self, index, data, action):
+        if data.hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
+            faceselectiongroup_uuid = data.data(FACE_SELECTION_GROUP_MIMETYPE)
+            for selection_group in mari.selection_groups.list():
+                if selection_group.uuid()==faceselectiongroup_uuid:
+                    if self.__material:
+                        self.__material.selection_groups.append(faceselectiongroup_uuid)
+                        self.updateSelectionGroups()
+                        return True
+        return super(SelectionGroupListWidget, self).dragMoveEvent(event)
+
+    def assignGeometrySelectionGroupsFromProject(self):
+        if self.__material:
+            for selection_group in mari.selection_groups.selection():
+                if isinstance(selection_group, mari.FaceSelectionGroup) and not selection_group.uuid() in self.__material.selection_groups:
+                    self.__material.selection_groups.append(selection_group.uuid())
+            self.updateSelectionGroups()
+
+    def contextMenuEvent(self, event):
+        menu = widgets.QMenu(self)
+        assign_selection_groups = menu.addAction(mari.resources.createIcon("Assign_SelectionGroup.svg"), "Assign Selection Groups")
+        delete_selected = menu.addAction("Delete Selected")
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+
+        if action == assign_selection_groups:
+            self.assignGeometrySelectionGroupsFromProject()
+        elif action == delete_selected:
+            if self.__material:
+                for item in self.selectedItems():
+                    uuid = item.data(qt.UserRole)
+                    self.__material.selection_groups.remove(uuid)
+                self.updateSelectionGroups()
+
 class MultiShaderExportWidget(widgets.QWidget):
     def __init__(self, parent = None):
         widgets.QWidget.__init__(self, parent)
@@ -563,11 +649,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         selection_group_label_layout.addWidget(selection_group_label, 1)
 
         adopt_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Assign_SelectionGroup.svg"), "", self)
-        adopt_selection_group_button.pressed.connect(self.assignSelectionGroups)
         selection_group_label_layout.addWidget(adopt_selection_group_button)
 
-        self.selection_group_widget = widgets.QListWidget(self)
+        self.selection_group_widget = SelectionGroupListWidget(self)
         selection_group_layout.addWidget(self.selection_group_widget)
+
+        adopt_selection_group_button.pressed.connect(self.selection_group_widget.assignGeometrySelectionGroupsFromProject)
 
         # Export Options
         options_group_box = widgets.QGroupBox("Export Options", self)
@@ -677,14 +764,6 @@ class MultiShaderExportWidget(widgets.QWidget):
             return self.model.material_list[row]
         return None
 
-    def assignSelectionGroups(self):
-        material = self.currentMaterial()
-        if not material:
-            return
-        material.selection_groups = ["AAA", "BBB", "CCC"]
-        self.updateSelectionGroups()
-        self.emitDataChangedForCurrentRow(SELECTION_GRAOUP_COLUMN, [qt.DecorationRole])
-
     def emitDataChangedForCurrentRow(self, column, roles):
         index = self.view.currentIndex()
         index = self.model.createIndex(index.row(), column)
@@ -692,10 +771,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
     def updateSelectionGroups(self):
         material = self.currentMaterial()
-        if not material:
-            return
-        self.selection_group_widget.clear()
-        self.selection_group_widget.addItems(material.selection_groups)
+        self.selection_group_widget.setMaterial(material)
 
     def exportUsd(self):
         usd_export_parameters = usdShadeExport.UsdExportParameters()
