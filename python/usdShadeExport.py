@@ -25,7 +25,7 @@ import os
 import re
 
 import mari
-from pxr import Sdf, Usd, UsdShade, Tf
+from pxr import Sdf, Usd, UsdShade, Tf, UsdGeom
 
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
@@ -174,6 +174,7 @@ class UsdMaterialSource(object):
         self._name = name
         self._shader_sources = {}
         self._binding_locations = []
+        self._selection_groups = []
 
     def to_dict(self):
         """ Returns the contents of the class instance as a dictionary.
@@ -185,6 +186,7 @@ class UsdMaterialSource(object):
             "name": self._name,
             "shader_sources": {},
             "binding_locations": list(self._binding_locations),
+            "selection_groups": list(self._selection_groups),
         }
         for mari_shader_type_name, usd_shader_source in self._shader_sources.items():
             usd_material_source_data["shader_sources"][mari_shader_type_name] = usd_shader_source.to_dict()
@@ -199,6 +201,7 @@ class UsdMaterialSource(object):
             {
                 "name": str # Name of USD Material
                 "binding_locations": list # Mesh locations to apply material bindings
+                "selection_groups": list # UUID strings of selection groups
                 "shader_sources": { # Dict of Mari shader type keys and UsdShaderSource dict values
                     "UsdPreviewSurface": {
                         "source_shader": mari.Shader instance
@@ -219,6 +222,7 @@ class UsdMaterialSource(object):
             raise ValueError("name key not in usd_material_source_data")
         usd_material_source = cls(usd_material_source_data["name"])
         usd_material_source.setBindingLocations(usd_material_source_data.get("binding_locations", []))
+        usd_material_source.setSelectionGroups(usd_material_source_data.get("selection_groups", []))
         for mari_shader_type_name, shader_source_data in usd_material_source_data.get("shader_sources", {}).items():
             usd_material_source.setShaderSource(mari_shader_type_name, UsdShaderSource.from_dict(shader_source_data))
 
@@ -279,6 +283,22 @@ class UsdMaterialSource(object):
             binding_locations (list of str): Material binding locations
         """
         self._binding_locations = binding_locations
+
+    def selectionGroups(self):
+        """ Returns the UUID strings of selection groups.
+
+        Returns:
+            list of str. UUI strings of selection groups.
+        """
+        return self._selection_groups
+
+    def setSelectionGroups(self, selection_groups):
+        """ Sets the UUID strings of selection groups.
+
+        Args:
+            selection_groups (list of str): UUID strings of selection groups.
+        """
+        self._selection_groups = selection_groups
 
 
 class UsdExportParameters(object):
@@ -1226,6 +1246,11 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
     looks_stage = _create_new_stage(looks_path, usd_export_parameters.stageRootPath())
     root_sdf_path = usd_export_parameters.stageSdfRootPath()
 
+    # Pre cache the map from selection group UUID to instance
+    selection_group_uuid_to_instance_map = {}
+    for selection_group in mari.selection_groups.list():
+        selection_group_uuid_to_instance_map[selection_group.uuid()] = selection_group
+
     for usd_material_source in usd_material_sources:
         # Define shader for material
         _debuglog("Defining material for %s" % usd_material_source.name())
@@ -1250,12 +1275,40 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                 usd_shader_source
             )
 
+        mesh_location_to_face_index_range = {}
+        for selection_group_uuid in usd_material_source.selectionGroups():
+            if not selection_group_uuid in selection_group_uuid_to_instance_map:
+                continue
+
+            selection_group = selection_group_uuid_to_instance_map[selection_group_uuid]
+
+            for key, value in selection_group.meshLocationToFaceSelectionIndexRangeListMap().items():
+                if key in mesh_location_to_face_index_range:
+                    mesh_location_to_face_index_range[key] = mesh_location_to_face_index_range[key] | set(value.indexList())
+                else:
+                    mesh_location_to_face_index_range[key] = set(value.indexList())
+
+        use_selecgion_group_assignment = len(mesh_location_to_face_index_range) > 0
+
         _debuglog("Assigning locations to material %s" % usd_material_source.name())
         for material_assign_location in usd_material_source.bindingLocations():
+            if use_selecgion_group_assignment and not material_assign_location in mesh_location_to_face_index_range:
+                continue
+
             material_assign_sdf_path = Sdf.Path(material_assign_location)
             material_assign_prim = looks_stage.OverridePrim(material_assign_sdf_path)
+
+            bind_target = material_assign_prim
+
+            if use_selecgion_group_assignment:
+                subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset"))
+                faces = list(mesh_location_to_face_index_range[material_assign_location])
+                faces.sort()
+                subset.CreateFamilyNameAttr("materialBind")
+                subset.CreateIndicesAttr(faces)
+                bind_target = subset
             try:
-                UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
+                UsdShade.MaterialBindingAPI(bind_target).Bind(material)
             except Tf.ErrorException:
                 _debuglog("Warning: Unable to bind material to %s" % material_assign_prim)
 

@@ -810,6 +810,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
                 usd_material_source = usdShadeExport.UsdMaterialSource(material.name)
                 usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
+                usd_material_source.setSelectionGroups(material.selection_groups)
                 usd_shader_source = usdShadeExport.UsdShaderSource(shader)
                 usd_shader_source.setUvSetName("st")
                 for export_item, shader_input_name in getExportItems(shader):
