@@ -1243,6 +1243,7 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
     looks_path = usd_export_parameters.lookfileTargetPath()
     if os.path.exists(looks_path):
         os.remove(looks_path)
+
     looks_stage = _create_new_stage(looks_path, usd_export_parameters.stageRootPath())
     root_sdf_path = usd_export_parameters.stageSdfRootPath()
 
@@ -1357,6 +1358,24 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
         )
         _debuglog("Saving assembly stage to disk: %s" % assembly_path)
         assembly_stage.GetRootLayer().Save()
+
+def payloadDefaultRootName(payload_file_path):
+    """Returns the default root name of the given payload file path.
+
+    Args:
+        payload_file_path (str): File path of the payload file
+    Returns:
+        (str): The default root name of the given payload file path.
+    """
+    if os.path.exists(payload_file_path):
+        try:
+            payload_stage = Usd.Stage.Open(payload_file_path)
+            payload_default_prim = payload_stage.GetDefaultPrim()
+            payload_root_name = str(payload_default_prim.GetPath())
+            return payload_root_name
+        except Exception as e:
+            print("The Payload file is not a USD file:",e)
+    return "/root"
 
 if mari.app.isRunning():
     # Register the USD Preview Surface exporter.
