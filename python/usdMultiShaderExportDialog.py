@@ -515,6 +515,107 @@ class ExportItemFilterModel(core.QSortFilterProxyModel):
 
         return True
 
+class EditSelectionGroupDialog(widgets.QDialog):
+    def __init__(self, selection_group_uuids, parent = None):
+        widgets.QDialog.__init__(self, parent = parent)
+
+        self.setWindowTitle("Edit Material Selection Group Assignments")
+
+        layout = widgets.QGridLayout()
+        self.setLayout(layout)
+
+        layout.addWidget(widgets.QLabel("Project Selection Groups"), 0, 0)
+        layout.addWidget(widgets.QLabel("Material Selection Groups"), 0, 2)
+
+        self.project_selection_groups_list = widgets.QListWidget(self)
+        self.project_selection_groups_list.setSelectionMode(self.project_selection_groups_list.ExtendedSelection)
+        layout.addWidget(self.project_selection_groups_list, 1, 0)
+
+        self.material_selection_groups_list = widgets.QListWidget(self)
+        self.material_selection_groups_list.setSelectionMode(self.material_selection_groups_list.ExtendedSelection)
+        layout.addWidget(self.material_selection_groups_list, 1, 2)
+
+
+        button_layout = widgets.QVBoxLayout()
+        move_all_right_button = widgets.QPushButton(mari.resources.createIcon("MoveAllRight.png"), "", self)
+        move_right_button = widgets.QPushButton(mari.resources.createIcon("MoveRight.png"), "", self)
+        move_left_button = widgets.QPushButton(mari.resources.createIcon("MoveLeft.png"), "", self)
+        move_all_left_button = widgets.QPushButton(mari.resources.createIcon("MoveAllLeft.png"), "", self)
+        move_all_right_button.pressed.connect(self.addAll)
+        move_right_button.pressed.connect(self.addSelected)
+        move_left_button.pressed.connect(self.removeSelected)
+        move_all_left_button.pressed.connect(self.removeAll)
+        button_layout.addStretch(1)
+        button_layout.addWidget(move_all_right_button)
+        button_layout.addWidget(move_right_button)
+        button_layout.addSpacing(20)
+        button_layout.addWidget(move_left_button)
+        button_layout.addWidget(move_all_left_button)
+        button_layout.addStretch(1)
+        layout.addLayout(button_layout, 1, 1)
+
+        # Populate project selection groups
+        for selection_group in mari.selection_groups.list():
+            if isinstance(selection_group, mari.FaceSelectionGroup):
+                item = widgets.QListWidgetItem(selection_group.name())
+                item.setData(qt.UserRole, selection_group.uuid())
+                self.project_selection_groups_list.addItem(item)
+
+        self.addItems(selection_group_uuids)
+
+        buttons = widgets.QDialogButtonBox(widgets.QDialogButtonBox.Ok | widgets.QDialogButtonBox.Cancel)
+        layout.addWidget(buttons, 2, 0, 1, 3)
+
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+    def addItems(self, selection_group_uuids):
+        project_selection_group_map = {}
+        for selection_group in mari.selection_groups.list():
+            if isinstance(selection_group, mari.FaceSelectionGroup):
+                project_selection_group_map[selection_group.uuid()] = selection_group
+
+        existing_uuids = set()
+        for i in range(self.material_selection_groups_list.count()):
+            item = self.material_selection_groups_list.item(i)
+            existing_uuids.add(item.data(qt.UserRole))
+
+        for selection_group_uuid in selection_group_uuids:
+            if selection_group_uuid in existing_uuids:
+                continue
+            if selection_group_uuid in project_selection_group_map:
+                item = widgets.QListWidgetItem(project_selection_group_map[selection_group_uuid].name())
+                item.setData(qt.UserRole, selection_group_uuid)
+                self.material_selection_groups_list.addItem(item)
+
+    def addAll(self):
+        selection_group_uuids = []
+        for i in range(self.project_selection_groups_list.count()):
+            item = self.project_selection_groups_list.item(i)
+            selection_group_uuids.append(item.data(qt.UserRole))
+        self.addItems(selection_group_uuids)
+
+
+    def addSelected(self):
+        selection_group_uuids = []
+        for item in self.project_selection_groups_list.selectedItems():
+            selection_group_uuids.append(item.data(qt.UserRole))
+        self.addItems(selection_group_uuids)
+
+    def removeAll(self):
+        self.material_selection_groups_list.clear()
+
+    def removeSelected(self):
+        for item in self.material_selection_groups_list.selectedItems():
+            self.material_selection_groups_list.takeItem(self.material_selection_groups_list.row(item))
+
+    def materialSelectionGroups(self):
+        selection_group_uuids = []
+        for i in range(self.material_selection_groups_list.count()):
+            item = self.material_selection_groups_list.item(i)
+            selection_group_uuids.append(item.data(qt.UserRole))
+        return selection_group_uuids
+
 class SelectionGroupListWidget(widgets.QListWidget):
     def __init__(self, parent = None):
         widgets.QListWidget.__init__(self, parent = parent)
@@ -584,14 +685,24 @@ class SelectionGroupListWidget(widgets.QListWidget):
                     self.__material.selection_groups.append(selection_group.uuid())
             self.updateSelectionGroups()
 
+    def editSelectionGroups(self):
+        if self.__material:
+            dialog = EditSelectionGroupDialog(self.__material.selection_groups)
+            if dialog.exec_() == dialog.Accepted:
+                self.__material.selection_groups = dialog.materialSelectionGroups()
+                self.updateSelectionGroups()
+
     def contextMenuEvent(self, event):
         menu = widgets.QMenu(self)
         assign_selection_groups = menu.addAction(mari.resources.createIcon("Assign_SelectionGroup.svg"), "Assign Selection Groups")
+        edit_selection_groups = menu.addAction("Edit Selection Groups")
         delete_selected = menu.addAction("Delete Selected")
         action = menu.exec_(self.mapToGlobal(event.pos()))
 
         if action == assign_selection_groups:
             self.assignGeometrySelectionGroupsFromProject()
+        elif action == edit_selection_groups:
+            self.editSelectionGroups()
         elif action == delete_selected:
             if self.__material:
                 for item in self.selectedItems():

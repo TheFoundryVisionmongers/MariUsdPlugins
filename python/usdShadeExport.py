@@ -1276,6 +1276,11 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                 usd_shader_source
             )
 
+        # mesh_location_to_face_count stores the map of mesh_location to the number of faces. The subset creation code later checks
+        # whether the selected faces is actually the entier set of faces for the mesh_location using this map.
+        # e.g. If the selection set is "0-99" and the mesh_location has 100 faces, then there is no point of creating a subset.
+        mesh_location_to_face_count = {}
+
         mesh_location_to_face_index_range = {}
         for selection_group_uuid in usd_material_source.selectionGroups():
             if not selection_group_uuid in selection_group_uuid_to_instance_map:
@@ -1288,6 +1293,13 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                     mesh_location_to_face_index_range[key] = mesh_location_to_face_index_range[key] | set(value.indexList())
                 else:
                     mesh_location_to_face_index_range[key] = set(value.indexList())
+
+            for geo_version in selection_group.geoVersionList():
+                for key, value in geo_version.meshLocationToFaceCountMap().items():
+                    if key in mesh_location_to_face_count:
+                        _debuglog("Warning: Mesh location is not unique : %s" % key)
+                    else:
+                        mesh_location_to_face_count[key] = value
 
         use_selecgion_group_assignment = len(mesh_location_to_face_index_range) > 0
 
@@ -1302,12 +1314,16 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
             bind_target = material_assign_prim
 
             if use_selecgion_group_assignment:
-                subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset"))
                 faces = list(mesh_location_to_face_index_range[material_assign_location])
                 faces.sort()
-                subset.CreateFamilyNameAttr("materialBind")
-                subset.CreateIndicesAttr(faces)
-                bind_target = subset
+                if len(faces) == mesh_location_to_face_count[material_assign_location] and faces[0] == 0 and faces[-1] == mesh_location_to_face_count[material_assign_location]-1:
+                    # faces contain the full set of faces for the mesh location. There is no need for subset material assignment. e.g faces = [0-10], where the count is 11
+                    pass
+                else:
+                    subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset"))
+                    subset.CreateFamilyNameAttr("materialBind")
+                    subset.CreateIndicesAttr(faces)
+                    bind_target = subset
             try:
                 UsdShade.MaterialBindingAPI(bind_target).Bind(material)
             except Tf.ErrorException:
@@ -1374,7 +1390,7 @@ def payloadDefaultRootName(payload_file_path):
             payload_root_name = str(payload_default_prim.GetPath())
             return payload_root_name
         except Exception as e:
-            print("The Payload file is not a USD file:",e)
+            _debuglog("Warning: The Payload file is not a USD file : %s" % str(e))
     return "/root"
 
 if mari.app.isRunning():
