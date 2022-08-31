@@ -93,6 +93,12 @@ def getExportItems(shader):
             export_item.setMetadata("_STREAM", shader_model_input_name)
             export_item.setMetadata("_HIDDEN", True)
             mari.exports.addExportItem(export_item, geo_entity)
+            
+            # Execute the SetupExportItem callback function for the vendor.
+            setup_export_item_callback = usdShadeExport.functionCallbackForShader(shader_model.id(), usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM)
+            if setup_export_item_callback is not None:
+                setup_export_item_callback(export_item)
+            
             exportItems.append((export_item, shader_model_input_name))
 
     return exportItems
@@ -710,6 +716,36 @@ class SelectionGroupListWidget(widgets.QListWidget):
                     self.__material.selection_groups.remove(uuid)
                 self.updateSelectionGroups()
 
+class VendorSpecificSettingsDialog(widgets.QDialog):
+    def __init__(self, parent = None):
+        widgets.QDialog.__init__(self, parent = parent)
+
+        dialog_layout = widgets.QVBoxLayout()
+        self.setLayout(dialog_layout)
+
+        shader_ids = usdShadeExport.shaderIDsWithFunctionCallbacks(usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET)
+        if len(shader_ids) == 0:
+            dialog_layout.addWidget(widgets.QLabel("No Shader Specific Settings"))
+            return
+
+        tab_widget = widgets.QTabWidget(self)
+        for shader_id in shader_ids:
+            settings_widget_func = usdShadeExport.functionCallbackForShader(shader_id, usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET)
+            if settings_widget_func is None:
+                continue
+            
+            settings_widget = settings_widget_func()
+            if not isinstance(settings_widget, widgets.QWidget):
+                continue
+            
+            tab_widget.addTab(settings_widget, shader_id)
+        
+        if tab_widget.count() == 0:
+            dialog_layout.addWidget(widgets.QLabel("No Shader Specific Settings"))
+            return
+        
+        dialog_layout.addWidget(tab_widget)
+
 class MultiShaderExportWidget(widgets.QWidget):
     def __init__(self, parent = None):
         widgets.QWidget.__init__(self, parent)
@@ -739,6 +775,11 @@ class MultiShaderExportWidget(widgets.QWidget):
         button_layout.addWidget(remove_material_button)
 
         button_layout.addSpacerItem(widgets.QSpacerItem(0, 0, widgets.QSizePolicy.MinimumExpanding))
+
+        vendor_settings_dialog_button = widgets.QPushButton(mari.resources.createIcon("USD_ExportManager_Settings.svg"), "", self)
+        vendor_settings_dialog_button.pressed.connect(self.showVendorSpecificSettings)
+        vendor_settings_dialog_button.setToolTip("View Shader Specific Settings")
+        button_layout.addWidget(vendor_settings_dialog_button)
 
         # Table
         self.view = Material_View(self)
@@ -867,6 +908,10 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.model.removeMaterials(rows_to_remove)
 
         self.updateSelectionGroups()
+        
+    def showVendorSpecificSettings(self):
+        dialog = VendorSpecificSettingsDialog(self)
+        dialog.exec()
 
     def exportRootPath(self):
         return self.export_usd_target_dir_widget.path()
@@ -922,13 +967,19 @@ class MultiShaderExportWidget(widgets.QWidget):
                 if not current_geo_version:
                     continue
 
+                # Execute the ExportExportItem callback function for the vendor.
+                export_export_item_callback = usdShadeExport.functionCallbackForShader(shader_model_name, usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM)
+
                 usd_material_source = usdShadeExport.UsdMaterialSource(material.name)
                 usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
                 usd_material_source.setSelectionGroups(material.selection_groups)
                 usd_shader_source = usdShadeExport.UsdShaderSource(shader)
                 usd_shader_source.setUvSetName("st")
+                
                 for export_item, shader_input_name in getExportItems(shader):
                     usd_shader_source.setInputExportItem(shader_input_name, export_item)
+                    if export_export_item_callback is not None:
+                        export_export_item_callback(export_item)
                 usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
                 usd_material_sources.append(usd_material_source)
 

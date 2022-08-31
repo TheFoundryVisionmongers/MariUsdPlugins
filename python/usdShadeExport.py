@@ -22,7 +22,6 @@
 
 import datetime
 import os
-import re
 
 import mari
 from pxr import Sdf, Usd, UsdShade, Tf, UsdGeom
@@ -30,7 +29,11 @@ from pxr import Sdf, Usd, UsdShade, Tf, UsdGeom
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
 USD_MATERIAL_TERMINALS = {}
+USD_FUNCTION_CALLBACKS = {}
 
+CALLBACK_NAME_SETTINGS_WIDGET = "SettingsWidget"
+CALLBACK_NAME_SETUP_EXPORT_ITEM = "SetupExportItem"
+CALLBACK_NAME_EXPORT_EXPORT_ITEM = "ExportExportItem"
 
 class UsdShadeExportError(Exception):
     """Custom Exception for known errors hit when exporting to UsdShade
@@ -576,7 +579,7 @@ class UsdExportParameters(object):
 
 
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
-    material_terminal_name, material_surface_context
+    material_terminal_name, material_surface_context, function_callbacks=None
 ):
     """Registers mappings for renderer specific UsdShade export functions.
     The callback function for exporting a shader input will be called with the following arguments:
@@ -592,510 +595,50 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
         shader_input_export_func (function): Callback function to write UsdShade data
         material_terminal_name (str): Name of material terminal
         material_surface_context (str): Name of surface output context
+        function_callbacks (dict{str: function}): Optional function table
+        
+    Callback Functions:
+        A named function table in the format of a dictionary ({name: function}) for shader specific functionality
+        Not all functions must be present
+        Names:
+            CALLBACK_NAME_SETTINGS_WIDGET: Return a QWidget to display in the settings dialog. Takes no parameters
+            CALLBACK_NAME_SETUP_EXPORT_ITEM: Called just after an export item is created. Takes one parameter of type mari.ExportItem
+            CALLBACK_NAME_EXPORT_EXPORT_ITEM: Called just before an export item is exported. Takes one parameter of type mari.ExportItem
     """
     MARI_TO_USD_SHADER_MAPPING[mari_shader_type_name] = usd_shader_id
     if type(shader_input_export_func).__name__ != "function":
         raise ValueError("No shader input export callback function specified for registerRendererExportPlugin")
     USD_SHADER_EXPORT_FUNCTIONS[mari_shader_type_name] = shader_input_export_func
     USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
+    
+    if function_callbacks is None:
+        pass
+    elif isinstance(function_callbacks, dict):
+        for callback_name in function_callbacks:
+            callback_func = function_callbacks[callback_name]
+            if callback_func is not None and type(callback_func).__name__ != "function":
+                raise ValueError("Supplied value for callback '%s' is not a function." % callback_name)
+        
+        USD_FUNCTION_CALLBACKS[mari_shader_type_name] = function_callbacks
+    else:
+        raise ValueError("Function callbacks must be a dictionary")
 
+def shaderIDsWithFunctionCallbacks(callback_name=None):
+    if callback_name is None:
+        return USD_FUNCTION_CALLBACKS.keys()
 
-def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.
+    shader_ids = []
+    for mari_shader_model_id in USD_FUNCTION_CALLBACKS.keys():
+        if USD_FUNCTION_CALLBACKS[mari_shader_model_id].get(callback_name, None) is not None:
+            shader_ids.append(mari_shader_model_id)
 
-    Args:
-        looks_stage (Usd.Stage): Stage to write to
-        usd_shader (Usd.Shader): Shader to connect to
-        usd_export_parameters (UsdExportParameters): Container for export parameters
-        usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
-    """
-    mari_to_usd_input_map = {
-        "diffuseColor": ("diffuseColor", Sdf.ValueTypeNames.Color3f),
-        "emissiveColor": ("emissiveColor", Sdf.ValueTypeNames.Color3f),
-        "useSpecularWorkflow": ("useSpecularWorkflow", Sdf.ValueTypeNames.Bool),
-        "specularColor": ("specularColor", Sdf.ValueTypeNames.Color3f),
-        "metallic": ("metallic", Sdf.ValueTypeNames.Float),
-        "roughness": ("roughness", Sdf.ValueTypeNames.Float),
-        "clearcoat": ("clearcoat", Sdf.ValueTypeNames.Float),
-        "clearcoatRoughness": ("clearcoatRoughness", Sdf.ValueTypeNames.Float),
-        "opacity": ("opacity", Sdf.ValueTypeNames.Float),
-        "opacityThreshold": ("opacityThreshold", Sdf.ValueTypeNames.Float),
-        "ior": ("ior", Sdf.ValueTypeNames.Float),
-        "Normal": ("normal", Sdf.ValueTypeNames.Normal3f),
-        "occlusion": ("occlusion", Sdf.ValueTypeNames.Float),
-        "Bump": (None, None),
-        "Vector": (None, None),
-        "Displacement": ("displacement", Sdf.ValueTypeNames.Float),
-    }
-    _debuglog("Writing USD Preview Surface shader network for %s" % usd_shader_source.sourceShader().name())
-    material_sdf_path = usd_shader.GetPath().GetParentPath()
+    return shader_ids
 
-    shader_model = usd_shader_source.shaderModel()
-    export_items = []
-    for shader_input_name in shader_model.inputNames():
-        usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
-        if usd_shader_input_name is None:
-            continue
-        export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
+def functionCallbacksForShader(mari_shader_model_id):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {})
 
-            # find or define texture coordinate reader
-            st_reader_path = material_sdf_path.AppendChild("st_reader")
-            st_reader = UsdShade.Shader.Get(looks_stage, st_reader_path)
-            if st_reader.GetPath().isEmpty:
-                st_reader = UsdShade.Shader.Define(looks_stage, st_reader_path)
-                st_reader.CreateIdAttr('UsdPrimvarReader_float2')
-                st_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
-
-            # TODO: Implement a override option for export that gets passed into this function
-            # Perform the texture export
-            # if not hasExportItemBeenExported(export_item, export_root_path):
-            #     mari.exports.exportTextures([export_item], export_root_path)
-
-            # Create and connect the texture reading shading node
-            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-            texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
-            texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("UsdUVTexture")
-            texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-                st_reader.ConnectableAPI(),
-                "result"
-            )
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
-            )
-            texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-
-            export_items.append(export_item)
-        else:
-            if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
-                continue
-            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
-            default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
-            value_not_default = False
-            if isinstance(input_value, mari.Color):
-                if input_value.rgb() != default_color.rgb():
-                    value_not_default = True
-            elif isinstance(input_value, float):
-                if input_value != default_color.r():
-                    value_not_default = True
-            elif isinstance(input_value, bool):
-                if input_value != bool(default_color.r()):
-                    value_not_default = True
-
-            if value_not_default:
-                usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
-                if sdf_type == Sdf.ValueTypeNames.Color3f:
-                    usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
-                elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Bool):
-                    usd_shader_parameter.Set(input_value)
-
-    # Export textures from export items
-    if export_items:
-        _debuglog(
-            "Exporting %d export items for %s to %s" % (
-                len(export_items),
-                usd_shader_source.sourceShader().name(),
-                usd_export_parameters.exportRootPath()
-            )
-        )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), usd_export_parameters.exportOverrides())
-
-
-def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to an ArnoldStandardSurface shader.
-
-    Args:
-        looks_stage (Usd.Stage): Stage to write to
-        usd_shader (Usd.Shader): Shader to connect to
-        usd_export_parameters (UsdExportParameters): Container for export parameters
-        usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
-    """
-    mari_to_usd_input_map = {
-#        ('aov_id1', str),
-#        ('aov_id2', str),
-#        ('aov_id3', str),
-#        ('aov_id4', str),
-#        ('aov_id5', str),
-#        ('aov_id6', str),
-#        ('aov_id7', str),
-#        ('aov_id8', str),
-        "DiffuseWeight":('base', Sdf.ValueTypeNames.Float),
-        "DiffuseColor":('base_color', Sdf.ValueTypeNames.Color3f),
-#        ('caustics', bool),
-        "CoatWeight":('coat', Sdf.ValueTypeNames.Float),
-#        ('coat_affect_color', Sdf.ValueTypeNames.Float),
-#        ('coat_affect_roughness', Sdf.ValueTypeNames.Float),
-#        ('coat_anisotropy', Sdf.ValueTypeNames.Float),
-        "CoatColor":('coat_color', Sdf.ValueTypeNames.Color3f),
-        "CoatIOR":('coat_IOR', Sdf.ValueTypeNames.Float),
-#        ('coat_normal', Sdf.ValueTypeNames.Color3f),
-#        ('coat_rotation', Sdf.ValueTypeNames.Float),
-        "CoatRoughness":('coat_roughness', Sdf.ValueTypeNames.Float),
-#        ('dielectric_priority', int),
-        "DiffuseRoughness":('diffuse_roughness', Sdf.ValueTypeNames.Float),
-        "EmissionWeight":('emission', Sdf.ValueTypeNames.Float),
-        "EmissionColor":('emission_color', Sdf.ValueTypeNames.Color3f),
-#        ('exit_to_background', bool),
-#        ('id1', Sdf.ValueTypeNames.Color3f),
-#        ('id2', Sdf.ValueTypeNames.Color3f),
-#        ('id3', Sdf.ValueTypeNames.Color3f),
-#        ('id4', Sdf.ValueTypeNames.Color3f),
-#        ('id5', Sdf.ValueTypeNames.Color3f),
-#        ('id6', Sdf.ValueTypeNames.Color3f),
-#        ('id7', Sdf.ValueTypeNames.Color3f),
-#        ('id8', Sdf.ValueTypeNames.Color3f),
-#        ('indirect_diffuse', Sdf.ValueTypeNames.Float),
-#        ('indirect_specular', Sdf.ValueTypeNames.Float),
-#        ('internal_reflections', bool),
-        "Metalness":('metalness', Sdf.ValueTypeNames.Float),
-#        ('name', str),
-        "Normal":('normal', Sdf.ValueTypeNames.Normal3f),
-        "Opacity":('opacity', Sdf.ValueTypeNames.Color3f),
-        "SheenWeight":('sheen', Sdf.ValueTypeNames.Float),
-        "SheenColor":('sheen_color', Sdf.ValueTypeNames.Color3f),
-        "SheenRoughness":('sheen_roughness', Sdf.ValueTypeNames.Float),
-        "SpecularWeight":('specular', Sdf.ValueTypeNames.Float),
-        "Anisotropy":('specular_anisotropy', Sdf.ValueTypeNames.Float),
-        "SpecularColor":('specular_color', Sdf.ValueTypeNames.Color3f),
-        "SpecularIOR":('specular_IOR', Sdf.ValueTypeNames.Float),
-        "Rotation":('specular_rotation', Sdf.ValueTypeNames.Float),
-        "SpecularRoughness":('specular_roughness', Sdf.ValueTypeNames.Float),
-        "SSSWeight":('subsurface', Sdf.ValueTypeNames.Float),
-#        ('subsurface_anisotropy', Sdf.ValueTypeNames.Float),
-        "SSSColor":('subsurface_color', Sdf.ValueTypeNames.Color3f),
-        "SSSRadius":('subsurface_radius', Sdf.ValueTypeNames.Color3f),
-        "SSSScale":('subsurface_scale', Sdf.ValueTypeNames.Float),
-#        ('subsurface_type', str),
-#        ('tangent', Sdf.ValueTypeNames.Color3f),
-        "ThinIOR":('thin_film_IOR', Sdf.ValueTypeNames.Float),
-        "ThinThick":('thin_film_thickness', Sdf.ValueTypeNames.Float),
-#        ('thin_walled', bool),
-        "TransmissionWeight":('transmission', Sdf.ValueTypeNames.Float),
-        "TransmissionColor":('transmission_color', Sdf.ValueTypeNames.Color3f),
-        "TransmissionDepth":('transmission_depth', Sdf.ValueTypeNames.Float),
-        "TransmissionDisp":('transmission_dispersion', Sdf.ValueTypeNames.Float),
-        "TransmissionRoughness":('transmission_extra_roughness', Sdf.ValueTypeNames.Float),
-        "TransmissionScatter":('transmission_scatter', Sdf.ValueTypeNames.Color3f),
-        "TransmissionScatAnis":('transmission_scatter_anisotropy', Sdf.ValueTypeNames.Float),
-#        ('transmit_aovs', bool),
-        "Bump": (None, None),
-        "Vector": (None, None),
-        "Displacement": (None, None),
-    }
-    _debuglog("Writing USD Arnold Standard Surface shader network for %s" % usd_shader_source.sourceShader().name())
-    material_sdf_path = usd_shader.GetPath().GetParentPath()
-
-    shader_model = usd_shader_source.shaderModel()
-    export_items = []
-    for shader_input_name in shader_model.inputNames():
-        usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
-        if usd_shader_input_name is None:
-            continue
-        export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
-
-            # TODO: Implement a override option for export that gets passed into this function
-            # Perform the texture export
-            # if not hasExportItemBeenExported(export_item, export_root_path):
-            #     mari.exports.exportTextures([export_item], export_root_path)
-
-            # Create and connect the texture reading shading node
-            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-            texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
-            texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
-            )
-            texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-
-            export_items.append(export_item)
-        else:
-            if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
-                continue
-            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
-            default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
-            value_not_default = False
-            if isinstance(input_value, mari.Color):
-                if input_value.rgb() != default_color.rgb():
-                    value_not_default = True
-            elif isinstance(input_value, float):
-                if input_value != default_color.r():
-                    value_not_default = True
-            elif isinstance(input_value, bool):
-                if input_value != bool(default_color.r()):
-                    value_not_default = True
-
-            if value_not_default:
-                usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
-                if sdf_type == Sdf.ValueTypeNames.Color3f:
-                    usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
-                elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Bool):
-                    usd_shader_parameter.Set(input_value)
-
-    # Export textures from export items
-    if export_items:
-        _debuglog(
-            "Exporting %d export items for %s to %s" % (
-                len(export_items),
-                usd_shader_source.sourceShader().name(),
-                usd_export_parameters.exportRootPath()
-            )
-        )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
-
-def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
-
-    Args:
-        looks_stage (Usd.Stage): Stage to write to
-        usd_shader (Usd.Shader): Shader to connect to
-        usd_export_parameters (UsdExportParameters): Container for export parameters
-        usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
-    """
-    mari_to_usd_input_map = {
-        "inputMaterial"                       : ('inputMaterial', Sdf.ValueTypeNames.String),
-        "diffuseGain"                         : ('diffuseGain', Sdf.ValueTypeNames.Float),
-        "diffuseColor"                        : ('diffuseColor', Sdf.ValueTypeNames.Vector3f),
-        "diffuseRoughness"                    : ('diffuseRoughness', Sdf.ValueTypeNames.Float),
-        "diffuseExponent"                     : ('diffuseExponent', Sdf.ValueTypeNames.Float),
-        #"diffuseBumpNormal"                   : ('diffuseBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "diffuseDoubleSided"                  : ('diffuseDoubleSided', Sdf.ValueTypeNames.Int),
-        "diffuseBackUseDiffuseColor"          : ('diffuseBackUseDiffuseColor', Sdf.ValueTypeNames.Int),
-        "diffuseBackColor"                    : ('diffuseBackColor', Sdf.ValueTypeNames.Vector3f),
-        "diffuseTransmitGain"                 : ('diffuseTransmitGain', Sdf.ValueTypeNames.Float),
-        "diffuseTransmitColor"                : ('diffuseTransmitColor', Sdf.ValueTypeNames.Vector3f),
-        "specularFresnelMode"                 : ('specularFresnelMode', Sdf.ValueTypeNames.Int),
-        "specularFaceColor"                   : ('specularFaceColor', Sdf.ValueTypeNames.Vector3f),
-        "specularEdgeColor"                   : ('specularEdgeColor', Sdf.ValueTypeNames.Vector3f),
-        "specularFresnelShape"                : ('specularFresnelShape', Sdf.ValueTypeNames.Float),
-        "specularIor"                         : ('specularIor', Sdf.ValueTypeNames.Vector3f),
-        "specularExtinctionCoeff"             : ('specularExtinctionCoeff', Sdf.ValueTypeNames.Vector3f),
-        "specularRoughness"                   : ('specularRoughness', Sdf.ValueTypeNames.Float),
-        "specularModelType"                   : ('specularModelType', Sdf.ValueTypeNames.Int),
-        "specularAnisotropy"                  : ('specularAnisotropy', Sdf.ValueTypeNames.Float),
-        "specularAnisotropyDirection"         : ('specularAnisotropyDirection', Sdf.ValueTypeNames.Vector3f),
-        #"specularBumpNormal"                  : ('specularBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "specularDoubleSided"                 : ('specularDoubleSided', Sdf.ValueTypeNames.Int),
-        "roughSpecularFresnelMode"            : ('roughSpecularFresnelMode', Sdf.ValueTypeNames.Int),
-        "roughSpecularFaceColor"              : ('roughSpecularFaceColor', Sdf.ValueTypeNames.Vector3f),
-        "roughSpecularEdgeColor"              : ('roughSpecularEdgeColor', Sdf.ValueTypeNames.Vector3f),
-        "roughSpecularFresnelShape"           : ('roughSpecularFresnelShape', Sdf.ValueTypeNames.Float),
-        "roughSpecularIor"                    : ('roughSpecularIor', Sdf.ValueTypeNames.Vector3f),
-        "roughSpecularExtinctionCoeff"        : ('roughSpecularExtinctionCoeff', Sdf.ValueTypeNames.Vector3f),
-        "roughSpecularRoughness"              : ('roughSpecularRoughness', Sdf.ValueTypeNames.Float),
-        "roughSpecularModelType"              : ('roughSpecularModelType', Sdf.ValueTypeNames.Int),
-        "roughSpecularAnisotropy"             : ('roughSpecularAnisotropy', Sdf.ValueTypeNames.Float),
-        "roughSpecularAnisotropyDirection"    : ('roughSpecularAnisotropyDirection', Sdf.ValueTypeNames.Vector3f),
-        #"roughSpecularBumpNormal"             : ('roughSpecularBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "roughSpecularDoubleSided"            : ('roughSpecularDoubleSided', Sdf.ValueTypeNames.Int),
-        "clearcoatFresnelMode"                : ('clearcoatFresnelMode', Sdf.ValueTypeNames.Int),
-        "clearcoatFaceColor"                  : ('clearcoatFaceColor', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatEdgeColor"                  : ('clearcoatEdgeColor', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatFresnelShape"               : ('clearcoatFresnelShape', Sdf.ValueTypeNames.Float),
-        "clearcoatIor"                        : ('clearcoatIor', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatExtinctionCoeff"            : ('clearcoatExtinctionCoeff', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatThickness"                  : ('clearcoatThickness', Sdf.ValueTypeNames.Float),
-        "clearcoatAbsorptionTint"             : ('clearcoatAbsorptionTint', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatRoughness"                  : ('clearcoatRoughness', Sdf.ValueTypeNames.Float),
-        "clearcoatModelType"                  : ('clearcoatModelType', Sdf.ValueTypeNames.Int),
-        "clearcoatAnisotropy"                 : ('clearcoatAnisotropy', Sdf.ValueTypeNames.Float),
-        "clearcoatAnisotropyDirection"        : ('clearcoatAnisotropyDirection', Sdf.ValueTypeNames.Vector3f),
-        #"clearcoatBumpNormal"                 : ('clearcoatBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "clearcoatDoubleSided"                : ('clearcoatDoubleSided', Sdf.ValueTypeNames.Int),
-        "specularEnergyCompensation"          : ('specularEnergyCompensation', Sdf.ValueTypeNames.Float),
-        "clearcoatEnergyCompensation"         : ('clearcoatEnergyCompensation', Sdf.ValueTypeNames.Float),
-        "iridescenceFaceGain"                 : ('iridescenceFaceGain', Sdf.ValueTypeNames.Float),
-        "iridescenceEdgeGain"                 : ('iridescenceEdgeGain', Sdf.ValueTypeNames.Float),
-        "iridescenceFresnelShape"             : ('iridescenceFresnelShape', Sdf.ValueTypeNames.Float),
-        "iridescenceMode"                     : ('iridescenceMode', Sdf.ValueTypeNames.Int),
-        "iridescencePrimaryColor"             : ('iridescencePrimaryColor', Sdf.ValueTypeNames.Vector3f),
-        "iridescenceSecondaryColor"           : ('iridescenceSecondaryColor', Sdf.ValueTypeNames.Vector3f),
-        "iridescenceRoughness"                : ('iridescenceRoughness', Sdf.ValueTypeNames.Float),
-        "iridescenceAnisotropy"               : ('iridescenceAnisotropy', Sdf.ValueTypeNames.Float),
-        "iridescenceAnisotropyDirection"      : ('iridescenceAnisotropyDirection', Sdf.ValueTypeNames.Vector3f),
-        #"iridescenceBumpNormal"               : ('iridescenceBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "iridescenceCurve"                    : ('iridescenceCurve', Sdf.ValueTypeNames.Float),
-        "iridescenceScale"                    : ('iridescenceScale', Sdf.ValueTypeNames.Float),
-        "iridescenceFlip"                     : ('iridescenceFlip', Sdf.ValueTypeNames.Int),
-        "iridescenceThickness"                : ('iridescenceThickness', Sdf.ValueTypeNames.Float),
-        "iridescenceDoubleSided"              : ('iridescenceDoubleSided', Sdf.ValueTypeNames.Int),
-        "fuzzGain"                            : ('fuzzGain', Sdf.ValueTypeNames.Float),
-        "fuzzColor"                           : ('fuzzColor', Sdf.ValueTypeNames.Vector3f),
-        "fuzzConeAngle"                       : ('fuzzConeAngle', Sdf.ValueTypeNames.Float),
-        #"fuzzBumpNormal"                      : ('fuzzBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "fuzzDoubleSided"                     : ('fuzzDoubleSided', Sdf.ValueTypeNames.Int),
-        "subsurfaceType"                      : ('subsurfaceType', Sdf.ValueTypeNames.Int),
-        "subsurfaceGain"                      : ('subsurfaceGain', Sdf.ValueTypeNames.Float),
-        "subsurfaceColor"                     : ('subsurfaceColor', Sdf.ValueTypeNames.Vector3f),
-        "subsurfaceDmfp"                      : ('subsurfaceDmfp', Sdf.ValueTypeNames.Float),
-        "subsurfaceDmfpColor"                 : ('subsurfaceDmfpColor', Sdf.ValueTypeNames.Vector3f),
-        "shortSubsurfaceGain"                 : ('shortSubsurfaceGain', Sdf.ValueTypeNames.Float),
-        "shortSubsurfaceColor"                : ('shortSubsurfaceColor', Sdf.ValueTypeNames.Vector3f),
-        "shortSubsurfaceDmfp"                 : ('shortSubsurfaceDmfp', Sdf.ValueTypeNames.Float),
-        "longSubsurfaceGain"                  : ('longSubsurfaceGain', Sdf.ValueTypeNames.Float),
-        "longSubsurfaceColor"                 : ('longSubsurfaceColor', Sdf.ValueTypeNames.Vector3f),
-        "longSubsurfaceDmfp"                  : ('longSubsurfaceDmfp', Sdf.ValueTypeNames.Float),
-        "subsurfaceDirectionality"            : ('subsurfaceDirectionality', Sdf.ValueTypeNames.Float),
-        "subsurfaceBleed"                     : ('subsurfaceBleed', Sdf.ValueTypeNames.Float),
-        "subsurfaceDiffuseBlend"              : ('subsurfaceDiffuseBlend', Sdf.ValueTypeNames.Float),
-        "subsurfaceResolveSelfIntersections"  : ('subsurfaceResolveSelfIntersections', Sdf.ValueTypeNames.Int),
-        "subsurfaceIor"                       : ('subsurfaceIor', Sdf.ValueTypeNames.Float),
-        "subsurfacePostTint"                  : ('subsurfacePostTint', Sdf.ValueTypeNames.Vector3f),
-        "subsurfaceDiffuseSwitch"             : ('subsurfaceDiffuseSwitch', Sdf.ValueTypeNames.Float),
-        "subsurfaceDoubleSided"               : ('subsurfaceDoubleSided', Sdf.ValueTypeNames.Int),
-        "subsurfaceTransmitGain"              : ('subsurfaceTransmitGain', Sdf.ValueTypeNames.Float),
-        #"considerBackside"                    : ('considerBackside', Sdf.ValueTypeNames.Int),
-        #"continuationRayMode"                 : ('continuationRayMode', Sdf.ValueTypeNames.Int),
-        #"maxContinuationHits"                 : ('maxContinuationHits', Sdf.ValueTypeNames.Int),
-        #"followTopology"                      : ('followTopology', Sdf.ValueTypeNames.Float),
-        #"subsurfaceSubset"                    : ('subsurfaceSubset', Sdf.ValueTypeNames.String),
-        "singlescatterGain"                   : ('singlescatterGain', Sdf.ValueTypeNames.Float),
-        "singlescatterColor"                  : ('singlescatterColor', Sdf.ValueTypeNames.Vector3f),
-        "singlescatterMfp"                    : ('singlescatterMfp', Sdf.ValueTypeNames.Float),
-        "singlescatterMfpColor"               : ('singlescatterMfpColor', Sdf.ValueTypeNames.Vector3f),
-        "singlescatterDirectionality"         : ('singlescatterDirectionality', Sdf.ValueTypeNames.Float),
-        "singlescatterIor"                    : ('singlescatterIor', Sdf.ValueTypeNames.Float),
-        "singlescatterBlur"                   : ('singlescatterBlur', Sdf.ValueTypeNames.Float),
-        "singlescatterDirectGain"             : ('singlescatterDirectGain', Sdf.ValueTypeNames.Float),
-        "singlescatterDirectGainTint"         : ('singlescatterDirectGainTint', Sdf.ValueTypeNames.Vector3f),
-        "singlescatterDoubleSided"            : ('singlescatterDoubleSided', Sdf.ValueTypeNames.Int),
-        "singlescatterConsiderBackside"       : ('singlescatterConsiderBackside', Sdf.ValueTypeNames.Int),
-        "singlescatterContinuationRayMode"    : ('singlescatterContinuationRayMode', Sdf.ValueTypeNames.Int),
-        "singlescatterMaxContinuationHits"    : ('singlescatterMaxContinuationHits', Sdf.ValueTypeNames.Int),
-        "singlescatterDirectGainMode"         : ('singlescatterDirectGainMode', Sdf.ValueTypeNames.Int),
-        "singlescatterSubset"                 : ('singlescatterSubset', Sdf.ValueTypeNames.String),
-        "irradianceTint"                      : ('irradianceTint', Sdf.ValueTypeNames.Vector3f),
-        "irradianceRoughness"                 : ('irradianceRoughness', Sdf.ValueTypeNames.Float),
-        #"unitLength"                          : ('unitLength', Sdf.ValueTypeNames.Float),
-        "refractionGain"                      : ('refractionGain', Sdf.ValueTypeNames.Float),
-        "reflectionGain"                      : ('reflectionGain', Sdf.ValueTypeNames.Float),
-        "refractionColor"                     : ('refractionColor', Sdf.ValueTypeNames.Vector3f),
-        "glassRoughness"                      : ('glassRoughness', Sdf.ValueTypeNames.Float),
-        "glassRefractionRoughness"            : ('glassRefractionRoughness', Sdf.ValueTypeNames.Float),
-        "glassAnisotropy"                     : ('glassAnisotropy', Sdf.ValueTypeNames.Float),
-        "glassAnisotropyDirection"            : ('glassAnisotropyDirection', Sdf.ValueTypeNames.Vector3f),
-        #"glassBumpNormal"                     : ('glassBumpNormal', Sdf.ValueTypeNames.Vector3f),
-        "glassIor"                            : ('glassIor', Sdf.ValueTypeNames.Float),
-        #"mwWalkable"                          : ('mwWalkable', Sdf.ValueTypeNames.Int),
-        #"mwIor"                               : ('mwIor', Sdf.ValueTypeNames.Float),
-        #"thinGlass"                           : ('thinGlass', Sdf.ValueTypeNames.Int),
-        #"ignoreFresnel"                       : ('ignoreFresnel', Sdf.ValueTypeNames.Int),
-        #"ignoreAccumOpacity"                  : ('ignoreAccumOpacity', Sdf.ValueTypeNames.Int),
-        #"blocksVolumes"                       : ('blocksVolumes', Sdf.ValueTypeNames.Int),
-        #"volumeAggregate"                     : ('volumeAggregate', Sdf.ValueTypeNames.Int),
-        #"volumeAggregateName"                 : ('volumeAggregateName', Sdf.ValueTypeNames.String),
-        "ssAlbedo"                            : ('ssAlbedo', Sdf.ValueTypeNames.Vector3f),
-        "extinction"                          : ('extinction', Sdf.ValueTypeNames.Vector3f),
-        #"g0"                                  : ('g0', Sdf.ValueTypeNames.Float),
-        #"g1"                                  : ('g1', Sdf.ValueTypeNames.Float),
-        #"blend"                               : ('blend', Sdf.ValueTypeNames.Float),
-        #"volumeGlow"                          : ('volumeGlow', Sdf.ValueTypeNames.Vector3f),
-        #"maxExtinction"                       : ('maxExtinction', Sdf.ValueTypeNames.Float),
-        #"multiScatter"                        : ('multiScatter', Sdf.ValueTypeNames.Int),
-        #"enableOverlappingVolumes"            : ('enableOverlappingVolumes', Sdf.ValueTypeNames.Int),
-        "glowGain"                            : ('glowGain', Sdf.ValueTypeNames.Float),
-        "glowColor"                           : ('glowColor', Sdf.ValueTypeNames.Vector3f),
-        #"bumpNormal"                          : ('bumpNormal', Sdf.ValueTypeNames.Vector3f),
-        #"shadowBumpTerminator"                : ('shadowBumpTerminator', Sdf.ValueTypeNames.Int),
-        "shadowColor"                         : ('shadowColor', Sdf.ValueTypeNames.Vector3f),
-        #"shadowMode"                          : ('shadowMode', Sdf.ValueTypeNames.Int),
-        "presence"                            : ('presence', Sdf.ValueTypeNames.Float),
-        #"presenceCached"                      : ('presenceCached', Sdf.ValueTypeNames.Int),
-        #"mwStartable"                         : ('mwStartable', Sdf.ValueTypeNames.Int),
-        #"roughnessMollificationClamp"         : ('roughnessMollificationClamp', Sdf.ValueTypeNames.Float),
-        #"userColor"                           : ('userColor', Sdf.ValueTypeNames.Vector3f),
-        #"utilityPattern"                      : ('utilityPattern', Sdf.ValueTypeNames.IntArray),
-        "Bump"                                : (None, None),
-        "Vector"                              : (None, None),
-        "Displacement"                        : (None, None)
-    }
-    _debuglog("Writing Pxr Surface shader network for %s" % usd_shader_source.sourceShader().name())
-    material_sdf_path = usd_shader.GetPath().GetParentPath()
-
-    shader_model = usd_shader_source.shaderModel()
-    source_shader = usd_shader_source.sourceShader()
-    export_items = []
-    for shader_input_name in shader_model.inputNames():
-        usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
-        if usd_shader_input_name is None:
-            continue
-        export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
-
-            # TODO: Implement a override option for export that gets passed into this function
-            # Perform the texture export
-            # if not hasExportItemBeenExported(export_item, export_root_path):
-            #     mari.exports.exportTextures([export_item], export_root_path)
-
-            # Create and connect the texture reading shading node
-            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-            texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
-            texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
-            )
-            texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-
-            export_items.append(export_item)
-        else:
-            if shader_input_name not in source_shader.parameterNameList():
-                continue
-            input_value = source_shader.getParameter(shader_input_name)
-            default_color = shader_model.input(shader_input_name).defaultColor()
-            value_not_default = False
-            
-            if isinstance(input_value, mari.Color):
-                if input_value.rgb() != default_color.rgb():
-                    value_not_default = True
-            elif isinstance(input_value, mari.VectorN):
-                input_value_components = input_value.asTuple()
-                default_color_components = default_color.rgba()
-                for component in range(input_value.size()):
-                    if input_value_components[component] != default_color_components[component]:
-                        value_not_default = True
-                        break
-            elif isinstance(input_value, float):
-                if input_value != default_color.r():
-                    value_not_default = True
-            elif isinstance(input_value, int):
-                if input_value != int(default_color.r()):
-                    value_not_default = True
-            elif isinstance(input_value, bool):
-                if input_value != bool(default_color.r()):
-                    value_not_default = True
-
-            if value_not_default:
-                usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
-                if sdf_type == Sdf.ValueTypeNames.Color3f:
-                    usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
-                elif sdf_type == Sdf.ValueTypeNames.Vector3f:
-                    if isinstance(input_value, mari.Mari.Color):
-                        usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
-                    elif isinstance(input_value, mari.Mari.VectorN):
-                        usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.asTuple()))
-                elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
-                    usd_shader_parameter.Set(input_value)
-
-    # Export textures from export items
-    if export_items:
-        _debuglog(
-            "Exporting %d export items for %s to %s" % (
-                len(export_items),
-                source_shader.name(),
-                usd_export_parameters.exportRootPath()
-            )
-        )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
-
+def functionCallbackForShader(mari_shader_model_id, callback_name):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {}).get(callback_name, None)
 
 def _sanitize(location_path):
     return location_path.replace(" ", "_")
@@ -1393,28 +936,42 @@ def payloadDefaultRootName(payload_file_path):
             _debuglog("Warning: The Payload file is not a USD file : %s" % str(e))
     return "/root"
 
-if mari.app.isRunning():
-    # Register the USD Preview Surface exporter.
-    registerRendererExportPlugin(
-        "USD Preview Surface",
-        "UsdPreviewSurface",
-        writeUsdPreviewSurface,
-        "surface",
-        None
-    )
-    registerRendererExportPlugin(
-        "Arnold Standard Surface",
-        "standard_surface",
-        writeArnoldStandardSurface,
-        "out",
-        None
-    )
+def colorComponentForType(sdf_type):
+    if sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
+        return "r"
 
-    # Register the PxrSurface exporter.
-    registerRendererExportPlugin(
-        "PxrSurface",
-        "PxrSurface",
-        writePrManSurface,
-        "out",
-        None
-    )
+    return "rgb"
+
+def isValueDefault(input_value, default_color):
+    if isinstance(input_value, mari.Color):
+        if input_value.rgb() != default_color.rgb():
+            return False
+    elif isinstance(input_value, mari.VectorN):
+        input_value_components = input_value.asTuple()
+        default_color_components = default_color.rgba()
+        for component in range(input_value.size()):
+            if input_value_components[component] != default_color_components[component]:
+                return False
+    elif isinstance(input_value, float):
+        if input_value != default_color.r():
+            return False
+    elif isinstance(input_value, int):
+        if input_value != int(default_color.r()):
+            return False
+    elif isinstance(input_value, bool):
+        if input_value != bool(default_color.r()):
+            return False
+
+    return True
+
+def valueAsShaderParameter(input_value, sdf_type):
+    if sdf_type == Sdf.ValueTypeNames.Color3f:
+        return sdf_type.type.pythonClass(input_value.rgb())
+    elif sdf_type == Sdf.ValueTypeNames.Vector3f:
+        if isinstance(input_value, mari.Mari.Color):
+            return sdf_type.type.pythonClass(input_value.rgb())
+        elif isinstance(input_value, mari.Mari.VectorN):
+            return sdf_type.type.pythonClass(input_value.asTuple())
+    elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
+        return input_value
+
