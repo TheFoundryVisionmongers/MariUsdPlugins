@@ -568,14 +568,14 @@ class SelectionGroupListWidget(widgets.QListWidget):
 
     def dropMimeData(self, index, data, action):
         if data.hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
-            faceselectiongroup_uuid = data.data(FACE_SELECTION_GROUP_MIMETYPE)
+            faceselectiongroup_uuid = str(data.data(FACE_SELECTION_GROUP_MIMETYPE), 'utf-8')
             for selection_group in mari.selection_groups.list():
                 if selection_group.uuid()==faceselectiongroup_uuid:
                     if self.__material:
                         self.__material.selection_groups.append(faceselectiongroup_uuid)
                         self.updateSelectionGroups()
                         return True
-        return super(SelectionGroupListWidget, self).dragMoveEvent(event)
+        return super(SelectionGroupListWidget, self).dropMimeData(index, data, action)
 
     def assignGeometrySelectionGroupsFromProject(self):
         if self.__material:
