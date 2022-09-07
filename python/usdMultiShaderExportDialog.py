@@ -634,6 +634,8 @@ class SelectionGroupListWidget(widgets.QListWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(widgets.QAbstractItemView.DropOnly)
 
+        self.setSelectionMode(self.ExtendedSelection)
+
     def supportedDropActions(self):
         return qt.CopyAction | qt.MoveAction
 
@@ -701,6 +703,13 @@ class SelectionGroupListWidget(widgets.QListWidget):
                 self.__material.selection_groups = dialog.materialSelectionGroups()
                 self.updateSelectionGroups()
 
+    def deleteSelectedSelectionGroups(self):
+        if self.__material:
+            for item in self.selectedItems():
+                uuid = item.data(qt.UserRole)
+                self.__material.selection_groups.remove(uuid)
+            self.updateSelectionGroups()
+
     def contextMenuEvent(self, event):
         menu = widgets.QMenu(self)
         assign_selection_groups = menu.addAction(mari.resources.createIcon("Assign_SelectionGroup.svg"), "Assign Selection Groups")
@@ -713,11 +722,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
         elif action == edit_selection_groups:
             self.editSelectionGroups()
         elif action == delete_selected:
-            if self.__material:
-                for item in self.selectedItems():
-                    uuid = item.data(qt.UserRole)
-                    self.__material.selection_groups.remove(uuid)
-                self.updateSelectionGroups()
+            self.deleteSelectedSelectionGroups()
 
 class VendorSpecificSettingsDialog(widgets.QDialog):
     def __init__(self, parent = None):
@@ -803,12 +808,16 @@ class MultiShaderExportWidget(widgets.QWidget):
         selection_group_label = widgets.QLabel("Assigned Selection Groups", self)
         selection_group_label_layout.addWidget(selection_group_label, 1)
 
+        delete_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Minus.png"), "", self)
+        selection_group_label_layout.addWidget(delete_selection_group_button)
+
         adopt_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Assign_SelectionGroup.svg"), "", self)
         selection_group_label_layout.addWidget(adopt_selection_group_button)
 
         self.selection_group_widget = SelectionGroupListWidget(self)
         selection_group_layout.addWidget(self.selection_group_widget)
 
+        delete_selection_group_button.pressed.connect(self.selection_group_widget.deleteSelectedSelectionGroups)
         adopt_selection_group_button.pressed.connect(self.selection_group_widget.assignGeometrySelectionGroupsFromProject)
 
         # Export Options
