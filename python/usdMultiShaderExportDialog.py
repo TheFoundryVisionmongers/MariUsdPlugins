@@ -37,6 +37,9 @@ load_usd_assembly_file_paths = usdExportManagerTab.USDExportWidget.load_usd_asse
 load_usd_payload_file_paths = usdExportManagerTab.USDExportWidget.load_usd_payload_file_paths 
 load_text_value = usdExportManagerTab.USDExportWidget.load_text_value 
 
+save_paths = usdExportManagerTab.USDExportWidget.save_paths
+save_text_value = usdExportManagerTab.USDExportWidget.save_text_value
+
 USD_MULTI_SHADER_WIDGET = None
 
 SELECTION_GROUP_COLUMN = 0
@@ -900,6 +903,14 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.model.saveMaterials()
         event.accept()
 
+    def saveSettings(self):
+        save_paths("UsdTargetDirPaths", self.export_usd_target_dir_widget.paths())
+        save_paths("UsdLookPaths", self.look_file_widget.paths())
+        save_paths("UsdAssemblyPaths", self.assembly_file_widget.paths())
+        save_paths("UsdPayloadPaths", self.payload_file_widget.paths())
+        save_text_value("UsdRootName", self.root_name_widget.text())
+        save_text_value("UsdUvSetName", self.uv_set_name_widget.text())
+
     def removeSelectedMaterials(self):
         rows_to_remove = []
         for index in self.view.selectionModel().selectedRows():
@@ -933,6 +944,8 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.selection_group_widget.setMaterial(material)
 
     def exportUsd(self):
+        self.saveSettings()
+
         usd_export_parameters = usdShadeExport.UsdExportParameters()
         usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
         usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())

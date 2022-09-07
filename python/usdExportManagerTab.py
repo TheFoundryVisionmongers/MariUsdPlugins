@@ -1243,7 +1243,8 @@ class USDExportWidget(widgets.QWidget):
             mari.app.log("USD Export Error : %s" % error_message)
             widgets.QMessageBox.critical(self, "Error", error_message)
 
-    def save_paths(self, name, values):
+    @staticmethod
+    def save_paths(name, values):
         # Save the current entry with the project.
         project = mari.projects.current()
         if project:
@@ -1272,7 +1273,8 @@ class USDExportWidget(widgets.QWidget):
     def save_usd_payload_file_paths(self):
         self.save_paths("UsdPayloadPaths", self.payload_file_widget.paths())
 
-    def save_text_value(self, name, text):
+    @staticmethod
+    def save_text_value(name, text):
         """ Saves text value to the project metadata and the user settings using the given property name.
 
         Args:
