@@ -303,7 +303,7 @@ GeoData::GeoData(UsdPrim const &prim,
             unsigned int psize = points.size();
             for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
             {
-                int y = points[iPoint + 1];
+                float y = points[iPoint + 1];
                 points[iPoint + 1] = points[iPoint + 2];
                 points[iPoint + 2] = -y;
             }
