@@ -946,57 +946,61 @@ class MultiShaderExportWidget(widgets.QWidget):
     def exportUsd(self):
         self.saveSettings()
 
-        usd_export_parameters = usdShadeExport.UsdExportParameters()
-        usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
-        usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())
-        usd_export_parameters.setAssemblyTargetFilename(self.assembly_file_widget.path())
-        usd_export_parameters.setPayloadSourcePath(self.payload_file_widget.path())
-        usd_export_parameters.setStageRootPath(self.root_name_widget.text())
-        usd_export_parameters.setExportOverrides({"RESOLUTION":self.default_size_combo_box.currentText(), "DEPTH":self.default_depth_combo_box.currentText()})
+        try:
+            usd_export_parameters = usdShadeExport.UsdExportParameters()
+            usd_export_parameters.setExportRootPath(self.export_usd_target_dir_widget.path())
+            usd_export_parameters.setLookfileTargetFilename(self.look_file_widget.path())
+            usd_export_parameters.setAssemblyTargetFilename(self.assembly_file_widget.path())
+            usd_export_parameters.setPayloadSourcePath(self.payload_file_widget.path())
+            usd_export_parameters.setStageRootPath(self.root_name_widget.text())
+            usd_export_parameters.setExportOverrides({"RESOLUTION":self.default_size_combo_box.currentText(), "DEPTH":self.default_depth_combo_box.currentText()})
 
-        usd_material_sources = []
-        for material in self.model.material_list:
-            if not material.checked:
-                continue
-
-            for shader_model_name in material.shader_assignments:
-                shader = material.shader_assignments[shader_model_name]
-                if not shader:
+            usd_material_sources = []
+            for material in self.model.material_list:
+                if not material.checked:
                     continue
 
-                node = shader.shaderNode()
-                if not node:
-                    continue
+                for shader_model_name in material.shader_assignments:
+                    shader = material.shader_assignments[shader_model_name]
+                    if not shader:
+                        continue
 
-                node_graph = node.parentNodeGraph()
-                if not node_graph:
-                    continue
+                    node = shader.shaderNode()
+                    if not node:
+                        continue
 
-                geo_entity = node_graph.parentGeoEntity()
-                if not geo_entity:
-                    continue
+                    node_graph = node.parentNodeGraph()
+                    if not node_graph:
+                        continue
 
-                current_geo_version = geo_entity.currentVersion()
-                if not current_geo_version:
-                    continue
+                    geo_entity = node_graph.parentGeoEntity()
+                    if not geo_entity:
+                        continue
 
-                # Execute the ExportExportItem callback function for the vendor.
-                export_export_item_callback = usdShadeExport.functionCallbackForShader(shader_model_name, usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM)
+                    current_geo_version = geo_entity.currentVersion()
+                    if not current_geo_version:
+                        continue
 
-                usd_material_source = usdShadeExport.UsdMaterialSource(material.name)
-                usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
-                usd_material_source.setSelectionGroups(material.selection_groups)
-                usd_shader_source = usdShadeExport.UsdShaderSource(shader)
-                usd_shader_source.setUvSetName("st")
-                
-                for export_item, shader_input_name in getExportItems(shader):
-                    usd_shader_source.setInputExportItem(shader_input_name, export_item)
-                    if export_export_item_callback is not None:
-                        export_export_item_callback(export_item)
-                usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
-                usd_material_sources.append(usd_material_source)
+                    # Execute the ExportExportItem callback function for the vendor.
+                    export_export_item_callback = usdShadeExport.functionCallbackForShader(shader_model_name, usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM)
 
-        usdShadeExport.exportUsdShadeLook(usd_export_parameters, usd_material_sources)
+                    usd_material_source = usdShadeExport.UsdMaterialSource(material.name)
+                    usd_material_source.setBindingLocations(current_geo_version.sourceMeshLocationList())
+                    usd_material_source.setSelectionGroups(material.selection_groups)
+                    usd_shader_source = usdShadeExport.UsdShaderSource(shader)
+                    usd_shader_source.setUvSetName("st")
+
+                    for export_item, shader_input_name in getExportItems(shader):
+                        usd_shader_source.setInputExportItem(shader_input_name, export_item)
+                        if export_export_item_callback is not None:
+                            export_export_item_callback(export_item)
+                    usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
+                    usd_material_sources.append(usd_material_source)
+
+            usdShadeExport.exportUsdShadeLook(usd_export_parameters, usd_material_sources)
+        except usdShadeExport.UsdShadeExportError as error:
+            mari.app.log("USD Multi Shader Export Error : %s" % error.message)
+            mari.utils.message(error.message, error.title, icon=widgets.QMessageBox.Critical, details=error.details)
 
     def editShaderInputs(self):
         index = self.view.currentIndex()
