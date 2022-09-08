@@ -861,7 +861,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
 
     // detect requested gprim names
     std::string gprimNamesString;
-    if (_host.getAttribute(Entity, "gprimNames", &Value) == MRI_UPR_SUCCEEDED)
+    if (_host.getAttribute(Entity, "Gprim Names", &Value) == MRI_UPR_SUCCEEDED)
         gprimNamesString = Value.m_pString;
     requestedGprimNames = TfStringTokenize(gprimNamesString, ",");
 
@@ -869,7 +869,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                 gprimNamesString.c_str());
 
     std::string variantsString;
-    if (_host.getAttribute(Entity, "variants", &Value) == MRI_UPR_SUCCEEDED)
+    if (_host.getAttribute(Entity, "Variants", &Value) == MRI_UPR_SUCCEEDED)
     {
         variantsString = Value.m_pString;
         _GetVariantSelectionsList(variantsString, variantSelections);
@@ -877,29 +877,30 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     }
 
     // conform to Mari Y is up
-    if( _host.getAttribute(Entity, "ConformToMariY", &Value) ==
+    if( _host.getAttribute(Entity, "Conform to Mari Y as up", &Value) ==
         MRI_UPR_SUCCEEDED )
         conformToMariY = (Value.m_Int !=0);
     _host.trace("%s:%d] Conform to Mari Y is up : %d", _pluginName, __LINE__, conformToMariY);
 
     // detect if we want to ignore model transforms
-    if( _host.getAttribute(Entity, "keepCentered", &Value) ==
+    if( _host.getAttribute(Entity, "Keep Centered", &Value) ==
         MRI_UPR_SUCCEEDED )
         keepCentered = (Value.m_Int !=0);
     if( keepCentered )
         _host.trace("%s:%d] Discarding model transforms.", _pluginName, __LINE__);
 
     // detect if we want to include invisible gprims
-    if( _host.getAttribute(Entity, "includeInvisible", &Value) ==
+    if( _host.getAttribute(Entity, "Include Invisible", &Value) ==
         MRI_UPR_SUCCEEDED )
         includeInvisible = (Value.m_Int !=0);
     if( !includeInvisible )
         _host.trace("%s:%d] Discarding invisible gprims.", _pluginName, __LINE__);
 
     // detect if we want to create face selection groups
-    if( _host.getAttribute(Entity, "createFaceSelectionGroups", &Value) ==
+    if( _host.getAttribute(Entity, "Create Face Selection Group per mesh", &Value) ==
         MRI_UPR_SUCCEEDED )
         createFaceSelectionGroups = (Value.m_Int !=0);
+
     if( createFaceSelectionGroups )
         _host.trace("%s:%d] Will create face selection groups.", _pluginName, __LINE__);
 }
