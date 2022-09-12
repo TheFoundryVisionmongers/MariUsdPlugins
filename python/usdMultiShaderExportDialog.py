@@ -1036,6 +1036,9 @@ class MultiShaderExportWidget(widgets.QWidget):
         overrides["POST_PROCESS"] = "No Overrides"
         return overrides
 
+    def onCloseTab(self):
+        self.saveSettings()
+
 class EditShaderInputsDialog(widgets.QDialog):
     def __init__(self, shader_model_name, current_shader, shader_list, overrides, export_root_path, parent = None):
         widgets.QDialog.__init__(self, parent = parent)
@@ -1188,26 +1191,15 @@ class EditShaderInputsDialog(widgets.QDialog):
         self.export_item_filter_model.invalidate()
 
 
-def showUsdMultiShaderExportWidget():
-    widget = MultiShaderExportWidget()
-
-    widget.resize(800,600)
-    widget.show()
-    globals()["USD_MULTI_SHADER_WIDGET"] = widget
+def generateUsdMultiShaderExportWidget():
+    return MultiShaderExportWidget()
 
 if mari.app.isRunning():
-    usd_multi_shader_export_action = mari.actions.find("/Mari/Scripts/Export/USD Multi Shader Export")
-    if usd_multi_shader_export_action is None:
-        usd_multi_shader_export_action = mari.actions.create("/Mari/Scripts/Export/USD Multi Shader Export", "mariUsd.usdMultiShaderExportDialog.showUsdMultiShaderExportWidget()")
-        iconPath = mari.resources.path(mari.resources.ICONS) + '/ExportManager.png'
-        usd_multi_shader_export_action.setIconPath(iconPath)
-        mari.utils.connect(mari.projects.opened, lambda: usd_multi_shader_export_action.setEnabled(True))
-        mari.utils.connect(mari.projects.aboutToClose, lambda: usd_multi_shader_export_action.setEnabled(False))
-        if mari.projects.current() is None:
-            usd_multi_shader_export_action.setEnabled(False)
+    # Register the USD Multi Shader Export tab to the Export Manager
+    try:
+        mari.system.batch_export_dialog.deregisterCustomTabWidgetCallback("USD Look Exporter")
+    except ValueError:
+        pass
 
-    if "USD Multi Shader Export" in mari.menus.itemNames("MainWindow", "&Channels"):
-        mari.menus.removeAction("MainWindow/&Channels/USD Multi Shader Export")
-    mari.menus.addAction(usd_multi_shader_export_action, "MainWindow/&Channels", "&Export")
-
+    mari.system.batch_export_dialog.registerCustomTabWidgetCallback("USD Look Exporter", generateUsdMultiShaderExportWidget)
 
