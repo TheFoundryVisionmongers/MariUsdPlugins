@@ -34,6 +34,15 @@ PRMAN_DEFAULT_SETTINGS = {
     PRMAN_SETTING_POSTPROCESS: "txmake $EXPORTED $EXPORTDIR/$EXPORTBASE.tx"
 }
 
+def colorComponentForType(sdf_type):
+    if sdf_type == Sdf.ValueTypeNames.Color3f:
+        return "resultRGB"
+    elif sdf_type == Sdf.ValueTypeNames.Normal3f:
+        return "resultN"
+    elif sdf_type == Sdf.ValueTypeNames.Float:
+        return "resultR"
+    return "resultRGB"
+
 def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
 
@@ -223,10 +232,13 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
             texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("image")
+            if sdf_type == Sdf.ValueTypeNames.Normal3f:
+                texture_sampler.CreateIdAttr("PxrNormalMap")
+            else:
+                texture_sampler.CreateIdAttr("PxrTexture")
             usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
                 texture_sampler.ConnectableAPI(),
-                usdShadeExport.colorComponentForType(sdf_type)
+                colorComponentForType(sdf_type)
             )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
