@@ -26,17 +26,13 @@ import PySide2.QtGui as gui
 import PySide2.QtWidgets as widgets
 from PySide2.QtCore import Qt as qt
 from . import usdExportManagerTab, usdShadeExport
-import json
+import os, json
 import xml.etree.ElementTree as etree
 
 # When unifying usdExportManagerTab to this usdMultiShaderExportDialog, these implementation should be moved over
 FileBrowseWidget = usdExportManagerTab.FileBrowseWidget
-load_usd_target_dir_paths = usdExportManagerTab.USDExportWidget.load_usd_target_dir_paths 
-load_usd_look_file_paths = usdExportManagerTab.USDExportWidget.load_usd_look_file_paths 
-load_usd_assembly_file_paths = usdExportManagerTab.USDExportWidget.load_usd_assembly_file_paths 
-load_usd_payload_file_paths = usdExportManagerTab.USDExportWidget.load_usd_payload_file_paths 
+load_paths = usdExportManagerTab.USDExportWidget.load_paths
 load_text_value = usdExportManagerTab.USDExportWidget.load_text_value 
-
 save_paths = usdExportManagerTab.USDExportWidget.save_paths
 save_text_value = usdExportManagerTab.USDExportWidget.save_text_value
 
@@ -829,28 +825,28 @@ class MultiShaderExportWidget(widgets.QWidget):
         for index, stretch in enumerate((10, 20, 10, 20)):
             options_layout.setColumnStretch(index, stretch)
 
-        self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", load_usd_target_dir_paths())
+        self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", load_paths("UsdMultiTargetDirPaths", mari.resources.path("MARI_DEFAULT_EXPORT_PATH")))
         target_dir_label = widgets.QLabel("Texture Target Directory", self)
         target_dir_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(target_dir_label, 0, 0)
         options_layout.addWidget(self.export_usd_target_dir_widget, 0, 1)
         
         look_file_filter = "USD Look File (*.usd *.usda *.usdz)"
-        self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, load_usd_look_file_paths())
+        self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, load_paths("UsdMultiLookPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "LookFile.usda")))
         look_file_label = widgets.QLabel("USD Look File", self)
         look_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(look_file_label, 1, 0)
         options_layout.addWidget(self.look_file_widget, 1, 1)
 
         assembly_file_filter = "USD Assembly File (*.usd *.usda *.usdz)"
-        self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, load_usd_assembly_file_paths())
+        self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, load_paths("UsdMultiAssemblyPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Assembly.usda")))
         assembly_file_label= widgets.QLabel("USD Assembly File", self)
         assembly_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(assembly_file_label, 2, 0)
         options_layout.addWidget(self.assembly_file_widget, 2, 1)
         
         payload_file_filter = "USD (*.usd *.usda *.usdz)"
-        self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, load_usd_payload_file_paths())
+        self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, load_paths("UsdMultiPayloadPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Payload.usd")))
         payload_label = widgets.QLabel("USD Payload", self)
         payload_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(payload_label, 3, 0)
@@ -913,12 +909,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         event.accept()
 
     def saveSettings(self):
-        save_paths("UsdTargetDirPaths", self.export_usd_target_dir_widget.paths())
-        save_paths("UsdLookPaths", self.look_file_widget.paths())
-        save_paths("UsdAssemblyPaths", self.assembly_file_widget.paths())
-        save_paths("UsdPayloadPaths", self.payload_file_widget.paths())
-        save_text_value("UsdRootName", self.root_name_widget.text())
-        save_text_value("UsdUvSetName", self.uv_set_name_widget.text())
+        save_paths("UsdMultiTargetDirPaths", self.export_usd_target_dir_widget.paths())
+        save_paths("UsdMultiLookPaths", self.look_file_widget.paths())
+        save_paths("UsdMultiAssemblyPaths", self.assembly_file_widget.paths())
+        save_paths("UsdMultiPayloadPaths", self.payload_file_widget.paths())
+        save_text_value("UsdMultiRootName", self.root_name_widget.text())
+        save_text_value("UsdMultiUvSetName", self.uv_set_name_widget.text())
 
     def removeSelectedMaterials(self):
         rows_to_remove = []

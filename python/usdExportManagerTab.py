@@ -841,7 +841,7 @@ class FileBrowseWidget(widgets.QWidget):
         new_path = os.path.normpath(new_path)
 
         old_path = self.path()
-        
+
         try:
             index = self.history.index(new_path)
         except ValueError:
