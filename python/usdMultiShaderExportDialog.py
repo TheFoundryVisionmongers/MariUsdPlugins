@@ -80,8 +80,9 @@ def getExportItems(shader):
     for _, shader_input, shader_model_input_name in input_list:
         for export_item in mari.exports.exportItemList(geo_entity):
             if export_item and export_item.sourceNode() == shader_input and export_item.hasMetadata("_HIDDEN") and export_item.metadata("_HIDDEN"):
-                exportItems.append((export_item, shader_model_input_name))
-                break
+                if export_item.hasMetadata("_SHADER") and export_item.metadata("_SHADER") == shader_node.uuid():
+                    exportItems.append((export_item, shader_model_input_name))
+                    break
         else:
             export_item = mari.ExportItem()
             export_item.setSourceNode(shader_input)
@@ -89,6 +90,7 @@ def getExportItems(shader):
             if template.endswith(".png") and shader_input.depth() != mari.Image.DEPTH_BYTE:
                 template = template[:-4]+".exr"
             export_item.setFileTemplate(template)
+            export_item.setMetadata("_SHADER", shader_node.uuid())
             export_item.setMetadata("_STREAM", shader_model_input_name)
             export_item.setMetadata("_HIDDEN", True)
             mari.exports.addExportItem(export_item, geo_entity)
@@ -144,7 +146,9 @@ class Material_Item():
     def to_dict(self):
         shader_assignments = {}
         for key in self.shader_assignments:
-            shader_assignments[key] = self.shader_assignments[key].uuid()
+            shader = self.shader_assignments[key]
+            if shader:
+                shader_assignments[key] = shader.uuid()
         usd_material_data = {
             "name": self.name,
             "checked": True if self.checked == qt.Checked else False,
@@ -234,7 +238,7 @@ class ShaderAssignment_Item_Delegate(widgets.QStyledItemDelegate):
             shader_model_name = model.shader_model_list[index.column()-SHADER_COLUMN]
             shader_assignments = model.material_list[index.row()].shader_assignments
             shader_name = ""
-            if shader_model_name in shader_assignments:
+            if shader_model_name in shader_assignments and shader_assignments[shader_model_name]:
                 shader_name = shader_assignments[shader_model_name].name()
             editor.setCurrentText(shader_name)
             return
@@ -950,6 +954,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
     def exportUsd(self):
         self.saveSettings()
+        self.model.saveMaterials()
 
         try:
             usd_export_parameters = usdShadeExport.UsdExportParameters()
@@ -1015,6 +1020,9 @@ class MultiShaderExportWidget(widgets.QWidget):
         if shader_model_name in shader_assignments:
             current_shader = shader_assignments[shader_model_name]
 
+        if not current_shader:
+            return
+
         shader_list = []
         for shader_name, shader in self.model.shader_map[shader_model_name]:
             shader_list.append((shader_name, shader))
@@ -1034,6 +1042,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
     def onCloseTab(self):
         self.saveSettings()
+        self.model.saveMaterials()
 
 class EditShaderInputsDialog(widgets.QDialog):
     def __init__(self, shader_model_name, current_shader, shader_list, overrides, export_root_path, parent = None):
