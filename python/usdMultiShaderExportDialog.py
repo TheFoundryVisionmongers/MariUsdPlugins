@@ -712,8 +712,8 @@ class SelectionGroupListWidget(widgets.QListWidget):
 
     def contextMenuEvent(self, event):
         menu = widgets.QMenu(self)
-        assign_selection_groups = menu.addAction(mari.resources.createIcon("Assign_SelectionGroup.svg"), "Assign Selection Groups")
-        edit_selection_groups = menu.addAction("Edit Selection Groups")
+        assign_selection_groups = menu.addAction("Assign Currently Selected")
+        edit_selection_groups = menu.addAction(mari.resources.createIcon("Assign_SelectionGroup.svg"), "Edit Selection Groups")
         delete_selected = menu.addAction("Delete Selected")
         action = menu.exec_(self.mapToGlobal(event.pos()))
 
@@ -811,14 +811,14 @@ class MultiShaderExportWidget(widgets.QWidget):
         delete_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Minus.png"), "", self)
         selection_group_label_layout.addWidget(delete_selection_group_button)
 
-        adopt_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Assign_SelectionGroup.svg"), "", self)
-        selection_group_label_layout.addWidget(adopt_selection_group_button)
+        edit_selection_group_button = widgets.QPushButton(mari.resources.createIcon("Assign_SelectionGroup.svg"), "", self)
+        selection_group_label_layout.addWidget(edit_selection_group_button)
 
         self.selection_group_widget = SelectionGroupListWidget(self)
         selection_group_layout.addWidget(self.selection_group_widget)
 
         delete_selection_group_button.pressed.connect(self.selection_group_widget.deleteSelectedSelectionGroups)
-        adopt_selection_group_button.pressed.connect(self.selection_group_widget.assignGeometrySelectionGroupsFromProject)
+        edit_selection_group_button.pressed.connect(self.selection_group_widget.editSelectionGroups)
 
         # Export Options
         options_group_box = widgets.QGroupBox("Export Options", self)
