@@ -34,6 +34,12 @@ ARNOLD_DEFAULT_SETTINGS = {
     ARNOLD_SETTING_POSTPROCESS: "maketx $EXPORTED $EXPORTDIR/$EXPORTBASE.tx"
 }
 
+def colorsFuzzyEqual(color0, color1):
+    for i in range(4):
+        if abs(color0[i]-color1[i])>0.003:
+            return False
+    return True
+
 def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to an ArnoldStandardSurface shader.
 
@@ -126,6 +132,42 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             continue
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
         if export_item is not None:
+            export_items.append(export_item)
+
+    # Export textures from export items
+    if export_items:
+        usdShadeExport._debuglog(
+            "Exporting %d export items for %s to %s" % (
+                len(export_items),
+                usd_shader_source.sourceShader().name(),
+                usd_export_parameters.exportRootPath()
+            )
+        )
+        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
+
+    for shader_input_name in shader_model.inputNames():
+        usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
+        if usd_shader_input_name is None:
+            continue
+
+        if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
+            continue
+
+        input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
+        default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
+
+        export_item = usd_shader_source.getInputExportItem(shader_input_name)
+
+        assign_texture = False
+        if export_item:
+            if export_item.exportedImagesUniform():
+                exported_uniform_color = export_item.exportedImagesUniformColor().rgba()
+                if exported_uniform_color != mari.Color(0,0,0,0).rgba() and not colorsFuzzyEqual(exported_uniform_color, default_color.rgba()):
+                    assign_texture = True
+            else:
+                assign_texture = True
+
+        if assign_texture:
 
             # TODO: Implement a override option for export that gets passed into this function
             # Perform the texture export
@@ -143,28 +185,10 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                 usdShadeExport.colorComponentForType(sdf_type)
             )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-
-            export_items.append(export_item)
         else:
-            if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
-                continue
-            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
-            default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
-
             if not usdShadeExport.isValueDefault(input_value, default_color):
                 usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
                 usd_shader_parameter.Set(usdShadeExport.valueAsShaderParameter(input_value, sdf_type))
-
-    # Export textures from export items
-    if export_items:
-        usdShadeExport._debuglog(
-            "Exporting %d export items for %s to %s" % (
-                len(export_items),
-                usd_shader_source.sourceShader().name(),
-                usd_export_parameters.exportRootPath()
-            )
-        )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
 
 class Arnold_SettingsWidget(widgets.QWidget):
     def __init__(self, parent = None):
