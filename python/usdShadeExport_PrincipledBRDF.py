@@ -25,13 +25,13 @@ import os
 import re
 import PySide2.QtWidgets as widgets
 from . import usdShadeExport
-from fnpxr import Sdf, UsdShade
+from pxr import Sdf, UsdShade
 
 PRINCIPLED_BRDF_SETTINGS_GROUP = "PrincipledBRDFUSDExportSettings"
 PRINCIPLED_BRDF_SETTING_POSTPROCESS = "PostProcessCommand"
 
 PRINCIPLED_BRDF_DEFAULT_SETTINGS = {
-    PRINCIPLED_BRDF_SETTING_POSTPROCESS: "txmake $EXPORTED $EXPORTDIR/$EXPORTBASE.tx"
+    PRINCIPLED_BRDF_SETTING_POSTPROCESS: "txmake $EXPORTED $POSTPROCESSED"
 }
 
 def colorComponentForType(sdf_type):
@@ -90,7 +90,10 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
             #     mari.exports.exportTextures([export_item], export_root_path)
 
             # Create and connect the texture reading shading node
-            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
+            if len(export_item.postProcessedFileTemplate())==0:
+                texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
+            else:
+                texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolvePostProcessedFileTemplate())
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
             texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
@@ -167,6 +170,9 @@ def Principled_BRDF_Callback_SetupExportItem(export_item):
     settings.endGroup()
     
     export_item.setPostProcessCommand(post_process_command)
+    template = export_item.fileTemplate()
+    basepath = os.path.splitext(template)[0]
+    export_item.setPostProcessedFileTemplate(basepath+".tex")
 
 if mari.app.isRunning():
     callback_functions = {
