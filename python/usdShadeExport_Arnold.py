@@ -241,7 +241,7 @@ def Arnold_Callback_SetupExportItem(export_item):
 if mari.app.isRunning():
     callback_functions = {
         usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM:  Arnold_Callback_SetupExportItem,
-        usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM: Arnold_Callback_SetupExportItem,
+        usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM: None,
         usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET:    Arnold_Callback_SettingsWidget
     }
     
