@@ -500,6 +500,17 @@ class ExportItemFilterModel(core.QSortFilterProxyModel):
         self.__export_items = set()
         self.__hide_unchecked = False
 
+    def itemVisible(self, item):
+        # Hide the items not in the allowlist
+        if not item in self.__export_items:
+            return False
+
+        # Hide the item if the hide button is checked and the item is unchecked
+        if self.__hide_unchecked and not item.exportEnabled():
+            return False
+
+        return True
+
     def setExportItems(self, export_items):
         self.__export_items = export_items
 
@@ -514,15 +525,7 @@ class ExportItemFilterModel(core.QSortFilterProxyModel):
         if isinstance(item,mari.GeoEntity):
             return True
 
-        # Hide the items not in the allowlist
-        if not item in self.__export_items:
-            return False
-
-        # Hide the item if the hide button is checked and the item is unchecked
-        if self.__hide_unchecked and not item.exportEnabled():
-            return False
-
-        return True
+        return self.itemVisible(item)
 
 class EditSelectionGroupDialog(widgets.QDialog):
     def __init__(self, selection_group_uuids, parent = None):
@@ -1096,6 +1099,7 @@ class EditShaderInputsDialog(widgets.QDialog):
 
         self.export_item_filter_model = ExportItemFilterModel(self)
         self.export_item_filter_model.setSourceModel(export_item_model)
+        self.export_item_model.setFilterModel(self.export_item_filter_model)
         hide_unchecked_inputs_button.toggled.connect(self.export_item_filter_model.setHideUnchecked)
 
         export_item_view = mari.system.batch_export_dialog.ExportManagerView()
