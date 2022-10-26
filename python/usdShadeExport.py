@@ -934,6 +934,9 @@ def payloadDefaultRootName(payload_file_path):
             return payload_root_name
         except Exception as e:
             _debuglog("Warning: The Payload file is not a USD file : %s" % str(e))
+    geo_entity = mari.geo.current()
+    if geo_entity and geo_entity.hasMetadata("StagePrimPath"):
+        return geo_entity.metadata("StagePrimPath")
     return "/root"
 
 def colorComponentForType(sdf_type):
