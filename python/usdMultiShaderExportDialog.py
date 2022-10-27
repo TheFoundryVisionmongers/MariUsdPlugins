@@ -1051,6 +1051,8 @@ class EditShaderInputsDialog(widgets.QDialog):
     def __init__(self, shader_model_name, current_shader, shader_list, overrides, export_root_path, parent = None):
         widgets.QDialog.__init__(self, parent = parent)
 
+        self.setWindowTitle("Edit Shader Inputs")
+
         self.__overrides = overrides
 
         self.__export_root_path = export_root_path
