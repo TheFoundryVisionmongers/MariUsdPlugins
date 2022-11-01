@@ -127,7 +127,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
                 usd_export_parameters.exportRootPath()
             )
         )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
+        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
 
 class Principled_BRDF_SettingsWidget(widgets.QWidget):
     def __init__(self, parent = None):
