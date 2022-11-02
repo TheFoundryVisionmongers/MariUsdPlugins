@@ -29,3 +29,5 @@ from . import usdShadeExport_PRMan
 from . import usdShadeExport_PrincipledBRDF
 from . import usdMultiShaderExportDialog
 
+from . import usdLoaderTab
+
