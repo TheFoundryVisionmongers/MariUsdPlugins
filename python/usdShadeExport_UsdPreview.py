@@ -122,5 +122,5 @@ if mari.app.isRunning():
         "UsdPreviewSurface",
         writeUsdPreviewSurface,
         "surface",
-        None
+        "glslfx"
     )

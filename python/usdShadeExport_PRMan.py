@@ -324,6 +324,6 @@ if mari.app.isRunning():
         "PxrSurface",
         writePrManSurface,
         "out",
-        None,
+        "ri",
         callback_functions
     )

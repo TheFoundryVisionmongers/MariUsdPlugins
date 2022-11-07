@@ -40,6 +40,16 @@ def colorsFuzzyEqual(color0, color1):
             return False
     return True
 
+def colorComponentForType(sdf_type):
+    if sdf_type == Sdf.ValueTypeNames.Color3f:
+        return "out"
+    elif sdf_type == Sdf.ValueTypeNames.Normal3f:
+        return "out"
+    elif sdf_type == Sdf.ValueTypeNames.Float:
+        return "out:r"
+    return "out"
+
+
 def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to an ArnoldStandardSurface shader.
 
@@ -185,7 +195,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
             usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
                 texture_sampler.ConnectableAPI(),
-                usdShadeExport.colorComponentForType(sdf_type)
+                colorComponentForType(sdf_type)
             )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
         else:
@@ -250,6 +260,6 @@ if mari.app.isRunning():
         "standard_surface",
         writeArnoldStandardSurface,
         "out",
-        None,
+        "arnold",
         callback_functions
     )
