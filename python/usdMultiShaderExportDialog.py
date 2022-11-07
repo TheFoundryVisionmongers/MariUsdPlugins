@@ -885,14 +885,14 @@ class MultiShaderExportWidget(widgets.QWidget):
         payload_root_name = usdShadeExport.payloadDefaultRootName(self.payload_file_widget.path())
 
         self.root_name_widget = widgets.QLineEdit(self)
-        self.root_name_widget.setText(load_text_value("UsdRootName", payload_root_name))
+        self.root_name_widget.setText(load_text_value("UsdMultiRootName", payload_root_name))
         root_name_label = widgets.QLabel("Root Name", self)
         root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(root_name_label, 2, 2)
         options_layout.addWidget(self.root_name_widget, 2, 3)
 
         self.uv_set_name_widget = widgets.QLineEdit(self)
-        self.uv_set_name_widget.setText(load_text_value("UsdUvSetName", "st"))
+        self.uv_set_name_widget.setText(load_text_value("UsdMultiUvSetName", "st"))
         uv_set_name_label = widgets.QLabel("UV Set Name", self)
         uv_set_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(uv_set_name_label, 3, 2)
