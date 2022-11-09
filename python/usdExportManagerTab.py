@@ -1306,7 +1306,8 @@ class USDExportWidget(widgets.QWidget):
 def generate_usd_export_widget():
     return USDExportWidget()
 
-if mari.app.isRunning():
+# This legacy tab is disabled by default, but it can be enabled by the MARI_USD_LEGACY_EXPORT_TAB environment variable
+if mari.app.isRunning() and "MARI_USD_LEGACY_EXPORT_TAB" in os.environ and int(os.environ["MARI_USD_LEGACY_EXPORT_TAB"])==1:
     # Register the USD Export tab to the Export Manager
     try:
         mari.system.batch_export_dialog.deregisterCustomTabWidgetCallback("USD Export")
