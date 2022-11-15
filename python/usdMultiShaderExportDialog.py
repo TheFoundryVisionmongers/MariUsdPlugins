@@ -882,10 +882,12 @@ class MultiShaderExportWidget(widgets.QWidget):
         options_layout.addWidget(self.default_size_combo_box, 1, 3)
 
         # Get the default root name from the payload file if existing
-        payload_root_name = usdShadeExport.payloadDefaultRootName(self.payload_file_widget.path())
+        root_name = usdShadeExport.payloadDefaultRootName(self.payload_file_widget.path())
 
         self.root_name_widget = widgets.QLineEdit(self)
-        self.root_name_widget.setText(load_text_value("UsdMultiRootName", payload_root_name))
+        if root_name=="/root":
+            root_name = load_text_value("UsdMultiRootName")
+        self.root_name_widget.setText(root_name)
         root_name_label = widgets.QLabel("Root Name", self)
         root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(root_name_label, 2, 2)
