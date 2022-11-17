@@ -1106,6 +1106,17 @@ class EditShaderInputsDialog(widgets.QDialog):
 
         export_item_view = mari.system.batch_export_dialog.ExportManagerView()
         self.export_item_view = export_item_view
+
+        context_menu_actions = []
+        action = widgets.QAction("Check Selected")
+        action.triggered.connect(export_item_view.checkSelected)
+        context_menu_actions.append(action)
+        action = widgets.QAction("Uncheck Selected")
+        action.triggered.connect(export_item_view.uncheckSelected)
+        context_menu_actions.append(action)
+        export_item_view.setContextMenuActions(context_menu_actions)
+
+
         export_item_view.setItemDelegate(mari.system.batch_export_dialog.ComboBoxDelegate(parent=self))
         export_item_view.horizontalHeader().setStretchLastSection(True)
         export_item_view.setSelectionBehavior(export_item_view.SelectRows)
