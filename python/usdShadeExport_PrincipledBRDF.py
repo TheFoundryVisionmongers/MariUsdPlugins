@@ -168,11 +168,20 @@ def Principled_BRDF_Callback_SetupExportItem(export_item):
     settings.beginGroup(PRINCIPLED_BRDF_SETTINGS_GROUP)
     post_process_command = settings.value(PRINCIPLED_BRDF_SETTING_POSTPROCESS, PRINCIPLED_BRDF_DEFAULT_SETTINGS[PRINCIPLED_BRDF_SETTING_POSTPROCESS])
     settings.endGroup()
+
+    previous_default_post_process_command = None
+    if export_item.hasMetadata("PreviousDefaultPostProcessCommand"):
+        previous_default_post_process_command = export_item.metadata("PreviousDefaultPostProcessCommand")
     
-    export_item.setPostProcessCommand(post_process_command)
-    template = export_item.fileTemplate()
-    basepath = os.path.splitext(template)[0]
-    export_item.setPostProcessedFileTemplate(basepath+".tex")
+    # If the existing post process command is the same as the previous command then, assume that the post process command is not individually customized. Apply the default command change
+    if previous_default_post_process_command==None or previous_default_post_process_command==export_item.postProcessCommand():
+        export_item.setPostProcessCommand(post_process_command)
+        template = export_item.fileTemplate()
+        basepath = os.path.splitext(template)[0]
+        export_item.setPostProcessedFileTemplate(basepath+".tex")
+
+    # Record the default post process command for the next time
+    export_item.setMetadata("PreviousDefaultPostProcessCommand", post_process_command)
 
 if mari.app.isRunning():
     callback_functions = {

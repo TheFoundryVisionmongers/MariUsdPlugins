@@ -242,11 +242,20 @@ def Arnold_Callback_SetupExportItem(export_item):
     settings.beginGroup(ARNOLD_SETTINGS_GROUP)
     post_process_command = settings.value(ARNOLD_SETTING_POSTPROCESS, ARNOLD_DEFAULT_SETTINGS[ARNOLD_SETTING_POSTPROCESS])
     settings.endGroup()
-    
-    export_item.setPostProcessCommand(post_process_command)
-    template = export_item.fileTemplate()
-    basepath = os.path.splitext(template)[0]
-    export_item.setPostProcessedFileTemplate(basepath+".tx")
+
+    previous_default_post_process_command = None
+    if export_item.hasMetadata("PreviousDefaultPostProcessCommand"):
+        previous_default_post_process_command = export_item.metadata("PreviousDefaultPostProcessCommand")
+
+    # If the existing post process command is the same as the previous command then, assume that the post process command is not individually customized. Apply the default command change
+    if previous_default_post_process_command==None or previous_default_post_process_command==export_item.postProcessCommand():
+        export_item.setPostProcessCommand(post_process_command)
+        template = export_item.fileTemplate()
+        basepath = os.path.splitext(template)[0]
+        export_item.setPostProcessedFileTemplate(basepath+".tx")
+
+    # Record the default post process command for the next time
+    export_item.setMetadata("PreviousDefaultPostProcessCommand", post_process_command)
 
 if mari.app.isRunning():
     callback_functions = {

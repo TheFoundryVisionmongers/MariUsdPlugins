@@ -936,6 +936,16 @@ class MultiShaderExportWidget(widgets.QWidget):
         dialog = VendorSpecificSettingsDialog(self)
         dialog.exec()
 
+        for material in self.model.material_list:
+            for shader_model_name in material.shader_assignments:
+                shader = material.shader_assignments[shader_model_name]
+                shader_model = shader.shaderModel()
+
+                setup_export_item_callback = usdShadeExport.functionCallbackForShader(shader_model.id(), usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM)
+                if setup_export_item_callback is not None:
+                    for export_item, _ in getExportItems(shader):
+                        setup_export_item_callback(export_item)
+
     def exportRootPath(self):
         return self.export_usd_target_dir_widget.path()
 
