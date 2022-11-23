@@ -540,8 +540,14 @@ class ExportItem_Model(gui.QStandardItemModel):
 
     def advancedInputList(shader):
         result = []
-        shader_node = shader.shaderNode()
         shader_model = shader.shaderModel()
+        if not shader_model:
+            return result
+        
+        shader_node = shader.shaderNode()
+        if not shader_node:
+            return result
+
         for input_name in shader_node.inputPortNames():
             input_node, output_port = shader_node.inputConnection(input_name)
             if input_node:
@@ -1212,6 +1218,10 @@ class USDExportWidget(widgets.QWidget):
             if not node:
                 continue
             
+            shader_model = shader.shaderModel()
+            if not shader_model:
+                continue
+            
             node_graph = node.parentNodeGraph()
             if not node_graph:
                 continue
@@ -1230,7 +1240,7 @@ class USDExportWidget(widgets.QWidget):
             usd_shader_source.setUvSetName(uv_set_name)
             for export_item, shader_input_name in export_items:
                 usd_shader_source.setInputExportItem(shader_input_name, export_item)
-            usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
+            usd_material_source.setShaderSource(shader_model.id(), usd_shader_source)
             usd_material_sources.append(usd_material_source)
 
         try:
