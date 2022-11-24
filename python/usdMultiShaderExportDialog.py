@@ -901,7 +901,7 @@ class MultiShaderExportWidget(widgets.QWidget):
 
         self.root_name_widget = widgets.QLineEdit(self)
         if root_name=="/root":
-            root_name = load_text_value("UsdMultiRootName")
+            root_name = load_text_value("UsdMultiRootName", root_name)
         self.root_name_widget.setText(root_name)
         root_name_label = widgets.QLabel("Root Name", self)
         root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
