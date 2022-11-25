@@ -26,7 +26,7 @@ import PySide2.QtGui as gui
 import PySide2.QtWidgets as widgets
 from PySide2.QtCore import Qt as qt
 from . import usdExportManagerTab, usdShadeExport
-import os, json
+import os, json, uuid
 import xml.etree.ElementTree as etree
 
 # When unifying usdExportManagerTab to this usdMultiShaderExportDialog, these implementation should be moved over
@@ -59,7 +59,7 @@ def resolveSourceIndex(index):
         return index.model().mapToSource(index)
     return index
 
-def getExportItems(shader):
+def getExportItems(material, shader):
     """Gets ExportItems for the shader. If necessary, this creates ExportItems. Furthermore, this updates the allowlist of ExportItems to display in the view.
 
     Args:
@@ -80,7 +80,7 @@ def getExportItems(shader):
     for _, shader_input, shader_model_input_name in input_list:
         for export_item in mari.exports.exportItemList(geo_entity):
             if export_item and export_item.sourceNode() == shader_input and export_item.hasMetadata("_HIDDEN") and export_item.metadata("_HIDDEN"):
-                if export_item.hasMetadata("_SHADER") and export_item.metadata("_SHADER") == shader_node.uuid():
+                if export_item.hasMetadata("_SHADER") and export_item.metadata("_SHADER") == shader_node.uuid() and export_item.hasMetadata("_MATERIAL") and export_item.metadata("_MATERIAL") == material.uuid:
                     exportItems.append((export_item, shader_model_input_name))
                     break
         else:
@@ -91,6 +91,7 @@ def getExportItems(shader):
                 template = template[:-4]+".exr"
             export_item.setFileTemplate(template)
             export_item.setMetadata("_SHADER", shader_node.uuid())
+            export_item.setMetadata("_MATERIAL", material.uuid)
             export_item.setMetadata("_STREAM", shader_model_input_name)
             export_item.setMetadata("_HIDDEN", True)
             mari.exports.addExportItem(export_item, geo_entity)
@@ -107,6 +108,7 @@ def getExportItems(shader):
 class Material_Item():
     def __init__(self, name):
         self.__name = name
+        self.__uuid = str(uuid.uuid1())
         self.__checked = qt.Checked
         self.__shader_assignments = {}
         self.__selection_groups = []
@@ -118,6 +120,14 @@ class Material_Item():
     @name.setter
     def name(self, name):
         self.__name = name
+
+    @property
+    def uuid(self):
+        return self.__uuid
+
+    @name.setter
+    def uuid(self, uuid):
+        self.__uuid = uuid
 
     @property
     def checked(self):
@@ -151,6 +161,7 @@ class Material_Item():
                 shader_assignments[key] = shader.uuid()
         usd_material_data = {
             "name": self.name,
+            "uuid": self.uuid,
             "checked": True if self.checked == qt.Checked else False,
             "shader_assignments": shader_assignments,
             "selection_groups": self.selection_groups,
@@ -164,6 +175,7 @@ class Material_Item():
             material = cls(name)
 
             material.name = name
+            material.uuid = usd_material_data["uuid"]
             material.checked = qt.Checked if usd_material_data["checked"] else qt.Unchecked
             material.selection_groups = usd_material_data["selection_groups"]
             material.shader_assignments = {}
@@ -661,6 +673,9 @@ class SelectionGroupListWidget(widgets.QListWidget):
     def updateSelectionGroups(self):
         self.clear()
 
+        if self.__material == None:
+            return
+
         selection_group_map = {}
         for selection_group in mari.selection_groups.list():
             selection_group_map[selection_group.uuid()] = selection_group
@@ -1015,7 +1030,7 @@ class MultiShaderExportWidget(widgets.QWidget):
                     usd_shader_source = usdShadeExport.UsdShaderSource(shader)
                     usd_shader_source.setUvSetName("st")
 
-                    for export_item, shader_input_name in getExportItems(shader):
+                    for export_item, shader_input_name in getExportItems(material, shader):
                         usd_shader_source.setInputExportItem(shader_input_name, export_item)
                         if export_export_item_callback is not None:
                             export_export_item_callback(export_item)
@@ -1030,7 +1045,8 @@ class MultiShaderExportWidget(widgets.QWidget):
     def editShaderInputs(self):
         index = self.view.currentIndex()
         shader_model_name = self.model.shader_model_list[index.column()-SHADER_COLUMN]
-        shader_assignments = self.model.material_list[index.row()].shader_assignments
+        material = self.model.material_list[index.row()]
+        shader_assignments = material.shader_assignments
         current_shader = None 
         if shader_model_name in shader_assignments:
             current_shader = shader_assignments[shader_model_name]
@@ -1042,7 +1058,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         for shader_name, shader in self.model.shader_map[shader_model_name]:
             shader_list.append((shader_name, shader))
 
-        dialog = EditShaderInputsDialog(shader_model_name, current_shader, shader_list, self.getOverrides(), self.exportRootPath())
+        dialog = EditShaderInputsDialog(shader_model_name, material, current_shader, shader_list, self.getOverrides(), self.exportRootPath())
 
         dialog.resize(1200, 600)
         dialog.exec_()
@@ -1060,7 +1076,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.model.saveMaterials()
 
 class EditShaderInputsDialog(widgets.QDialog):
-    def __init__(self, shader_model_name, current_shader, shader_list, overrides, export_root_path, parent = None):
+    def __init__(self, shader_model_name, material, current_shader, shader_list, overrides, export_root_path, parent = None):
         widgets.QDialog.__init__(self, parent = parent)
 
         self.setWindowTitle("Edit Shader Inputs")
@@ -1068,6 +1084,8 @@ class EditShaderInputsDialog(widgets.QDialog):
         self.__overrides = overrides
 
         self.__export_root_path = export_root_path
+
+        self.__material = material
 
         dialog_layout = widgets.QVBoxLayout()
         self.setLayout(dialog_layout)
@@ -1159,7 +1177,7 @@ class EditShaderInputsDialog(widgets.QDialog):
     def updateExportItems(self, shader):
         export_items = []
         if shader:
-            export_items = getExportItems(shader)
+            export_items = getExportItems(self.__material, shader)
 
         self.exportItems = set([export_item for export_item, _ in export_items])
 
