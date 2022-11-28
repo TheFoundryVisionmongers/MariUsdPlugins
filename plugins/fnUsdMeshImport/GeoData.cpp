@@ -229,21 +229,115 @@ GeoData::GeoData(UsdPrim const &prim,
     // Read normals
     {
         VtVec3fArray normalsVt;
-        bool ok = isTopologyVarying ? mesh.GetNormalsAttr().Get(&normalsVt, UsdTimeCode::EarliestTime()) : mesh.GetNormalsAttr().Get(&normalsVt);
-        if (ok)
+        VtIntArray indices;
+        TfToken interpolation;
+        bool ok = false;
+        if (UsdGeomPrimvar normalsPrimvar = mesh.GetPrimvar(UsdGeomTokens->normals))
         {
-            m_normals.resize(normalsVt.size() * 3);
-            for(int i = 0; i < normalsVt.size(); ++i)
+            // Normals primvar takes precedence over normals attribute.
+
+            ok = normalsPrimvar.Get(&normalsVt, UsdTimeCode::EarliestTime());
+            if (ok)
             {
-                m_normals[i * 3    ] = normalsVt[i][0];
-                m_normals[i * 3 + 1] = normalsVt[i][1];
-                m_normals[i * 3 + 2] = normalsVt[i][2];
+                // Get the index list from the primvar.
+                ok = isTopologyVarying ? normalsPrimvar.GetIndices(&indices, UsdTimeCode::EarliestTime()) : normalsPrimvar.GetIndices(&indices);
             }
 
-            m_normalIndices.reserve(m_vertexIndices.size());
-            for (unsigned int x = 0; x < m_vertexIndices.size(); ++x)
+            interpolation = normalsPrimvar.GetInterpolation();
+        }
+        else
+        {
+            // No primvar, pull the attribute.
+
+            ok = isTopologyVarying ? mesh.GetNormalsAttr().Get(&normalsVt, UsdTimeCode::EarliestTime()) : mesh.GetNormalsAttr().Get(&normalsVt);
+
+            interpolation = mesh.GetNormalsInterpolation();
+        }
+
+        if (ok)
+        {
+            if ((interpolation == UsdGeomTokens->faceVarying) || (interpolation == UsdGeomTokens->vertex))
             {
-                m_normalIndices.push_back(x);
+                const size_t numNormals = normalsVt.size();
+
+                // Generate a list of indices to use if an explicit list was not specified.
+                if (indices.empty())
+                {
+                    // TP-524982 - Slightly convoluted but some files have as many vertex normals as there are vertices
+                    //             and some have as many as there are vertex indices. When mapping normals to vertices
+                    //             in a 1:1 fashion, we need to make sure they match up.
+
+                    // First we find out what the maximum vertex index is.
+                    // Note: This is not the same as the number of indices.
+                    int maxVertexIndex = 0;
+                    for (const int &vertexIndex : m_vertexIndices)
+                    {
+                        if (vertexIndex > maxVertexIndex)
+                            maxVertexIndex = vertexIndex;
+                    }
+
+                    const int numVertIndices = static_cast<int>(m_vertexIndices.size());
+
+                    indices.reserve(numVertIndices);
+
+                    if (numNormals == maxVertexIndex+1)
+                    {
+                        // In the case where there are as many normals as there are vertices
+                        // we'll match up the normal indices to the vertex indices.
+                        for (int x = 0; x < numVertIndices; ++x)
+                        {
+                            indices.push_back(m_vertexIndices[x]);
+                        }
+                    }
+                    else
+                    {
+                        // In the case where there are as many normals as there are vertex
+                        // indices, we'll just use a linear list.
+                        for (int x = 0; x < numVertIndices; ++x)
+                        {
+                            indices.push_back(x);
+                        }
+                    }
+                }
+
+                // Extract the normal vectors.
+                m_normals.reserve(numNormals * 3);
+                for (const GfVec3f& normal : normalsVt)
+                {
+                    m_normals.push_back(normal[0]);
+                    m_normals.push_back(normal[1]);
+                    m_normals.push_back(normal[2]);
+                }
+
+                // Handle the normal indices.
+                if (interpolation == UsdGeomTokens->faceVarying)
+                {
+                    // For face varying, we can take the index list as-is.
+                    m_normalIndices = vector<int>(indices.begin(), indices.end());
+                }
+                else if (interpolation == UsdGeomTokens->vertex)
+                {
+                    // For vertex interpolated, handle it in the same manner as the UVs above.
+                    m_normalIndices.reserve(m_vertexIndices.size());
+
+                    int globalIndex = 0;
+                    for (const int vertCount : m_faceCounts)
+                    {
+                        for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex)
+                        {
+                            const int vertId = m_vertexIndices[globalIndex++];
+
+                            const int uvId = indices[vertId];
+                            m_normalIndices.push_back(uvId);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // UV set not found on mesh
+                host.trace("[GeoData:%d]\tVertex normals for mesh %s are not interpolated as 'vertex' or 'faceVarying', ignoring them.", __LINE__, prim.GetPath().GetText());
+                log.push_back("** Vertex normals for mesh " + std::string(prim.GetPath().GetText()) + " are not interpolated as 'vertex' or 'faceVarying', ignoring them.");
             }
         }
     }
