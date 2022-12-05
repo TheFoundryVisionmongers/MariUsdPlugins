@@ -863,7 +863,7 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                     # faces contain the full set of faces for the mesh location. There is no need for subset material assignment. e.g faces = [0-10], where the count is 11
                     pass
                 else:
-                    subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset"))
+                    subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset_"+usd_material_source.name()))
                     subset.CreateFamilyNameAttr("materialBind")
                     subset.CreateIndicesAttr(faces)
                     bind_target = subset
