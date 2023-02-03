@@ -197,6 +197,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                 texture_sampler.ConnectableAPI(),
                 colorComponentForType(sdf_type)
             )
+            texture_sampler.CreateInput("uvset", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
         else:
             if not usdShadeExport.isValueDefault(input_value, default_color):
