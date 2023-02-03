@@ -939,6 +939,17 @@ def payloadDefaultRootName(payload_file_path):
         return geo_entity.metadata("StagePrimPath")
     return "/root"
 
+def payloadDefaultUvSetName():
+    """Returns the default UV set name of the current GeoEntity.
+
+    Returns:
+        (str): The default UV set name of the currentGeoEntity.
+    """
+    geo_entity = mari.geo.current()
+    if geo_entity and geo_entity.hasMetadata("UvSetName"):
+        return geo_entity.metadata("UvSetName")
+    return ""
+
 def colorComponentForType(sdf_type):
     if sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
         return "r"

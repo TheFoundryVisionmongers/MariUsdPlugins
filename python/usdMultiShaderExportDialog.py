@@ -908,8 +908,13 @@ class MultiShaderExportWidget(widgets.QWidget):
         options_layout.addWidget(root_name_label, 2, 2)
         options_layout.addWidget(self.root_name_widget, 2, 3)
 
+        # Get the default UV Set name
+        uv_set_name = usdShadeExport.payloadDefaultUvSetName()
+
         self.uv_set_name_widget = widgets.QLineEdit(self)
-        self.uv_set_name_widget.setText(load_text_value("UsdMultiUvSetName", "st"))
+        if uv_set_name=="":
+            uv_set_name = load_text_value("UsdMultiUvSetName", "st")
+        self.uv_set_name_widget.setText(uv_set_name)
         uv_set_name_label = widgets.QLabel("UV Set Name", self)
         uv_set_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(uv_set_name_label, 3, 2)

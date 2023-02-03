@@ -180,6 +180,11 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     stagePrimValue.m_Type = MRI_ATTR_STRING;
     stagePrimValue.m_pString = stagePrimPathString.c_str();
     _host.setAttribute(Entity, "StagePrimPath", &stagePrimValue);
+
+    MriAttributeValue uvSetValue;
+    uvSetValue.m_Type = MRI_ATTR_STRING;
+    uvSetValue.m_pString = UVSet.c_str();
+    _host.setAttribute(Entity, "UvSetName", &uvSetValue);
     
     // variables used to coordinate which model should be loaded
     bool loadThisModel = false;
