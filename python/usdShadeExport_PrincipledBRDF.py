@@ -107,6 +107,17 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
             )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
+            if usd_shader_source.uvSetName()!="st":
+                # If the UV set name is not st, then we need to create the PxrManifold2D node to specify the UV set name
+                manifold_sdf_path = material_sdf_path.AppendChild("{0}TextureManifold".format(shader_input_name))
+                manifold = UsdShade.Shader.Define(looks_stage, manifold_sdf_path)
+                manifold.CreateIdAttr("PxrManifold2D")
+                manifold.CreateInput("name_uvSet", Sdf.ValueTypeNames.String).Set(usd_shader_source.uvSetName())
+                texture_sampler.CreateInput("manifold", Sdf.ValueTypeNames.Token).ConnectToSource(
+                        manifold.ConnectableAPI(),
+                        "result"
+                    )
+
             export_items.append(export_item)
         else:
             if shader_input_name not in source_shader.parameterNameList():
