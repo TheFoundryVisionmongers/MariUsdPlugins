@@ -205,7 +205,7 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
         #"roughnessMollificationClamp"         : ('roughnessMollificationClamp', Sdf.ValueTypeNames.Float),
         #"userColor"                           : ('userColor', Sdf.ValueTypeNames.Vector3f),
         #"utilityPattern"                      : ('utilityPattern', Sdf.ValueTypeNames.IntArray),
-        "Bump"                                : (None, None),
+        "Bump"                                : ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
         "Vector"                              : (None, None),
         "Displacement"                        : (None, None)
     }
@@ -236,7 +236,15 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
             texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             if sdf_type == Sdf.ValueTypeNames.Normal3f:
-                texture_sampler.CreateIdAttr("PxrNormalMap")
+                if shader_input_name=="Bump":
+                    texture_sampler.CreateIdAttr("PxrBump")
+
+                    # Transfer Mari shaders' bump weight to PxrBump's scale
+                    texture_sampler.CreateInput("scale", Sdf.ValueTypeNames.Float).Set(source_shader.getParameter("BumpWeight")*10)
+                elif shader_input_name=="Normal":
+                    texture_sampler.CreateIdAttr("PxrNormalMap")
+                else:
+                    texture_sampler.CreateIdAttr("PxrTexture")
             else:
                 texture_sampler.CreateIdAttr("PxrTexture")
             usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
