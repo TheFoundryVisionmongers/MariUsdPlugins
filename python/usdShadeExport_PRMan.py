@@ -195,7 +195,6 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
         #"enableOverlappingVolumes"            : ('enableOverlappingVolumes', Sdf.ValueTypeNames.Int),
         "glowGain"                            : ('glowGain', Sdf.ValueTypeNames.Float),
         "glowColor"                           : ('glowColor', Sdf.ValueTypeNames.Vector3f),
-        #"bumpNormal"                          : ('bumpNormal', Sdf.ValueTypeNames.Vector3f),
         #"shadowBumpTerminator"                : ('shadowBumpTerminator', Sdf.ValueTypeNames.Int),
         "shadowColor"                         : ('shadowColor', Sdf.ValueTypeNames.Vector3f),
         #"shadowMode"                          : ('shadowMode', Sdf.ValueTypeNames.Int),
@@ -206,6 +205,7 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
         #"userColor"                           : ('userColor', Sdf.ValueTypeNames.Vector3f),
         #"utilityPattern"                      : ('utilityPattern', Sdf.ValueTypeNames.IntArray),
         "Bump"                                : ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
+        "Normal"                              : ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
         "Vector"                              : (None, None),
         "Displacement"                        : (None, None)
     }
@@ -215,6 +215,8 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
     shader_model = usd_shader_source.shaderModel()
     source_shader = usd_shader_source.sourceShader()
     export_items = []
+    bump_sampler = None
+    normal_sampler = None
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
         if usd_shader_input_name is None:
@@ -240,17 +242,20 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                     texture_sampler.CreateIdAttr("PxrBump")
 
                     # Transfer Mari shaders' bump weight to PxrBump's scale
-                    texture_sampler.CreateInput("scale", Sdf.ValueTypeNames.Float).Set(source_shader.getParameter("BumpWeight")*10)
+                    scale = source_shader.getParameter("BumpWeight")*10.0
+                    texture_sampler.CreateInput("scale", Sdf.ValueTypeNames.Float).Set(scale)
+                    bump_sampler = texture_sampler
                 elif shader_input_name=="Normal":
                     texture_sampler.CreateIdAttr("PxrNormalMap")
+                    normal_sampler = texture_sampler
                 else:
-                    texture_sampler.CreateIdAttr("PxrTexture")
+                    print("Unsupported Normal3f sdf_type")
             else:
                 texture_sampler.CreateIdAttr("PxrTexture")
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                colorComponentForType(sdf_type)
-            )
+                usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
+                    texture_sampler.ConnectableAPI(),
+                    colorComponentForType(sdf_type)
+                )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
             if usd_shader_source.uvSetName()!="st":
@@ -274,6 +279,31 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
             if not usdShadeExport.isValueDefault(input_value, default_color):
                 usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
                 usd_shader_parameter.Set(usdShadeExport.valueAsShaderParameter(input_value, sdf_type))
+
+    # Bump and Normal need to be combined, so treated specifically
+    if bump_sampler:
+        if normal_sampler:
+            # We have both Normal and Bump. Combine them. i.e. connect Normal to the bumpNormal input of PxrSurface and connect Bump to the bumpOverlay input of PxrNormalMap
+            usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                normal_sampler.ConnectableAPI(),
+                colorComponentForType(Sdf.ValueTypeNames.Normal3f)
+            )
+            normal_sampler.CreateInput("bumpOverlay", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                bump_sampler.ConnectableAPI(),
+                colorComponentForType(Sdf.ValueTypeNames.Normal3f)
+            )
+        else:
+            # We have only Bump
+            usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                bump_sampler.ConnectableAPI(),
+                colorComponentForType(Sdf.ValueTypeNames.Normal3f)
+            )
+    elif normal_sampler:
+        # We have only Normal
+        usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+            normal_sampler.ConnectableAPI(),
+            colorComponentForType(Sdf.ValueTypeNames.Normal3f)
+        )
 
     # Export textures from export items
     if export_items:
