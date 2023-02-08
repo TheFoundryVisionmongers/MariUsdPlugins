@@ -135,6 +135,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
     material_sdf_path = usd_shader.GetPath().GetParentPath()
 
     shader_model = usd_shader_source.shaderModel()
+    source_shader = usd_shader_source.sourceShader()
     export_items = []
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
@@ -214,6 +215,10 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                     texture_sampler.ConnectableAPI(),
                     colorComponentForType(sdf_type)
                 )
+
+                # Transfer Mari shaders' bump weight to bump_map's bump_height
+                bump_weight = source_shader.getParameter("BumpWeight")*10.0
+                bump_node.CreateInput("bump_height", Sdf.ValueTypeNames.Float).Set(bump_weight)
             else:
                 usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
                     texture_sampler.ConnectableAPI(),
