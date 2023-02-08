@@ -98,6 +98,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
 #        ('internal_reflections', bool),
         "Metalness":('metalness', Sdf.ValueTypeNames.Float),
 #        ('name', str),
+        "Bump":('normal', Sdf.ValueTypeNames.Normal3f),
         "Normal":('normal', Sdf.ValueTypeNames.Normal3f),
         "Opacity":('opacity', Sdf.ValueTypeNames.Color3f),
         "SheenWeight":('sheen', Sdf.ValueTypeNames.Float),
@@ -127,7 +128,6 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         "TransmissionScatter":('transmission_scatter', Sdf.ValueTypeNames.Color3f),
         "TransmissionScatAnis":('transmission_scatter_anisotropy', Sdf.ValueTypeNames.Float),
 #        ('transmit_aovs', bool),
-        "Bump": (None, None),
         "Vector": (None, None),
         "Displacement": (None, None),
     }
@@ -156,6 +156,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
 
     normal_node = None
+    bump_node = None
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
         if usd_shader_input_name is None:
@@ -205,9 +206,13 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                     texture_sampler.ConnectableAPI(),
                     colorComponentForType(sdf_type)
                 )
-                usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
-                    normal_node.ConnectableAPI(),
-                    "out"
+            elif shader_input_name == "Bump":
+                bump_node_sdf_path = material_sdf_path.AppendChild("BumpMap")
+                bump_node = UsdShade.Shader.Define(looks_stage, bump_node_sdf_path)
+                bump_node.CreateIdAttr("bump2d")
+                bump_node.CreateInput("bump_map", Sdf.ValueTypeNames.Color3f).ConnectToSource(
+                    texture_sampler.ConnectableAPI(),
+                    colorComponentForType(sdf_type)
                 )
             else:
                 usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
@@ -219,6 +224,31 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             if not usdShadeExport.isValueDefault(input_value, default_color):
                 usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
                 usd_shader_parameter.Set(usdShadeExport.valueAsShaderParameter(input_value, sdf_type))
+
+    # Bump and Normal need to be combined, so treated specifically
+    if bump_node:
+        if normal_node:
+            # We have both Normal and Bump. Combine them. i.e. connect Bump to the normal input of standard_surface and connect Normal to the normal input of normal_map
+            usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                bump_node.ConnectableAPI(),
+                "out"
+            )
+            bump_node.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                normal_node.ConnectableAPI(),
+                "out"
+            )
+        else:
+            # We have only Bump
+            usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                bump_node.ConnectableAPI(),
+                "out"
+            )
+    elif normal_node:
+        # We have only Normal
+        usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+            normal_node.ConnectableAPI(),
+            "out"
+        )
 
 class Arnold_SettingsWidget(widgets.QWidget):
     def __init__(self, parent = None):
