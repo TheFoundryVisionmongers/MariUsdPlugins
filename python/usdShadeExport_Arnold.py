@@ -155,15 +155,16 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         )
         mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
 
+    normal_node = None
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
         if usd_shader_input_name is None:
             continue
 
-        if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
-            continue
+        input_value = None
+        if shader_input_name in usd_shader_source.sourceShader().parameterNameList():
+            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
 
-        input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
         default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
 
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
@@ -193,13 +194,28 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                colorComponentForType(sdf_type)
-            )
             texture_sampler.CreateInput("uvset", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-        else:
+
+            if shader_input_name == "Normal":
+                normal_node_sdf_path = material_sdf_path.AppendChild("NormalMap")
+                normal_node = UsdShade.Shader.Define(looks_stage, normal_node_sdf_path)
+                normal_node.CreateIdAttr("normal_map")
+                normal_node.CreateInput("input", Sdf.ValueTypeNames.Color3f).ConnectToSource(
+                    texture_sampler.ConnectableAPI(),
+                    colorComponentForType(sdf_type)
+                )
+                usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
+                    normal_node.ConnectableAPI(),
+                    "out"
+                )
+            else:
+                usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
+                    texture_sampler.ConnectableAPI(),
+                    colorComponentForType(sdf_type)
+                )
+
+        elif input_value:
             if not usdShadeExport.isValueDefault(input_value, default_color):
                 usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
                 usd_shader_parameter.Set(usdShadeExport.valueAsShaderParameter(input_value, sdf_type))
