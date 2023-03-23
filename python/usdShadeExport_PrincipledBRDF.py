@@ -80,6 +80,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
     export_items = []
     bump_sampler = None
     normal_sampler = None
+    node_prefix = source_shader.name().replace(" ","_")
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
         if usd_shader_input_name is None:
@@ -98,7 +99,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
             else:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolvePostProcessedFileTemplate())
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
+            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}_{1}Texture".format(node_prefix, shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             if sdf_type == Sdf.ValueTypeNames.Normal3f:
                 if shader_input_name=="Bump":
@@ -123,7 +124,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
 
             if usd_shader_source.uvSetName()!="st":
                 # If the UV set name is not st, then we need to create the PxrManifold2D node to specify the UV set name
-                manifold_sdf_path = material_sdf_path.AppendChild("{0}TextureManifold".format(shader_input_name))
+                manifold_sdf_path = material_sdf_path.AppendChild("{0}_{1}TextureManifold".format(node_prefix,shader_input_name))
                 manifold = UsdShade.Shader.Define(looks_stage, manifold_sdf_path)
                 manifold.CreateIdAttr("PxrManifold2D")
                 manifold.CreateInput("name_uvSet", Sdf.ValueTypeNames.String).Set(usd_shader_source.uvSetName())

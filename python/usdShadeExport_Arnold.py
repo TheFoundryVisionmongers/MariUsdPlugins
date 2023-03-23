@@ -136,6 +136,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
 
     shader_model = usd_shader_source.shaderModel()
     source_shader = usd_shader_source.sourceShader()
+    node_prefix = source_shader.name().replace(" ","_")
     export_items = []
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
@@ -193,14 +194,14 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             else:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolvePostProcessedFileTemplate())
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
+            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}_{1}Texture".format(node_prefix,shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
             texture_sampler.CreateInput("uvset", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
             if shader_input_name == "Normal":
-                normal_node_sdf_path = material_sdf_path.AppendChild("NormalMap")
+                normal_node_sdf_path = material_sdf_path.AppendChild("{0}_NormalMap".format(node_prefix))
                 normal_node = UsdShade.Shader.Define(looks_stage, normal_node_sdf_path)
                 normal_node.CreateIdAttr("normal_map")
                 normal_node.CreateInput("input", Sdf.ValueTypeNames.Color3f).ConnectToSource(
@@ -208,7 +209,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                     colorComponentForType(sdf_type)
                 )
             elif shader_input_name == "Bump":
-                bump_node_sdf_path = material_sdf_path.AppendChild("BumpMap")
+                bump_node_sdf_path = material_sdf_path.AppendChild("{0}_BumpMap".format(node_prefix))
                 bump_node = UsdShade.Shader.Define(looks_stage, bump_node_sdf_path)
                 bump_node.CreateIdAttr("bump2d")
                 bump_node.CreateInput("bump_map", Sdf.ValueTypeNames.Color3f).ConnectToSource(
