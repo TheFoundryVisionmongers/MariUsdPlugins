@@ -218,7 +218,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                 )
 
                 # Transfer Mari shaders' bump weight to bump_map's bump_height
-                bump_weight = source_shader.getParameter("BumpWeight")*10.0
+                bump_weight = source_shader.getParameter("BumpWeight")
                 bump_node.CreateInput("bump_height", Sdf.ValueTypeNames.Float).Set(bump_weight)
             else:
                 usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
