@@ -37,6 +37,7 @@
 #include "pxr/base/tf/envSetting.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/xformCache.h"
+#include "pxr/usd/usdGeom/primvarsAPI.h"
 
 #include <float.h>
 using namespace std;
@@ -132,10 +133,12 @@ GeoData::GeoData(UsdPrim const &prim,
         }
     }
 
+    UsdGeomPrimvarsAPI meshPrimApi(mesh);
+
     if (mappingScheme != "Force Ptex" and uvSet.length() > 0)
     {
         // Get UV set primvar
-        if (UsdGeomPrimvar uvPrimvar = mesh.GetPrimvar(TfToken(uvSet)))
+        if (UsdGeomPrimvar uvPrimvar = meshPrimApi.GetPrimvar(TfToken(uvSet)))
         {
             SdfValueTypeName typeName      = uvPrimvar.GetTypeName();
             TfToken          interpolation = uvPrimvar.GetInterpolation();
@@ -232,7 +235,7 @@ GeoData::GeoData(UsdPrim const &prim,
         VtIntArray indices;
         TfToken interpolation;
         bool ok = false;
-        if (UsdGeomPrimvar normalsPrimvar = mesh.GetPrimvar(UsdGeomTokens->normals))
+        if (UsdGeomPrimvar normalsPrimvar = meshPrimApi.GetPrimvar(UsdGeomTokens->normals))
         {
             // Normals primvar takes precedence over normals attribute.
 
@@ -620,7 +623,9 @@ void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
     if (not gprim)
         return;
 
-    vector<UsdGeomPrimvar> primvars = gprim.GetPrimvars();
+    UsdGeomPrimvarsAPI gPrimApi(gprim);
+
+    vector<UsdGeomPrimvar> primvars = gPrimApi.GetPrimvars();
     TF_FOR_ALL(primvar, primvars) 
     {
         TfToken          name, interpolation;
