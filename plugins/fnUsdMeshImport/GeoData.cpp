@@ -580,6 +580,10 @@ GeoData::GeoData(UsdPrim const &prim,
                         m_faceVaryingLinearInterpolation = 1;
                         m_propagateCorner = 1;
                     }
+                    else if (faceVaryingLinearInterpolation == UsdGeomTokens->cornersOnly)
+                    {
+                        m_faceVaryingLinearInterpolation = 5;
+                    }
                 }
                 
                 TfToken triangleSubdivision;
