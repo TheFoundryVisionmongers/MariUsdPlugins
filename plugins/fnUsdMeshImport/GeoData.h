@@ -132,6 +132,7 @@ public:
         inline int InterpolateBoundary() {return m_interpolateBoundary;}
         inline int FaceVaryingLinearInterpolation() {return m_faceVaryingLinearInterpolation;}
         inline int PropagateCorner() {return m_propagateCorner;}
+        inline int TriangleSubdivision() {return m_triangleSubdivision;}
 
         // is valid?
         operator bool();
@@ -161,6 +162,7 @@ protected:
         int m_interpolateBoundary;
         int m_faceVaryingLinearInterpolation;
         int m_propagateCorner;
+        int m_triangleSubdivision;
 
         static std::string _requireGeomPathSubstringEnvVar;
         static std::string _ignoreGeomPathSubstringEnvVar;
