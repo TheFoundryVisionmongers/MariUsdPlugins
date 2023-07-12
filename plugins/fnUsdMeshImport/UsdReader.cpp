@@ -642,7 +642,8 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
                                                       Geom.SubdivisionScheme().c_str(),
                                                       Geom.InterpolateBoundary(),
                                                       Geom.FaceVaryingLinearInterpolation(),
-                                                      Geom.PropagateCorner()));
+                                                      Geom.PropagateCorner(),
+                                                      Geom.TriangleSubdivision()));
     }
 
     // Load animated frames
