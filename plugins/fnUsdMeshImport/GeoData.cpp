@@ -82,6 +82,7 @@ GeoData::GeoData(UsdPrim const &prim,
     m_interpolateBoundary = 0;
     m_faceVaryingLinearInterpolation = 0;
     m_propagateCorner = 0;
+    m_triangleSubdivision = 0;
 
     UsdGeomMesh mesh(prim);
     if (not mesh)
@@ -578,6 +579,19 @@ GeoData::GeoData(UsdPrim const &prim,
                     {
                         m_faceVaryingLinearInterpolation = 1;
                         m_propagateCorner = 1;
+                    }
+                }
+                
+                TfToken triangleSubdivision;
+                if (mesh.GetTriangleSubdivisionRuleAttr().Get(&triangleSubdivision, UsdTimeCode::EarliestTime()))
+                {
+                    if (triangleSubdivision == UsdGeomTokens->catmullClark)
+                    {
+                        m_triangleSubdivision = 0;
+                    }
+                    else if (triangleSubdivision == UsdGeomTokens->smooth)
+                    {
+                        m_triangleSubdivision = 1;
                     }
                 }
             }
