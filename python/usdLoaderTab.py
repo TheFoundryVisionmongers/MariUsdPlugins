@@ -25,6 +25,76 @@ import PySide2.QtCore as core
 import PySide2.QtWidgets as widgets
 qt = core.Qt
 
+from fnpxr import Sdf, Usd, UsdGeom
+
+USER_ROLE_PATH = qt.UserRole
+
+class UsdLoaderTreeWidget(widgets.QTreeWidget):
+
+    def __init__(self, Parent=None):
+        widgets.QTreeWidget.__init__(self, Parent)
+
+        self.headerItem().setText(0,"Mesh")
+
+    def populate(self, stage):
+        self.clear()
+        self._leaf_items = []
+        for prim in stage.Traverse():
+            self._create_tree_node(prim)
+
+    def _create_tree_node(self, prim):
+        if not prim.IsA(UsdGeom.Mesh):
+            # Support loading only UsdGeom.Mesh type
+            return
+        path = str(prim.GetPath())
+        path_tokens = str(path[1:]).split("/")
+        tree_item = self.invisibleRootItem()
+        for token in path_tokens:
+            item_for_token = None
+            for i in range(tree_item.childCount()):
+                child_item = tree_item.child(i)
+                if child_item.text(0)==token:
+                    item_for_token = child_item
+            if item_for_token==None:
+                item_for_token = widgets.QTreeWidgetItem()
+                item_for_token.setFlags(item_for_token.flags() | qt.ItemIsUserCheckable | qt.ItemIsAutoTristate)
+                item_for_token.setCheckState(0, qt.Checked)
+                item_for_token.setText(0, token)
+                item_for_token.setExpanded(True)
+                tree_item.addChild(item_for_token)
+
+            tree_item.setExpanded(True)
+            tree_item = item_for_token
+        # Store the full path at the leaf node
+        tree_item.setData(0, USER_ROLE_PATH, path)
+        self._leaf_items.append(tree_item)
+
+    def _get_selected_paths(self, item):
+        result = []
+        for item in self._leaf_items:
+            if item.checkState(0)==qt.Checked:
+                result.append(item.data(0, USER_ROLE_PATH))
+        return result
+
+    def selected_paths(self):
+        return self._get_selected_paths(self.invisibleRootItem())
+
+    def contextMenuEvent(self, event):
+        menu = widgets.QMenu()
+        select_all = menu.addAction("Select All")
+        select_none = menu.addAction("Select None")
+        result = menu.exec_(event.globalPos())
+
+        if result==select_all:
+            self.visit(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Checked))
+        elif result==select_none:
+            self.visit(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+
+    def visit(self, item, func):
+        for i in range(item.childCount()):
+            self.visit(item.child(i), func)
+        func(item)
+
 class UsdLoaderWidget(widgets.QWidget):
     def __init__(self, parent = None):
         widgets.QWidget.__init__(self, parent = parent)
@@ -32,6 +102,10 @@ class UsdLoaderWidget(widgets.QWidget):
         layout = widgets.QFormLayout()
         layout.setSpacing(10)
         self.setLayout(layout)
+
+        self.tree_widget = UsdLoaderTreeWidget()
+        self.tree_widget.setMinimumHeight(300)
+        layout.addRow(self.tree_widget)
 
         self.load_box = widgets.QComboBox()
         self.load_box.setToolTip("""Specify the mode for loading models from the USD file
@@ -110,10 +184,17 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         self.uv_set_box.clear()
         [self.uv_set_box.addItem(line) for line in attr.splitlines()]
 
+        # Update the tree widget
+        mesh_path = mari.app.currentMeshPathInGeoLoader()
+        root_layer = Sdf.Layer.FindOrOpen(mesh_path)
+        stage = Usd.Stage.Open(root_layer)
+        self.tree_widget.populate(stage)
+
+
     def hideEvent(self, event):
-        mari.app.setGeoPluginAttribute("Load", self.load_box.currentText())
+        # mari.app.setGeoPluginAttribute("Load", self.load_box.currentText())
         mari.app.setGeoPluginAttribute("Merge Type", self.merge_type_box.currentText())
-        mari.app.setGeoPluginAttribute("Model Names", self.model_names_edit.text())
+        # mari.app.setGeoPluginAttribute("Model Names", self.model_names_edit.text())
         mari.app.setGeoPluginAttribute("UV Set", self.uv_set_box.currentText())
         mari.app.setGeoPluginAttribute("Mapping Scheme", self.mapping_scheme_box.currentText())
         mari.app.setGeoPluginAttribute("Frame Numbers", self.frame_numbers_edit.text())
@@ -123,6 +204,10 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.checkState() == qt.Checked)
         mari.app.setGeoPluginAttribute("Include Invisible", self.include_invisible_checkbox.checkState() == qt.Checked)
         mari.app.setGeoPluginAttribute("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox.checkState() == qt.Checked)
+
+        # Fill model names based on the tree view
+        mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
+        mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_paths()))
 
 usd_loader_widget = UsdLoaderWidget()
 if mari.app.isRunning():
