@@ -47,6 +47,16 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         for prim in stage.Traverse():
             self._create_tree_node(prim, stage)
 
+        self._expand_to_level(self.invisibleRootItem(), 0, 2)
+
+    def _expand_to_level(self, item, level, target):
+        if level<=target or target<0:
+            item.setExpanded(True)
+        else:
+            item.setExpanded(False)
+        for i in range(item.childCount()):
+            self._expand_to_level(item.child(i), level+1, target)
+
     def _create_tree_node(self, prim, stage):
         if not prim.IsA(UsdGeom.Mesh):
             # Support loading only UsdGeom.Mesh type
@@ -157,12 +167,19 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         select_none = menu.addAction("Select None")
         menu.addSeparator()
         select_by_expression = menu.addAction("Select by Expression")
+        menu.addSeparator()
+        expand_all = menu.addAction("Expand All")
+        collapse_all = menu.addAction("Collapse All")
         result = menu.exec_(event.globalPos())
 
         if result==select_all:
             self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Checked))
         elif result==select_none:
             self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+        elif result==expand_all:
+            self._expand_to_level(self.invisibleRootItem(),0,-1)
+        elif result==collapse_all:
+            self._expand_to_level(self.invisibleRootItem(),0,0)
         elif result==select_by_expression:
             expression, result = widgets.QInputDialog.getText(None, "Select USD Mesh by Expression", "Type the expression")
             if result:
