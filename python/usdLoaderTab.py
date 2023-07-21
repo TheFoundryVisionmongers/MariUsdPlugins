@@ -34,15 +34,20 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
     def __init__(self, Parent=None):
         widgets.QTreeWidget.__init__(self, Parent)
 
+        self.setColumnCount(2)
         self.headerItem().setText(0,"Mesh")
+        self.headerItem().setText(1,"Variant Sets")
+
+        self.header().setSectionResizeMode(widgets.QHeaderView.Stretch)
+        self.header().setStretchLastSection(False)
 
     def populate(self, stage):
         self.clear()
         self._item_map = {}
         for prim in stage.Traverse():
-            self._create_tree_node(prim)
+            self._create_tree_node(prim, stage)
 
-    def _create_tree_node(self, prim):
+    def _create_tree_node(self, prim, stage):
         if not prim.IsA(UsdGeom.Mesh):
             # Support loading only UsdGeom.Mesh type
             return
@@ -65,23 +70,86 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                 item_for_token.setText(0, token)
                 tree_item.addChild(item_for_token)
 
-            tree_item.setExpanded(True)
+                prim_for_token = stage.GetPrimAtPath(path)
+                if prim_for_token.HasVariantSets():
+                    variant_sets_widget = widgets.QWidget()
+                    variant_sets_layout = widgets.QFormLayout()
+                    variant_sets_layout.setContentsMargins(1,1,1,1);
+                    variant_sets_widget.setLayout(variant_sets_layout)
+                    for variant_set_name in prim_for_token.GetVariantSets().GetNames():
+                        variant_set = prim_for_token.GetVariantSet(variant_set_name)
+                        combobox = widgets.QComboBox()
+                        combobox.addItems(variant_set.GetVariantNames())
+                        variant_sets_layout.addRow(variant_set_name, combobox)
+                    self.setItemWidget(item_for_token, 1, variant_sets_widget)
+
             tree_item = item_for_token
 
-    def _get_selected_paths(self, item):
+    def _get_selected_leaf_paths(self, item):
         result = []
         if item.childCount()>0:
             # Intermdeiate nodes
-            for i in range(item.childCount()):
-                result += self._get_selected_paths(item.child(i))
+             for i in range(item.childCount()):
+                 result += self._get_selected_leaf_paths(item.child(i))
         else:
             # Leaf nodes
             if item.checkState(0)==qt.Checked:
                 result += [item.data(0, USER_ROLE_PATH)]
         return result
 
+    def selected_leaf_paths(self):
+        return self._get_selected_leaf_paths(self.invisibleRootItem())
+
+    def _get_selected_paths(self, item):
+        if item.checkState(0)==qt.Checked:
+            # Total selection. Stop here returning the path to here.
+            return [item.data(0, USER_ROLE_PATH)]
+        elif item.checkState(0)==qt.Unchecked:
+            # No selection. Stop here returning nothing.
+            return []
+        else:
+            # Partial selection. Dig in deeper and find out what's selected.
+            result = []
+            for i in range(item.childCount()):
+                result += self._get_selected_paths(item.child(i))
+            return result
+
     def selected_paths(self):
-        return self._get_selected_paths(self.invisibleRootItem())
+        result = []
+        root_item = self.invisibleRootItem()
+        for i in range(root_item.childCount()):
+            result += self._get_selected_paths(root_item.child(i))
+        return result
+
+    def _get_selected_variants(self, item):
+        if item.checkState(0)==qt.Unchecked:
+            # No selection. Stop here returning nothing.
+            return []
+
+        # Get the variant info
+        result = []
+        widget = self.itemWidget(item,1)
+        if widget:
+            path = item.data(0, USER_ROLE_PATH)+"{"
+            layout = widget.layout()
+            for row in range(layout.rowCount()):
+                label = layout.itemAt(row, layout.LabelRole).widget()
+                combobox = layout.itemAt(row, layout.FieldRole).widget()
+                path = path+label.text()+"="+combobox.currentText()+","
+            path = path[:-1]+"}"
+            result.append(path)
+
+        # Total/Partial selection. Dig in deeper and find out what's selected.
+        for i in range(item.childCount()):
+            result += self._get_selected_variants(item.child(i))
+        return result
+
+    def selected_variants(self):
+        result = []
+        root_item = self.invisibleRootItem()
+        for i in range(root_item.childCount()):
+            result += self._get_selected_variants(root_item.child(i))
+        return result
 
     def contextMenuEvent(self, event):
         menu = widgets.QMenu()
@@ -196,11 +264,6 @@ class UsdLoaderWidget(widgets.QWidget):
         self.frame_numbers_edit.setText("1")
         layout.addRow("Frame Numbers", self.frame_numbers_edit)
 
-        self.variants_edit = widgets.QLineEdit()
-        self.variants_edit.setToolTip("""Specify the list of variants to load by providing a space separated list of valid SdfPath string representation that specifies variants
-e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=variant_name}""")
-        layout.addRow("Variants", self.variants_edit)
-
         self.keep_centered_checkbox = widgets.QCheckBox()
         self.keep_centered_checkbox.setToolTip("""Check to discard model transforms and keep everything centered""")
         layout.addRow("Keep Centered", self.keep_centered_checkbox)
@@ -245,7 +308,6 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         mari.app.setGeoPluginAttribute("UV Set", self.uv_set_box.currentText())
         mari.app.setGeoPluginAttribute("Mapping Scheme", self.mapping_scheme_box.currentText())
         mari.app.setGeoPluginAttribute("Frame Numbers", self.frame_numbers_edit.text())
-        mari.app.setGeoPluginAttribute("Variants", self.variants_edit.text())
         mari.app.setGeoPluginAttribute("Keep Centered", self.keep_centered_checkbox.checkState() == qt.Checked)
         mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.checkState() == qt.Checked)
         mari.app.setGeoPluginAttribute("Include Invisible", self.include_invisible_checkbox.checkState() == qt.Checked)
@@ -253,7 +315,8 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
 
         # Fill model names based on the tree view
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
-        mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_paths()))
+        mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_leaf_paths()))
+        mari.app.setGeoPluginAttribute("Variants", ",".join(self.tree_widget.selected_variants()))
 
     def _request_selection_update(self):
         self._selection_dirty = True
