@@ -38,7 +38,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
     def populate(self, stage):
         self.clear()
-        self._leaf_items = []
+        self._item_map = {}
         for prim in stage.Traverse():
             self._create_tree_node(prim)
 
@@ -46,10 +46,9 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         if not prim.IsA(UsdGeom.Mesh):
             # Support loading only UsdGeom.Mesh type
             return
-        path = str(prim.GetPath())
-        path_tokens = str(path[1:]).split("/")
+        prim_path = str(prim.GetPath())
         tree_item = self.invisibleRootItem()
-        for token in path_tokens:
+        for token in str(prim_path[1:]).split("/"):
             item_for_token = None
             for i in range(tree_item.childCount()):
                 child_item = tree_item.child(i)
@@ -57,23 +56,28 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                     item_for_token = child_item
             if item_for_token==None:
                 item_for_token = widgets.QTreeWidgetItem()
+                path = tree_item.data(0, USER_ROLE_PATH)
+                path = "/"+token if path is None else path+"/"+token
+                self._item_map[path] = item_for_token
+                item_for_token.setData(0, USER_ROLE_PATH, path)
                 item_for_token.setFlags(item_for_token.flags() | qt.ItemIsUserCheckable | qt.ItemIsAutoTristate)
                 item_for_token.setCheckState(0, qt.Checked)
                 item_for_token.setText(0, token)
-                item_for_token.setExpanded(True)
                 tree_item.addChild(item_for_token)
 
             tree_item.setExpanded(True)
             tree_item = item_for_token
-        # Store the full path at the leaf node
-        tree_item.setData(0, USER_ROLE_PATH, path)
-        self._leaf_items.append(tree_item)
 
     def _get_selected_paths(self, item):
         result = []
-        for item in self._leaf_items:
+        if item.childCount()>0:
+            # Intermdeiate nodes
+            for i in range(item.childCount()):
+                result += self._get_selected_paths(item.child(i))
+        else:
+            # Leaf nodes
             if item.checkState(0)==qt.Checked:
-                result.append(item.data(0, USER_ROLE_PATH))
+                result += [item.data(0, USER_ROLE_PATH)]
         return result
 
     def selected_paths(self):
@@ -83,17 +87,69 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         menu = widgets.QMenu()
         select_all = menu.addAction("Select All")
         select_none = menu.addAction("Select None")
+        menu.addSeparator()
+        select_by_expression = menu.addAction("Select by Expression")
         result = menu.exec_(event.globalPos())
 
         if result==select_all:
-            self.visit(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Checked))
+            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Checked))
         elif result==select_none:
-            self.visit(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+        elif result==select_by_expression:
+            expression, result = widgets.QInputDialog.getText(None, "Select USD Mesh by Expression", "Type the expression")
+            if result:
+                # Check validity and sort checking and unchecking
+                paths = map(lambda x: x.strip(), expression.split(","))
+                check_paths = []
+                uncheck_paths = []
+                invalid_paths = []
+                for path in paths:
+                    path = path.strip()
+                    if path.startswith("!"):
+                        if self.is_path_valid(path[1:]):
+                            uncheck_paths.append(path[1:].strip())
+                        else:
+                            invalid_paths.append(path)
+                    else:
+                        if self.is_path_valid(path):
+                            check_paths.append(path)
+                        else:
+                            invalid_paths.append(path)
 
-    def visit(self, item, func):
+                if len(invalid_paths)>0:
+                    mari.utils.message("Invalid paths were found. There are no prims specified by these paths.", "Invalid Expression", icon=widgets.QMessageBox.Warning, details="\n".join(invalid_paths))
+                else:
+                    # First select none
+                    self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+
+                    for path in check_paths:
+                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, qt.Checked))
+                    for path in uncheck_paths:
+                        # Apply uncheck after all checking for negation to take priority
+                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, qt.Unchecked))
+
+    def walk(self, item, func):
         for i in range(item.childCount()):
-            self.visit(item.child(i), func)
+            self.walk(item.child(i), func)
         func(item)
+
+    def visit(self, item, path_tokens, func, leaf_func):
+        if len(path_tokens)==0:
+            if leaf_func:
+                leaf_func(item)
+            return
+        child_path_token = path_tokens.pop(0)
+        # Visit only the child matching the path token.
+        for i in range(item.childCount()):
+            child = item.child(i)
+            if child.text(0)==child_path_token:
+                self.visit(child, path_tokens, func, leaf_func)
+        if func:
+            func(item)
+
+    def is_path_valid(self, path):
+        return path in self._item_map
+
 
 class UsdLoaderWidget(widgets.QWidget):
     def __init__(self, parent = None):
