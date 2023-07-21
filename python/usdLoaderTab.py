@@ -159,26 +159,27 @@ class UsdLoaderWidget(widgets.QWidget):
         layout.setSpacing(10)
         self.setLayout(layout)
 
+        self._selection_dirty = False
+        self._selection_update_timer = core.QTimer()
+        self._selection_update_timer.setInterval(200)
+        self._selection_update_timer.timeout.connect(self._selection_update)
+
         self.tree_widget = UsdLoaderTreeWidget()
         self.tree_widget.setMinimumHeight(300)
         layout.addRow(self.tree_widget)
 
-        self.load_box = widgets.QComboBox()
-        self.load_box.setToolTip("""Specify the mode for loading models from the USD file
-  - First Found : Load only the model found first in the file
-  - All Models : Load all the models found in the file
-  - Specified Models in Model Names : Load only the models specified in the Model Names field""")
-        layout.addRow("Load",self.load_box)
+        self.tree_widget.itemChanged.connect(self._request_selection_update)
+
+        self.selected_items_edit = widgets.QLineEdit()
+        self.selected_items_edit.setReadOnly(True)
+        self.selected_items_edit.setToolTip('''Displays the list of meshes selected in the tree''')
+        layout.addRow("Selected Items", self.selected_items_edit)
 
         self.merge_type_box = widgets.QComboBox()
         self.merge_type_box.setToolTip("""Specify whether to merge the models in the file into a single Object
   - Merge Models : Merge the models into a single Object
   - Keep Models Separate : Keep the models separate""")
         layout.addRow("Merge Type",self.merge_type_box)
-
-        self.model_names_edit = widgets.QLineEdit()
-        self.model_names_edit.setToolTip('''Specify the list of models by providing a comma separated list of model names. This is effective only if the Load option is set to "Specified Models in Model Names"''')
-        layout.addRow("Model Names", self.model_names_edit)
 
         self.uv_set_box = widgets.QComboBox()
         self.uv_set_box.setToolTip("""Specify the UV set to load""")
@@ -194,10 +195,6 @@ class UsdLoaderWidget(widgets.QWidget):
         self.frame_numbers_edit.setToolTip("""Specify the frame numbers to load""")
         self.frame_numbers_edit.setText("1")
         layout.addRow("Frame Numbers", self.frame_numbers_edit)
-
-        self.gprim_names_edit = widgets.QLineEdit()
-        self.gprim_names_edit.setToolTip("""Specify the list of models by providing a comma separated list of paths of model prims.""")
-        layout.addRow("Gprim Names", self.gprim_names_edit)
 
         self.variants_edit = widgets.QLineEdit()
         self.variants_edit.setToolTip("""Specify the list of variants to load by providing a space separated list of valid SdfPath string representation that specifies variants
@@ -222,11 +219,6 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         layout.addRow("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox)
 
     def showEvent(self, event):
-        attr = mari.app.getGeoPluginAttribute("Load")
-        self.load_box.clear()
-        self.load_box.addItems(attr.splitlines())
-        self.load_box.setCurrentIndex(1)
-
         attr = mari.app.getGeoPluginAttribute("Merge Type")
         self.merge_type_box.clear()
         self.merge_type_box.addItems(attr.splitlines())
@@ -246,15 +238,13 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         stage = Usd.Stage.Open(root_layer)
         self.tree_widget.populate(stage)
 
+        self._request_selection_update()
 
     def hideEvent(self, event):
-        # mari.app.setGeoPluginAttribute("Load", self.load_box.currentText())
         mari.app.setGeoPluginAttribute("Merge Type", self.merge_type_box.currentText())
-        # mari.app.setGeoPluginAttribute("Model Names", self.model_names_edit.text())
         mari.app.setGeoPluginAttribute("UV Set", self.uv_set_box.currentText())
         mari.app.setGeoPluginAttribute("Mapping Scheme", self.mapping_scheme_box.currentText())
         mari.app.setGeoPluginAttribute("Frame Numbers", self.frame_numbers_edit.text())
-        mari.app.setGeoPluginAttribute("Gprim Names", self.gprim_names_edit.text())
         mari.app.setGeoPluginAttribute("Variants", self.variants_edit.text())
         mari.app.setGeoPluginAttribute("Keep Centered", self.keep_centered_checkbox.checkState() == qt.Checked)
         mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.checkState() == qt.Checked)
@@ -264,6 +254,16 @@ e.g. A valid SdfPath string representation is /path/to/prim{variant_set_name=var
         # Fill model names based on the tree view
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
         mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_paths()))
+
+    def _request_selection_update(self):
+        self._selection_dirty = True
+        self._selection_update_timer.start()
+
+    def _selection_update(self):
+        self._selection_dirty = False
+        self._selection_update_timer.stop()
+
+        self.selected_items_edit.setText(",".join(self.tree_widget.selected_paths()))
 
 usd_loader_widget = UsdLoaderWidget()
 if mari.app.isRunning():
