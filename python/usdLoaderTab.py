@@ -241,7 +241,7 @@ class UsdLoaderWidget(widgets.QWidget):
         widgets.QWidget.__init__(self, parent = parent)
 
         layout = widgets.QFormLayout()
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         self._selection_dirty = False
@@ -250,7 +250,7 @@ class UsdLoaderWidget(widgets.QWidget):
         self._selection_update_timer.timeout.connect(self._selection_update)
 
         self.tree_widget = UsdLoaderTreeWidget()
-        self.tree_widget.setMinimumHeight(300)
+        self.tree_widget.setMinimumHeight(200)
         layout.addRow(self.tree_widget)
 
         self.tree_widget.itemChanged.connect(self._request_selection_update)
@@ -260,43 +260,62 @@ class UsdLoaderWidget(widgets.QWidget):
         self.selected_items_edit.setToolTip('''Displays the list of meshes selected in the tree''')
         layout.addRow("Selected Items", self.selected_items_edit)
 
+        options = widgets.QGroupBox("Options")
+        layout.addRow(options)
+
+        options_layout = widgets.QGridLayout()
+        options.setLayout(options_layout)
+        options_layout.setColumnStretch(0, 0)
+        options_layout.setColumnStretch(1, 1)
+        options_layout.setColumnStretch(2, 0)
+        options_layout.setColumnStretch(3, 1)
+
         self.merge_type_box = widgets.QComboBox()
         self.merge_type_box.setToolTip("""Specify whether to merge the models in the file into a single Object
   - Merge Models : Merge the models into a single Object
   - Keep Models Separate : Keep the models separate""")
-        layout.addRow("Merge Type",self.merge_type_box)
+        options_layout.addWidget(widgets.QLabel("Merge Type"), 0, 0)
+        options_layout.addWidget(self.merge_type_box, 0, 1)
 
         self.uv_set_box = widgets.QComboBox()
         self.uv_set_box.setToolTip("""Specify the UV set to load""")
-        layout.addRow("UV Set", self.uv_set_box)
+        options_layout.addWidget(widgets.QLabel("UV Set"), 0, 2)
+        options_layout.addWidget(self.uv_set_box, 0, 3)
+
+        self.frame_numbers_edit = widgets.QLineEdit()
+        self.frame_numbers_edit.setToolTip("""Specify the frame numbers to load""")
+        self.frame_numbers_edit.setText("1")
+        options_layout.addWidget(widgets.QLabel("Frame Numbers"), 1, 0)
+        options_layout.addWidget(self.frame_numbers_edit, 1, 1)
 
         self.mapping_scheme_box = widgets.QComboBox()
         self.mapping_scheme_box.setToolTip("""Specify the mode for UV layout
   - UV if available, Ptex otherwise : Load the UV layout if available. If there is no UV layout, Ptex texture is created
   - Force Ptex : Force to create Ptex texture no matter if there is UV layout""")
-        layout.addRow("Mapping Scheme", self.mapping_scheme_box)
+        options_layout.addWidget(widgets.QLabel("Mapping Scheme"), 1, 2)
+        options_layout.addWidget(self.mapping_scheme_box, 1, 3)
 
-        self.frame_numbers_edit = widgets.QLineEdit()
-        self.frame_numbers_edit.setToolTip("""Specify the frame numbers to load""")
-        self.frame_numbers_edit.setText("1")
-        layout.addRow("Frame Numbers", self.frame_numbers_edit)
+        checkbox_layout = widgets.QHBoxLayout()
+        checkbox_layout.addStretch(1)
 
-        self.keep_centered_checkbox = widgets.QCheckBox()
+        self.keep_centered_checkbox = widgets.QCheckBox("Keep Centered")
         self.keep_centered_checkbox.setToolTip("""Check to discard model transforms and keep everything centered""")
-        layout.addRow("Keep Centered", self.keep_centered_checkbox)
+        checkbox_layout.addWidget(self.keep_centered_checkbox)
 
-        self.conform_y_up_checkbox = widgets.QCheckBox()
+        self.conform_y_up_checkbox = widgets.QCheckBox("Conform to Mari Y as up")
         self.conform_y_up_checkbox.setToolTip("""Check to alter the model orientation to conform to Mari's Y as up""")
         self.conform_y_up_checkbox.setChecked(True)
-        layout.addRow("Conform to Mari Y as up", self.conform_y_up_checkbox)
+        checkbox_layout.addWidget(self.conform_y_up_checkbox)
 
-        self.include_invisible_checkbox = widgets.QCheckBox()
+        self.include_invisible_checkbox = widgets.QCheckBox("Include Invisible")
         self.include_invisible_checkbox.setToolTip("""Check to load invisible models""")
-        layout.addRow("Include Invisible", self.include_invisible_checkbox)
+        checkbox_layout.addWidget(self.include_invisible_checkbox)
 
-        self.create_face_selection_group_checkbox = widgets.QCheckBox()
+        self.create_face_selection_group_checkbox = widgets.QCheckBox("Create Face Selection Group per mesh")
         self.create_face_selection_group_checkbox.setToolTip("""Check to create selection groups per mesh""")
-        layout.addRow("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox)
+        checkbox_layout.addWidget(self.create_face_selection_group_checkbox)
+
+        options_layout.addLayout(checkbox_layout, 2,0,4,0)
 
     def showEvent(self, event):
         attr = mari.app.getGeoPluginAttribute("Merge Type")
