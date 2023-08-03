@@ -22,12 +22,18 @@
 
 import mari
 import PySide2.QtCore as core
+import PySide2.QtGui as gui
 import PySide2.QtWidgets as widgets
 qt = core.Qt
 
 from fnpxr import Sdf, Usd, UsdGeom
 
 USER_ROLE_PATH = qt.UserRole
+
+CONFORM_TO_MARI_Y_AS_UP_ICON = mari.resources.createIcon("USDImporterIcons_ConformToMariYasUp.svg")
+CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON = mari.resources.createIcon("USDImporterIcons_CreateFaceSelectionGroupPerMesh.svg")
+INCLUDE_INVISIBLE_ICON = mari.resources.createIcon("USDImporterIcons_IncludeInvisible.svg")
+KEEP_CENTERED_ICON = mari.resources.createIcon("USDImporterIcons_KeepCentered.svg")
 
 class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
@@ -298,20 +304,24 @@ class UsdLoaderWidget(widgets.QWidget):
         checkbox_layout = widgets.QHBoxLayout()
         checkbox_layout.addStretch(1)
 
-        self.keep_centered_checkbox = widgets.QCheckBox("Keep Centered")
+        self.keep_centered_checkbox = widgets.QPushButton(KEEP_CENTERED_ICON, "")
+        self.keep_centered_checkbox.setCheckable(True)
         self.keep_centered_checkbox.setToolTip("""Check to discard model transforms and keep everything centered""")
         checkbox_layout.addWidget(self.keep_centered_checkbox)
 
-        self.conform_y_up_checkbox = widgets.QCheckBox("Conform to Mari Y as up")
+        self.conform_y_up_checkbox = widgets.QPushButton(CONFORM_TO_MARI_Y_AS_UP_ICON, "")
+        self.conform_y_up_checkbox.setCheckable(True)
         self.conform_y_up_checkbox.setToolTip("""Check to alter the model orientation to conform to Mari's Y as up""")
         self.conform_y_up_checkbox.setChecked(True)
         checkbox_layout.addWidget(self.conform_y_up_checkbox)
 
-        self.include_invisible_checkbox = widgets.QCheckBox("Include Invisible")
+        self.include_invisible_checkbox = widgets.QPushButton(INCLUDE_INVISIBLE_ICON, "")
+        self.include_invisible_checkbox.setCheckable(True)
         self.include_invisible_checkbox.setToolTip("""Check to load invisible models""")
         checkbox_layout.addWidget(self.include_invisible_checkbox)
 
-        self.create_face_selection_group_checkbox = widgets.QCheckBox("Create Face Selection Group per mesh")
+        self.create_face_selection_group_checkbox = widgets.QPushButton(CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON, "")
+        self.create_face_selection_group_checkbox.setCheckable(True)
         self.create_face_selection_group_checkbox.setToolTip("""Check to create selection groups per mesh""")
         checkbox_layout.addWidget(self.create_face_selection_group_checkbox)
 
@@ -344,10 +354,10 @@ class UsdLoaderWidget(widgets.QWidget):
         mari.app.setGeoPluginAttribute("UV Set", self.uv_set_box.currentText())
         mari.app.setGeoPluginAttribute("Mapping Scheme", self.mapping_scheme_box.currentText())
         mari.app.setGeoPluginAttribute("Frame Numbers", self.frame_numbers_edit.text())
-        mari.app.setGeoPluginAttribute("Keep Centered", self.keep_centered_checkbox.checkState() == qt.Checked)
-        mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.checkState() == qt.Checked)
-        mari.app.setGeoPluginAttribute("Include Invisible", self.include_invisible_checkbox.checkState() == qt.Checked)
-        mari.app.setGeoPluginAttribute("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox.checkState() == qt.Checked)
+        mari.app.setGeoPluginAttribute("Keep Centered", self.keep_centered_checkbox.isChecked())
+        mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.isChecked())
+        mari.app.setGeoPluginAttribute("Include Invisible", self.include_invisible_checkbox.isChecked())
+        mari.app.setGeoPluginAttribute("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox.isChecked())
 
         # Fill model names based on the tree view
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
