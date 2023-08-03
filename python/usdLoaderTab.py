@@ -98,7 +98,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
     def _get_selected_leaf_paths(self, item):
         result = []
         if item.childCount()>0:
-            # Intermdeiate nodes
+            # Intermediate nodes
              for i in range(item.childCount()):
                  result += self._get_selected_leaf_paths(item.child(i))
         else:
@@ -184,14 +184,14 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             expression, result = widgets.QInputDialog.getText(None, "Select USD Mesh by Expression", "Type the expression")
             if result:
                 # Check validity and sort checking and unchecking
-                paths = map(lambda x: x.strip(), expression.split(","))
+                paths = expression.split(",")
                 check_paths = []
                 uncheck_paths = []
                 invalid_paths = []
                 for path in paths:
                     path = path.strip()
                     if path.startswith("!"):
-                        if self.is_path_valid(path[1:]):
+                        if self.is_path_valid(path[1:].strip()):
                             uncheck_paths.append(path[1:].strip())
                         else:
                             invalid_paths.append(path)
