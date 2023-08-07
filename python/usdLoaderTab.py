@@ -187,10 +187,15 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         elif result==collapse_all:
             self._expand_to_level(self.invisibleRootItem(),0,0)
         elif result==select_by_expression:
-            expression, result = widgets.QInputDialog.getText(None, "Select USD Mesh by Expression", "Type the expression")
-            if result:
+            dialog = widgets.QInputDialog()
+            dialog.setWindowTitle("Select USD Mesh by Expression")
+            dialog.setLabelText("Type the expression")
+            dialog.setTextValue("")
+            line_edit = dialog.children()[1]
+            line_edit.setToolTip('Enter a list of comma-delimited prim paths to be selected for loading. Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.')
+            if dialog.exec()==dialog.Accepted:
                 # Check validity and sort checking and unchecking
-                paths = expression.split(",")
+                paths = dialog.textValue().split(",")
                 check_paths = []
                 uncheck_paths = []
                 invalid_paths = []
