@@ -367,7 +367,7 @@ class UsdLoaderWidget(widgets.QWidget):
         # Fill model names based on the tree view
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
         mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_leaf_paths()))
-        mari.app.setGeoPluginAttribute("Variants", ",".join(self.tree_widget.selected_variants()))
+        mari.app.setGeoPluginAttribute("Variants", " ".join(self.tree_widget.selected_variants()))
 
     def _request_selection_update(self):
         self._selection_dirty = True
