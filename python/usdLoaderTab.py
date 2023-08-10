@@ -311,23 +311,23 @@ class UsdLoaderWidget(widgets.QWidget):
 
         self.keep_centered_checkbox = widgets.QPushButton(KEEP_CENTERED_ICON, "")
         self.keep_centered_checkbox.setCheckable(True)
-        self.keep_centered_checkbox.setToolTip("""Check to discard model transforms and keep everything centered""")
+        self.keep_centered_checkbox.setToolTip("""Enable to discard model transforms and keep everything centered""")
         checkbox_layout.addWidget(self.keep_centered_checkbox)
 
         self.conform_y_up_checkbox = widgets.QPushButton(CONFORM_TO_MARI_Y_AS_UP_ICON, "")
         self.conform_y_up_checkbox.setCheckable(True)
-        self.conform_y_up_checkbox.setToolTip("""Check to alter the model orientation to conform to Mari's Y as up""")
+        self.conform_y_up_checkbox.setToolTip("""Enable to alter the model orientation to conform to Mari's Y as up""")
         self.conform_y_up_checkbox.setChecked(True)
         checkbox_layout.addWidget(self.conform_y_up_checkbox)
 
         self.include_invisible_checkbox = widgets.QPushButton(INCLUDE_INVISIBLE_ICON, "")
         self.include_invisible_checkbox.setCheckable(True)
-        self.include_invisible_checkbox.setToolTip("""Check to load invisible models""")
+        self.include_invisible_checkbox.setToolTip("""Enable to load invisible models""")
         checkbox_layout.addWidget(self.include_invisible_checkbox)
 
         self.create_face_selection_group_checkbox = widgets.QPushButton(CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON, "")
         self.create_face_selection_group_checkbox.setCheckable(True)
-        self.create_face_selection_group_checkbox.setToolTip("""Check to create selection groups per mesh""")
+        self.create_face_selection_group_checkbox.setToolTip("""Enable to create selection groups per mesh""")
         checkbox_layout.addWidget(self.create_face_selection_group_checkbox)
 
         options_layout.addLayout(checkbox_layout, 2,0,4,0)
