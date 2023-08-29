@@ -538,10 +538,16 @@ class ExportItem_Model(gui.QStandardItemModel):
                     added_rows.append(shader_item)
         return added_rows
 
-    def _advancedInputList(self, shader):
+    def advancedInputList(shader):
         result = []
-        shader_node = shader.shaderNode()
         shader_model = shader.shaderModel()
+        if not shader_model:
+            return result
+        
+        shader_node = shader.shaderNode()
+        if not shader_node:
+            return result
+
         for input_name in shader_node.inputPortNames():
             input_node, output_port = shader_node.inputConnection(input_name)
             if input_node:
@@ -572,7 +578,7 @@ class ExportItem_Model(gui.QStandardItemModel):
         
         shader = shader_item.data(qt.UserRole)
         if shader:            
-            new_shader_input_infos = self._advancedInputList(shader)
+            new_shader_input_infos = ExportItem_Model.advancedInputList(shader)
             for input_name, shader_input, shader_input_name in new_shader_input_infos:
                 shader_input_set.add(shader_input)
         
@@ -841,7 +847,7 @@ class FileBrowseWidget(widgets.QWidget):
         new_path = os.path.normpath(new_path)
 
         old_path = self.path()
-        
+
         try:
             index = self.history.index(new_path)
         except ValueError:
@@ -899,7 +905,7 @@ class USDExportWidget(widgets.QWidget):
         for index, stretch in enumerate((10, 20, 10, 20)):
             options_layout.setColumnStretch(index, stretch)
 
-        self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", self.load_usd_target_dir_paths())
+        self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", USDExportWidget.load_usd_target_dir_paths())
         target_dir_label = widgets.QLabel("Texture Target Directory", self)
         target_dir_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(target_dir_label, 0, 0)
@@ -917,7 +923,7 @@ class USDExportWidget(widgets.QWidget):
         options_layout.addWidget(self.default_depth_combo_box, 0, 3)
         
         image_filter = "Images (" + " ".join(["*.%s" % ext for ext in mari.exports.imageFileExtensionList()]) + ")"
-        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, self.load_usd_texture_file_paths(), False)
+        self.export_texture_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, image_filter, USDExportWidget.load_usd_texture_file_paths(self.default_texture_pattern), False)
         export_texture_file_label = widgets.QLabel("Texture File Name", self)
         export_texture_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(export_texture_file_label, 1, 0)
@@ -935,35 +941,35 @@ class USDExportWidget(widgets.QWidget):
         options_layout.addWidget(self.default_size_combo_box, 1, 3)
         
         look_file_filter = "USD Look File (*.usd *.usda *.usdz)"
-        self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, self.load_usd_look_file_paths())
+        self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, USDExportWidget.load_usd_look_file_paths())
         look_file_label = widgets.QLabel("USD Look File", self)
         look_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(look_file_label, 2, 0)
         options_layout.addWidget(self.look_file_widget, 2, 1)
         
         self.root_name_widget = widgets.QLineEdit(self)
-        self.root_name_widget.setText(self.load_text_value("UsdRootName", "/root"))
+        self.root_name_widget.setText(USDExportWidget.load_text_value("UsdRootName", "/root"))
         root_name_label = widgets.QLabel("Root Name", self)
         root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(root_name_label, 2, 2)
         options_layout.addWidget(self.root_name_widget, 2, 3)
 
         self.uv_set_name_widget = widgets.QLineEdit(self)
-        self.uv_set_name_widget.setText(self.load_text_value("UsdUvSetName", "st"))
+        self.uv_set_name_widget.setText(USDExportWidget.load_text_value("UsdUvSetName", "st"))
         uv_set_name_label = widgets.QLabel("UV Set Name", self)
         uv_set_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(uv_set_name_label, 3, 2)
         options_layout.addWidget(self.uv_set_name_widget, 3, 3)
         
         assembly_file_filter = "USD Assembly File (*.usd *.usda *.usdz)"
-        self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, self.load_usd_assembly_file_paths())
+        self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, USDExportWidget.load_usd_assembly_file_paths())
         assembly_file_label= widgets.QLabel("USD Assembly File", self)
         assembly_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(assembly_file_label, 3, 0)
         options_layout.addWidget(self.assembly_file_widget, 3, 1)
         
         payload_file_filter = "USD (*.usd *.usda *.usdz)"
-        self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, self.load_usd_payload_file_paths())
+        self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, USDExportWidget.load_usd_payload_file_paths())
         payload_label = widgets.QLabel("USD Payload", self)
         payload_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
         options_layout.addWidget(payload_label, 4, 0)
@@ -987,7 +993,8 @@ class USDExportWidget(widgets.QWidget):
         mari.utils.connect(self.default_size_combo_box.currentIndexChanged, self.on_default_size_combo_box_changed)
         mari.utils.connect(self.export_button.pressed, self.on_export_button_pressed)
 
-    def load_paths(self, name, default_path):
+    @staticmethod
+    def load_paths(name, default_path):
         # Pull the path history from the settings.
         settings = mari.Settings()
         paths = []
@@ -1023,7 +1030,8 @@ class USDExportWidget(widgets.QWidget):
 
         return paths
 
-    def load_text_value(self, name, default_value):
+    @staticmethod
+    def load_text_value(name, default_value):
         """ Attempts to load a text value from the project metadata, then the user settings and
         finally uses the given default value.
 
@@ -1049,25 +1057,30 @@ class USDExportWidget(widgets.QWidget):
 
         return default_value
 
-    def load_usd_target_dir_paths(self):
+    @staticmethod
+    def load_usd_target_dir_paths():
         default = mari.resources.path("MARI_DEFAULT_EXPORT_PATH")
-        return self.load_paths("UsdTargetDirPaths", default)
+        return USDExportWidget.load_paths("UsdTargetDirPaths", default)
 
-    def load_usd_texture_file_paths(self):
-        default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), self.default_texture_pattern)
-        return self.load_paths("UsdTexturePaths", default)
+    @staticmethod
+    def load_usd_texture_file_paths(default_texture_pattern):
+        default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), default_texture_pattern)
+        return USDExportWidget.load_paths("UsdTexturePaths", default)
 
-    def load_usd_look_file_paths(self):
+    @staticmethod
+    def load_usd_look_file_paths():
         default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Look File.usda")
-        return self.load_paths("UsdLookPaths", default)
+        return USDExportWidget.load_paths("UsdLookPaths", default)
         
-    def load_usd_assembly_file_paths(self):
+    @staticmethod
+    def load_usd_assembly_file_paths():
         default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Assembly.usda")
-        return self.load_paths("UsdAssemblyPaths", default)
+        return USDExportWidget.load_paths("UsdAssemblyPaths", default)
 
-    def load_usd_payload_file_paths(self):
+    @staticmethod
+    def load_usd_payload_file_paths():
         default = os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Payload.usd")
-        return self.load_paths("UsdPayloadPaths", default)
+        return USDExportWidget.load_paths("UsdPayloadPaths", default)
 
     def on_default_depth_combo_box_changed(self, text):
         self.on_default_depth_changed(text)
@@ -1205,6 +1218,10 @@ class USDExportWidget(widgets.QWidget):
             if not node:
                 continue
             
+            shader_model = shader.shaderModel()
+            if not shader_model:
+                continue
+            
             node_graph = node.parentNodeGraph()
             if not node_graph:
                 continue
@@ -1223,7 +1240,7 @@ class USDExportWidget(widgets.QWidget):
             usd_shader_source.setUvSetName(uv_set_name)
             for export_item, shader_input_name in export_items:
                 usd_shader_source.setInputExportItem(shader_input_name, export_item)
-            usd_material_source.setShaderSource(shader.shaderModel().id(), usd_shader_source)
+            usd_material_source.setShaderSource(shader_model.id(), usd_shader_source)
             usd_material_sources.append(usd_material_source)
 
         try:
@@ -1236,7 +1253,8 @@ class USDExportWidget(widgets.QWidget):
             mari.app.log("USD Export Error : %s" % error_message)
             widgets.QMessageBox.critical(self, "Error", error_message)
 
-    def save_paths(self, name, values):
+    @staticmethod
+    def save_paths(name, values):
         # Save the current entry with the project.
         project = mari.projects.current()
         if project:
@@ -1265,7 +1283,8 @@ class USDExportWidget(widgets.QWidget):
     def save_usd_payload_file_paths(self):
         self.save_paths("UsdPayloadPaths", self.payload_file_widget.paths())
 
-    def save_text_value(self, name, text):
+    @staticmethod
+    def save_text_value(name, text):
         """ Saves text value to the project metadata and the user settings using the given property name.
 
         Args:
@@ -1297,7 +1316,8 @@ class USDExportWidget(widgets.QWidget):
 def generate_usd_export_widget():
     return USDExportWidget()
 
-if mari.app.isRunning():
+# This legacy tab is disabled by default, but it can be enabled by the MARI_USD_LEGACY_EXPORT_TAB environment variable
+if mari.app.isRunning() and "MARI_USD_LEGACY_EXPORT_TAB" in os.environ and int(os.environ["MARI_USD_LEGACY_EXPORT_TAB"])==1:
     # Register the USD Export tab to the Export Manager
     try:
         mari.system.batch_export_dialog.deregisterCustomTabWidgetCallback("USD Export")

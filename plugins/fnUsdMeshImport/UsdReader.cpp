@@ -170,6 +170,21 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
         return MRI_GPR_FAILED;
     }
+
+    // Get the stage prim path to set the root name for USD export
+    UsdPrim stagePrim = stage->GetDefaultPrim();
+    SdfPath stagePrimPath = stagePrim.GetPath();
+    std::string stagePrimPathString = stagePrimPath.GetString();
+
+    MriAttributeValue stagePrimValue;
+    stagePrimValue.m_Type = MRI_ATTR_STRING;
+    stagePrimValue.m_pString = stagePrimPathString.c_str();
+    _host.setAttribute(Entity, "StagePrimPath", &stagePrimValue);
+
+    MriAttributeValue uvSetValue;
+    uvSetValue.m_Type = MRI_ATTR_STRING;
+    uvSetValue.m_pString = UVSet.c_str();
+    _host.setAttribute(Entity, "UvSetName", &uvSetValue);
     
     // variables used to coordinate which model should be loaded
     bool loadThisModel = false;

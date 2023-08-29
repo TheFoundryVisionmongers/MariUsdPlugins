@@ -22,15 +22,18 @@
 
 import datetime
 import os
-import re
 
 import mari
-from pxr import Sdf, Usd, UsdShade, Tf
+from pxr import Sdf, Usd, UsdShade, Tf, UsdGeom
 
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
 USD_MATERIAL_TERMINALS = {}
+USD_FUNCTION_CALLBACKS = {}
 
+CALLBACK_NAME_SETTINGS_WIDGET = "SettingsWidget"
+CALLBACK_NAME_SETUP_EXPORT_ITEM = "SetupExportItem"
+CALLBACK_NAME_EXPORT_EXPORT_ITEM = "ExportExportItem"
 
 class UsdShadeExportError(Exception):
     """Custom Exception for known errors hit when exporting to UsdShade
@@ -174,6 +177,7 @@ class UsdMaterialSource(object):
         self._name = name
         self._shader_sources = {}
         self._binding_locations = []
+        self._selection_groups = []
 
     def to_dict(self):
         """ Returns the contents of the class instance as a dictionary.
@@ -185,6 +189,7 @@ class UsdMaterialSource(object):
             "name": self._name,
             "shader_sources": {},
             "binding_locations": list(self._binding_locations),
+            "selection_groups": list(self._selection_groups),
         }
         for mari_shader_type_name, usd_shader_source in self._shader_sources.items():
             usd_material_source_data["shader_sources"][mari_shader_type_name] = usd_shader_source.to_dict()
@@ -199,6 +204,7 @@ class UsdMaterialSource(object):
             {
                 "name": str # Name of USD Material
                 "binding_locations": list # Mesh locations to apply material bindings
+                "selection_groups": list # UUID strings of selection groups
                 "shader_sources": { # Dict of Mari shader type keys and UsdShaderSource dict values
                     "UsdPreviewSurface": {
                         "source_shader": mari.Shader instance
@@ -219,6 +225,7 @@ class UsdMaterialSource(object):
             raise ValueError("name key not in usd_material_source_data")
         usd_material_source = cls(usd_material_source_data["name"])
         usd_material_source.setBindingLocations(usd_material_source_data.get("binding_locations", []))
+        usd_material_source.setSelectionGroups(usd_material_source_data.get("selection_groups", []))
         for mari_shader_type_name, shader_source_data in usd_material_source_data.get("shader_sources", {}).items():
             usd_material_source.setShaderSource(mari_shader_type_name, UsdShaderSource.from_dict(shader_source_data))
 
@@ -280,6 +287,22 @@ class UsdMaterialSource(object):
         """
         self._binding_locations = binding_locations
 
+    def selectionGroups(self):
+        """ Returns the UUID strings of selection groups.
+
+        Returns:
+            list of str. UUI strings of selection groups.
+        """
+        return self._selection_groups
+
+    def setSelectionGroups(self, selection_groups):
+        """ Sets the UUID strings of selection groups.
+
+        Args:
+            selection_groups (list of str): UUID strings of selection groups.
+        """
+        self._selection_groups = selection_groups
+
 
 class UsdExportParameters(object):
     """Container class for all parameters necessary for exporting Mari project data to UsdShade Looks.
@@ -293,6 +316,7 @@ class UsdExportParameters(object):
         self._assembly_target_filename = ""
         self._payload_source_path = ""
         self._stage_root_path = "/root"
+        self._export_overrides = {}
 
     def setExportRootPath(self, export_root_path):
         """ Sets the export root path location
@@ -323,6 +347,29 @@ class UsdExportParameters(object):
             str. Export root path
         """
         return os.path.normpath(self._export_root_path)
+
+    def setExportOverrides(self, export_overrides):
+        """ Sets the export overrides mapping for mari.exports.exportTextures()
+
+        Args:
+            export_overrides (dict): The map of export settings
+
+        Returns:
+            bool. Export override map has changed
+        """
+
+        if export_overrides != self._export_overrides:
+            self._export_overrides = export_overrides
+            return True
+        return False
+
+    def exportOverrides(self):
+        """ Returns the map of export overrides
+
+        Returns:
+            dict. Export overrides
+        """
+        return self._export_overrides
 
     def setLookfileTargetFilename(self, lookfile_target_filename):
         """ Sets the filename for the Lookfile export target
@@ -532,7 +579,7 @@ class UsdExportParameters(object):
 
 
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
-    material_terminal_name, material_surface_context
+    material_terminal_name, material_surface_context, function_callbacks=None
 ):
     """Registers mappings for renderer specific UsdShade export functions.
     The callback function for exporting a shader input will be called with the following arguments:
@@ -548,117 +595,50 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
         shader_input_export_func (function): Callback function to write UsdShade data
         material_terminal_name (str): Name of material terminal
         material_surface_context (str): Name of surface output context
+        function_callbacks (dict{str: function}): Optional function table
+        
+    Callback Functions:
+        A named function table in the format of a dictionary ({name: function}) for shader specific functionality
+        Not all functions must be present
+        Names:
+            CALLBACK_NAME_SETTINGS_WIDGET: Return a QWidget to display in the settings dialog. Takes no parameters
+            CALLBACK_NAME_SETUP_EXPORT_ITEM: Called just after an export item is created. Takes one parameter of type mari.ExportItem
+            CALLBACK_NAME_EXPORT_EXPORT_ITEM: Called just before an export item is exported. Takes one parameter of type mari.ExportItem
     """
     MARI_TO_USD_SHADER_MAPPING[mari_shader_type_name] = usd_shader_id
     if type(shader_input_export_func).__name__ != "function":
         raise ValueError("No shader input export callback function specified for registerRendererExportPlugin")
     USD_SHADER_EXPORT_FUNCTIONS[mari_shader_type_name] = shader_input_export_func
     USD_MATERIAL_TERMINALS[mari_shader_type_name] = (material_surface_context, Tf.MakeValidIdentifier(material_terminal_name))
+    
+    if function_callbacks is None:
+        pass
+    elif isinstance(function_callbacks, dict):
+        for callback_name in function_callbacks:
+            callback_func = function_callbacks[callback_name]
+            if callback_func is not None and type(callback_func).__name__ != "function":
+                raise ValueError("Supplied value for callback '%s' is not a function." % callback_name)
+        
+        USD_FUNCTION_CALLBACKS[mari_shader_type_name] = function_callbacks
+    else:
+        raise ValueError("Function callbacks must be a dictionary")
 
+def shaderIDsWithFunctionCallbacks(callback_name=None):
+    if callback_name is None:
+        return USD_FUNCTION_CALLBACKS.keys()
 
-def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.
+    shader_ids = []
+    for mari_shader_model_id in USD_FUNCTION_CALLBACKS.keys():
+        if USD_FUNCTION_CALLBACKS[mari_shader_model_id].get(callback_name, None) is not None:
+            shader_ids.append(mari_shader_model_id)
 
-    Args:
-        looks_stage (Usd.Stage): Stage to write to
-        usd_shader (Usd.Shader): Shader to connect to
-        usd_export_parameters (UsdExportParameters): Container for export parameters
-        usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
-    """
-    mari_to_usd_input_map = {
-        "diffuseColor": ("diffuseColor", Sdf.ValueTypeNames.Color3f),
-        "emissiveColor": ("emissiveColor", Sdf.ValueTypeNames.Color3f),
-        "useSpecularWorkflow": ("useSpecularWorkflow", Sdf.ValueTypeNames.Bool),
-        "specularColor": ("specularColor", Sdf.ValueTypeNames.Color3f),
-        "metallic": ("metallic", Sdf.ValueTypeNames.Float),
-        "roughness": ("roughness", Sdf.ValueTypeNames.Float),
-        "clearcoat": ("clearcoat", Sdf.ValueTypeNames.Float),
-        "clearcoatRoughness": ("clearcoatRoughness", Sdf.ValueTypeNames.Float),
-        "opacity": ("opacity", Sdf.ValueTypeNames.Float),
-        "opacityThreshold": ("opacityThreshold", Sdf.ValueTypeNames.Float),
-        "ior": ("ior", Sdf.ValueTypeNames.Float),
-        "Normal": ("normal", Sdf.ValueTypeNames.Normal3f),
-        "occlusion": ("occlusion", Sdf.ValueTypeNames.Float),
-        "Bump": (None, None),
-        "Vector": (None, None),
-        "Displacement": ("displacement", Sdf.ValueTypeNames.Float),
-    }
-    _debuglog("Writing USD Preview Surface shader network for %s" % usd_shader_source.sourceShader().name())
-    material_sdf_path = usd_shader.GetPath().GetParentPath()
+    return shader_ids
 
-    shader_model = usd_shader_source.shaderModel()
-    export_items = []
-    for shader_input_name in shader_model.inputNames():
-        usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
-        if usd_shader_input_name is None:
-            continue
-        export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
+def functionCallbacksForShader(mari_shader_model_id):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {})
 
-            # find or define texture coordinate reader
-            st_reader_path = material_sdf_path.AppendChild("st_reader")
-            st_reader = UsdShade.Shader.Get(looks_stage, st_reader_path)
-            if st_reader.GetPath().isEmpty:
-                st_reader = UsdShade.Shader.Define(looks_stage, st_reader_path)
-                st_reader.CreateIdAttr('UsdPrimvarReader_float2')
-                st_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
-
-            # TODO: Implement a override option for export that gets passed into this function
-            # Perform the texture export
-            # if not hasExportItemBeenExported(export_item, export_root_path):
-            #     mari.exports.exportTextures([export_item], export_root_path)
-
-            # Create and connect the texture reading shading node
-            texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
-            texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}Texture".format(shader_input_name))
-            texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("UsdUVTexture")
-            texture_sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-                st_reader.ConnectableAPI(),
-                "result"
-            )
-            usd_shader.CreateInput(usd_shader_input_name, sdf_type).ConnectToSource(
-                texture_sampler.ConnectableAPI(),
-                "r" if sdf_type == Sdf.ValueTypeNames.Float else "rgb"
-            )
-            texture_sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
-
-            export_items.append(export_item)
-        else:
-            if shader_input_name not in usd_shader_source.sourceShader().parameterNameList():
-                continue
-            input_value = usd_shader_source.sourceShader().getParameter(shader_input_name)
-            default_color = usd_shader_source.shaderModel().input(shader_input_name).defaultColor()
-            value_not_default = False
-            if isinstance(input_value, mari.Color):
-                if input_value.rgb() != default_color.rgb():
-                    value_not_default = True
-            elif isinstance(input_value, float):
-                if input_value != default_color.r():
-                    value_not_default = True
-            elif isinstance(input_value, bool):
-                if input_value != bool(default_color.r()):
-                    value_not_default = True
-
-            if value_not_default:
-                usd_shader_parameter = usd_shader.CreateInput(usd_shader_input_name, sdf_type)
-                if sdf_type == Sdf.ValueTypeNames.Color3f:
-                    usd_shader_parameter.Set(sdf_type.type.pythonClass(input_value.rgb()))
-                elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Bool):
-                    usd_shader_parameter.Set(input_value)
-
-    # Export textures from export items
-    if export_items:
-        _debuglog(
-            "Exporting %d export items for %s to %s" % (
-                len(export_items),
-                usd_shader_source.sourceShader().name(),
-                usd_export_parameters.exportRootPath()
-            )
-        )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath())
-
+def functionCallbackForShader(mari_shader_model_id, callback_name):
+    return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {}).get(callback_name, None)
 
 def _sanitize(location_path):
     return location_path.replace(" ", "_")
@@ -806,8 +786,14 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
     looks_path = usd_export_parameters.lookfileTargetPath()
     if os.path.exists(looks_path):
         os.remove(looks_path)
+
     looks_stage = _create_new_stage(looks_path, usd_export_parameters.stageRootPath())
     root_sdf_path = usd_export_parameters.stageSdfRootPath()
+
+    # Pre cache the map from selection group UUID to instance
+    selection_group_uuid_to_instance_map = {}
+    for selection_group in mari.selection_groups.list():
+        selection_group_uuid_to_instance_map[selection_group.uuid()] = selection_group
 
     for usd_material_source in usd_material_sources:
         # Define shader for material
@@ -833,12 +819,56 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                 usd_shader_source
             )
 
+        # mesh_location_to_face_count stores the map of mesh_location to the number of faces. The subset creation code later checks
+        # whether the selected faces is actually the entier set of faces for the mesh_location using this map.
+        # e.g. If the selection set is "0-99" and the mesh_location has 100 faces, then there is no point of creating a subset.
+        mesh_location_to_face_count = {}
+
+        mesh_location_to_face_index_range = {}
+        for selection_group_uuid in usd_material_source.selectionGroups():
+            if not selection_group_uuid in selection_group_uuid_to_instance_map:
+                continue
+
+            selection_group = selection_group_uuid_to_instance_map[selection_group_uuid]
+
+            for key, value in selection_group.meshLocationToFaceSelectionIndexRangeListMap().items():
+                if key in mesh_location_to_face_index_range:
+                    mesh_location_to_face_index_range[key] = mesh_location_to_face_index_range[key] | set(value.indexList())
+                else:
+                    mesh_location_to_face_index_range[key] = set(value.indexList())
+
+            for geo_version in selection_group.geoVersionList():
+                for key, value in geo_version.meshLocationToFaceCountMap().items():
+                    if key in mesh_location_to_face_count:
+                        _debuglog("Warning: Mesh location is not unique : %s" % key)
+                    else:
+                        mesh_location_to_face_count[key] = value
+
+        use_selecgion_group_assignment = len(mesh_location_to_face_index_range) > 0
+
         _debuglog("Assigning locations to material %s" % usd_material_source.name())
         for material_assign_location in usd_material_source.bindingLocations():
+            if use_selecgion_group_assignment and not material_assign_location in mesh_location_to_face_index_range:
+                continue
+
             material_assign_sdf_path = Sdf.Path(material_assign_location)
             material_assign_prim = looks_stage.OverridePrim(material_assign_sdf_path)
+
+            bind_target = material_assign_prim
+
+            if use_selecgion_group_assignment:
+                faces = list(mesh_location_to_face_index_range[material_assign_location])
+                faces.sort()
+                if len(faces) == mesh_location_to_face_count[material_assign_location] and faces[0] == 0 and faces[-1] == mesh_location_to_face_count[material_assign_location]-1:
+                    # faces contain the full set of faces for the mesh location. There is no need for subset material assignment. e.g faces = [0-10], where the count is 11
+                    pass
+                else:
+                    subset = UsdGeom.Subset.Define(looks_stage, material_assign_prim.GetPath().AppendChild("materialBindSubset_"+usd_material_source.name()))
+                    subset.CreateFamilyNameAttr("materialBind")
+                    subset.CreateIndicesAttr(faces)
+                    bind_target = subset
             try:
-                UsdShade.MaterialBindingAPI(material_assign_prim).Bind(material)
+                UsdShade.MaterialBindingAPI(bind_target).Bind(material)
             except Tf.ErrorException:
                 _debuglog("Warning: Unable to bind material to %s" % material_assign_prim)
 
@@ -888,12 +918,74 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
         _debuglog("Saving assembly stage to disk: %s" % assembly_path)
         assembly_stage.GetRootLayer().Save()
 
-if mari.app.isRunning():
-    # Register the USD Preview Surface exporter.
-    registerRendererExportPlugin(
-        "USD Preview Surface",
-        "UsdPreviewSurface",
-        writeUsdPreviewSurface,
-        "surface",
-        None
-    )
+def payloadDefaultRootName(payload_file_path):
+    """Returns the default root name of the given payload file path.
+
+    Args:
+        payload_file_path (str): File path of the payload file
+    Returns:
+        (str): The default root name of the given payload file path.
+    """
+    if os.path.exists(payload_file_path):
+        try:
+            payload_stage = Usd.Stage.Open(payload_file_path)
+            payload_default_prim = payload_stage.GetDefaultPrim()
+            payload_root_name = str(payload_default_prim.GetPath())
+            return payload_root_name
+        except Exception as e:
+            _debuglog("Warning: The Payload file is not a USD file : %s" % str(e))
+    geo_entity = mari.geo.current()
+    if geo_entity and geo_entity.hasMetadata("StagePrimPath"):
+        return geo_entity.metadata("StagePrimPath")
+    return "/root"
+
+def payloadDefaultUvSetName():
+    """Returns the default UV set name of the current GeoEntity.
+
+    Returns:
+        (str): The default UV set name of the currentGeoEntity.
+    """
+    geo_entity = mari.geo.current()
+    if geo_entity and geo_entity.hasMetadata("UvSetName"):
+        return geo_entity.metadata("UvSetName")
+    return ""
+
+def colorComponentForType(sdf_type):
+    if sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
+        return "r"
+
+    return "rgb"
+
+def isValueDefault(input_value, default_color):
+    if isinstance(input_value, mari.Color):
+        if input_value.rgb() != default_color.rgb():
+            return False
+    elif isinstance(input_value, mari.VectorN):
+        input_value_components = input_value.asTuple()
+        default_color_components = default_color.rgba()
+        for component in range(input_value.size()):
+            if input_value_components[component] != default_color_components[component]:
+                return False
+    elif isinstance(input_value, float):
+        if input_value != default_color.r():
+            return False
+    elif isinstance(input_value, int):
+        if input_value != int(default_color.r()):
+            return False
+    elif isinstance(input_value, bool):
+        if input_value != bool(default_color.r()):
+            return False
+
+    return True
+
+def valueAsShaderParameter(input_value, sdf_type):
+    if sdf_type == Sdf.ValueTypeNames.Color3f:
+        return sdf_type.type.pythonClass(input_value.rgb())
+    elif sdf_type == Sdf.ValueTypeNames.Vector3f:
+        if isinstance(input_value, mari.Mari.Color):
+            return sdf_type.type.pythonClass(input_value.rgb())
+        elif isinstance(input_value, mari.Mari.VectorN):
+            return sdf_type.type.pythonClass(input_value.asTuple())
+    elif sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
+        return input_value
+
