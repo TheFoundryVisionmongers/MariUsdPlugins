@@ -41,6 +41,7 @@
 #include "pxr/usd/usd/stageCacheContext.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/metrics.h"
+#include "pxr/usd/usdGeom/primvarsAPI.h"
 
 #include <sstream>
 #include <string>
@@ -376,10 +377,11 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 UsdGeomGprim gprim(prim);
                 if (gprim) {
                     TfToken gprimHandleIdToken ("__gprimHandleid");
-                    UsdGeomPrimvar primvar = gprim.GetPrimvar(gprimHandleIdToken);
+                    UsdGeomPrimvarsAPI gprimApi(gprim);
+                    UsdGeomPrimvar primvar = gprimApi.GetPrimvar(gprimHandleIdToken);
                     if (not primvar) {
                         TfToken handleIdToken("__handleId");
-                        primvar = gprim.GetPrimvar(handleIdToken);
+                        primvar = gprimApi.GetPrimvar(handleIdToken);
                     }
                     VtValue value;
                     primvar.ComputeFlattened(&value);
