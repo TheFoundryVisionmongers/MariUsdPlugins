@@ -828,11 +828,23 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     _host.trace("%s:%d] requested Load Option %s", _pluginName, __LINE__,
                 loadOption.c_str());
 
+    if (loadOption == "First Found\nAll Models\nSpecified Models in Model Names")
+    {
+        // Default when unset
+        loadOption = "All Models";
+    }
+
     // detect requested merge option
     if (_host.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
         mergeOption = Value.m_pString;
     _host.trace("%s:%d] requested Merge Option %s", _pluginName, __LINE__,
                 mergeOption.c_str());
+
+    if (mergeOption == "Merge Models\nKeep Models Separate")
+    {
+        // Default when unset
+        mergeOption = "Merge Models";
+    }
 
     // detect requested model name
     std::string modelNamesString;
@@ -867,6 +879,12 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
 
     _host.trace("%s:%d] Mappping scheme Option %s", _pluginName, __LINE__,
                 mappingScheme.c_str());
+
+    if (mappingScheme == "UV if available, Ptex otherwise\nForce Ptex")
+    {
+        // Default when unset
+        mappingScheme = "UV if available, Ptex otherwise";
+    }
 
     // detect requested frames
     if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
