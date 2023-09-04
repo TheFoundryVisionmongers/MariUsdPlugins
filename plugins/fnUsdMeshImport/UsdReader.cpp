@@ -258,9 +258,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             continue;
         }
         UsdGeomImageable imageable = UsdGeomImageable(*primIt);
-        TfToken visibility; 
-        if (!includeInvisible && imageable && imageable.GetVisibilityAttr().Get(&visibility))
+        if (!includeInvisible && imageable)
         {
+            TfToken visibility = imageable.ComputeVisibility();
             if(visibility == UsdGeomTokens->invisible) 
             {
                 /*_host.trace("%s:%d] %s Is invisible",
