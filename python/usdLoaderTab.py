@@ -146,14 +146,13 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         result = []
         widget = self.itemWidget(item,1)
         if widget:
-            path = item.data(0, USER_ROLE_PATH)+"{"
+            path = item.data(0, USER_ROLE_PATH)
             layout = widget.layout()
             for row in range(layout.rowCount()):
                 label = layout.itemAt(row, layout.LabelRole).widget()
                 combobox = layout.itemAt(row, layout.FieldRole).widget()
-                path = path+label.text()+"="+combobox.currentText()+","
-            path = path[:-1]+"}"
-            result.append(path)
+                path_with_variant = path+"{"+label.text()+"="+combobox.currentText()+"}"
+                result.append(path_with_variant)
 
         # Total/Partial selection. Dig in deeper and find out what's selected.
         for i in range(item.childCount()):
