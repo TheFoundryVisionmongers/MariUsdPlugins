@@ -103,9 +103,9 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             if sdf_type == Sdf.ValueTypeNames.Normal3f:
                 if shader_input_name=="Bump":
-                    texture_sampler.CreateIdAttr("PxrBump")
+                    texture_sampler.CreateIdAttr("PxrBumpMixer")
 
-                    # Transfer Mari shaders' bump weight to PxrBump's scale
+                    # Transfer Mari shaders' bump weight to PxrBumpMixer's scale
                     scale = source_shader.getParameter("BumpWeight")
                     texture_sampler.CreateInput("scale", Sdf.ValueTypeNames.Float).Set(scale)
                     bump_sampler = texture_sampler
