@@ -47,9 +47,12 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         self.header().setSectionResizeMode(widgets.QHeaderView.Stretch)
         self.header().setStretchLastSection(False)
 
+        self.stage = None
+
     def populate(self, stage):
         self.clear()
         self._item_map = {}
+        self.stage = stage
         for prim in stage.Traverse():
             self._create_tree_node(prim, stage)
 
@@ -96,10 +99,26 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                         variant_set = prim_for_token.GetVariantSet(variant_set_name)
                         combobox = widgets.QComboBox()
                         combobox.addItems(variant_set.GetVariantNames())
+                        combobox.setCurrentText(variant_set.GetVariantSelection())
                         variant_sets_layout.addRow(variant_set_name, combobox)
+                        combobox.setProperty("prim_path", path)
+                        combobox.setProperty("variant_set_name", variant_set_name)
+                        combobox.currentIndexChanged.connect(self.onVariantComboboxCurrentIndexChanged)
                     self.setItemWidget(item_for_token, 1, variant_sets_widget)
 
             tree_item = item_for_token
+
+    def onVariantComboboxCurrentIndexChanged(self, index):
+        if self.stage is None:
+            return
+        combobox = self.sender()
+        path = combobox.property("prim_path")
+        prim = self.stage.GetPrimAtPath(path)
+        variant_set_name = combobox.property("variant_set_name")
+        variant_set = prim.GetVariantSet(variant_set_name)
+        variant_set.SetVariantSelection(combobox.currentText())
+
+        self.populate(self.stage)
 
     def _get_selected_leaf_paths(self, item):
         result = []
