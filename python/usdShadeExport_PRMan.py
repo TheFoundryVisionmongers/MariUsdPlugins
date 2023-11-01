@@ -217,6 +217,7 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
     node_prefix = source_shader.name().replace(" ","_")
     export_items = []
     bump_sampler = None
+    bump_scale = None
     normal_sampler = None
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
@@ -242,17 +243,17 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                 if shader_input_name=="Bump":
                     texture_sampler.CreateIdAttr("PxrTexture")
 
-                    # TODO: work out scale
-                    # Transfer Mari shaders' bump weight to PxrBumpMixer's scale
-                    # scale = source_shader.getParameter("BumpWeight")
-                    # texture_sampler.CreateInput("scale", Sdf.ValueTypeNames.Float).Set(scale)
-
                     mixer_path = material_sdf_path.AppendChild("{0}_BumpMixer".format(node_prefix))
-                    bump_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
+                    bump_sampler = UsdShade.Shader.Define(looks_stage, mixer_path)
                     bump_sampler.CreateIdAttr("PxrBumpMixer")
-                    usd_shader.CreateInput("surfaceGradient1", Sdf.ValueTypeNames.Vector3f).ConnectToSource(
+
+                    # Store the bump weight for use later
+                    bump_scale = source_shader.getParameter("BumpWeight")
+
+                    # Attach the PxrTexture to the first surface gradient input on the PxrBumpMixer node
+                    bump_sampler.CreateInput("surfaceGradient1", Sdf.ValueTypeNames.Vector3f).ConnectToSource(
                         texture_sampler.ConnectableAPI(),
-                        colorComponentForType(Sdf.ValueTypeNames.Vector3f)
+                        "resultNG"
                     )
                 elif shader_input_name=="Normal":
                     texture_sampler.CreateIdAttr("PxrNormalMap")
@@ -301,6 +302,10 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                 bump_sampler.ConnectableAPI(),
                 colorComponentForType(Sdf.ValueTypeNames.Normal3f)
             )
+
+            if bump_scale is not None:
+                # Transfer Mari shaders' bump weight to PxrNormalMaps's bump scale
+                normal_sampler.CreateInput("bumpScale", Sdf.ValueTypeNames.Float).Set(bump_scale)
         else:
             # We have only Bump
             usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
