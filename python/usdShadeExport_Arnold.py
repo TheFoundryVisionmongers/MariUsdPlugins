@@ -143,7 +143,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         if usd_shader_input_name is None:
             continue
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
+        if export_item is not None and export_item.exportEnabled():
             export_items.append(export_item)
 
     # Export textures from export items
@@ -173,7 +173,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
 
         assign_texture = False
-        if export_item:
+        if export_item and export_item.exportEnabled():
             if export_item.exportedImagesUniform():
                 exported_uniform_color = export_item.exportedImagesUniformColor().rgba()
                 if exported_uniform_color != mari.Color(0,0,0,0).rgba() and not colorsFuzzyEqual(exported_uniform_color, default_color.rgba()):

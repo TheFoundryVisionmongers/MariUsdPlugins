@@ -65,7 +65,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
         if usd_shader_input_name is None:
             continue
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
+        if export_item is not None and export_item.exportEnabled():
 
             # find or define texture coordinate reader
             st_reader_path = material_sdf_path.AppendChild("{0}_st_reader".format(node_prefix))

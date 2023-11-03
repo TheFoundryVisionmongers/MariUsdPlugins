@@ -217,14 +217,13 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
     node_prefix = source_shader.name().replace(" ","_")
     export_items = []
     bump_sampler = None
-    bump_scale = None
     normal_sampler = None
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
         if usd_shader_input_name is None:
             continue
         export_item = usd_shader_source.getInputExportItem(shader_input_name)
-        if export_item is not None:
+        if export_item is not None and export_item.exportEnabled():
 
             # TODO: Implement a override option for export that gets passed into this function
             # Perform the texture export
@@ -247,8 +246,9 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                     bump_sampler = UsdShade.Shader.Define(looks_stage, mixer_path)
                     bump_sampler.CreateIdAttr("PxrBumpMixer")
 
-                    # Store the bump weight for use later
+                    # store Mari's bump weight in the amount input on the first surface gradient on the PxrBumpMixer node
                     bump_scale = source_shader.getParameter("BumpWeight")
+                    bump_sampler.CreateInput("amount1", Sdf.ValueTypeNames.Float).Set(bump_scale)
 
                     # Attach the PxrTexture to the first surface gradient input on the PxrBumpMixer node
                     bump_sampler.CreateInput("surfaceGradient1", Sdf.ValueTypeNames.Vector3f).ConnectToSource(
@@ -302,10 +302,6 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                 bump_sampler.ConnectableAPI(),
                 colorComponentForType(Sdf.ValueTypeNames.Normal3f)
             )
-
-            if bump_scale is not None:
-                # Transfer Mari shaders' bump weight to PxrNormalMaps's bump scale
-                normal_sampler.CreateInput("bumpScale", Sdf.ValueTypeNames.Float).Set(bump_scale)
         else:
             # We have only Bump
             usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
