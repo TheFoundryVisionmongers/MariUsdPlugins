@@ -111,7 +111,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
 
                     # store Mari's bump weight in the amount input on the first surface gradient on the PxrBumpMixer node
                     bump_scale = source_shader.getParameter("BumpWeight")
-                    bump_sampler.CreateInput("bumpScale", Sdf.ValueTypeNames.Float).Set(bump_scale)
+                    bump_sampler.CreateInput("amount1", Sdf.ValueTypeNames.Float).Set(bump_scale)
 
                     # Attach the PxrTexture to the first surface gradient input on the PxrBumpMixer node
                     bump_sampler.CreateInput("surfaceGradient1", Sdf.ValueTypeNames.Vector3f).ConnectToSource(
