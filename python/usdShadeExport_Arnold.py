@@ -155,7 +155,7 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                 usd_export_parameters.exportRootPath()
             )
         )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), ShowProgressDialog = True)
+        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), usd_export_parameters.exportOverrides(), ShowProgressDialog = True)
 
     normal_node = None
     bump_node = None
