@@ -59,6 +59,7 @@ class UsdReader
         MriGeoPluginResult Load(MriGeoEntityHandle &pEntity);
         MriGeoPluginResult GetSettings(MriUserItemHandle SettingsHandle);
 
+        static const std::string kMappingSchemeOptions;
 
     protected:
         MriGeoPluginResult _MakeGeoEntity(GeoData &Geom, 

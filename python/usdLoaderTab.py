@@ -320,7 +320,9 @@ class UsdLoaderWidget(widgets.QWidget):
         self.mapping_scheme_box = widgets.QComboBox()
         self.mapping_scheme_box.setToolTip("""Specify the mode for UV layout
   - UV if available, Ptex otherwise : Load the UV layout if available. If there is no UV layout, Ptex texture is created
-  - Force Ptex : Force to create Ptex texture no matter if there is UV layout""")
+  - Force Ptex : Force to create Ptex texture no matter if there is UV layout
+  - UV if available, empty otherwise : Load the UV layout if available. If there is no UV layout, an empty UV layout is created
+  - Force empty : Force to create empty UV layout no matter if there is UV layout""")
         options_layout.addWidget(widgets.QLabel("Mapping Scheme"), 1, 2)
         options_layout.addWidget(self.mapping_scheme_box, 1, 3)
 

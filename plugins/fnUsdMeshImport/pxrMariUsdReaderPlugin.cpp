@@ -145,7 +145,7 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     // Mapping scheme
     MriAttributeValue MappingSchemeValue;
     MappingSchemeValue.m_Type = MRI_ATTR_STRING_LIST;
-    MappingSchemeValue.m_pString = "UV if available, Ptex otherwise\nForce Ptex";
+    MappingSchemeValue.m_pString = UsdReader::kMappingSchemeOptions.c_str();
     host.setAttribute(SettingsHandle, "Mapping Scheme", &MappingSchemeValue);
 
     // frame number

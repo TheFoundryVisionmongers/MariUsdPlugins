@@ -52,6 +52,8 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 std::string UsdReader::kNoUvSetFoundStr = "* no uv set found *";
 
+const std::string UsdReader::kMappingSchemeOptions = "UV if available, Ptex otherwise\nForce Ptex\nUV if available, empty otherwise\nForce empty";
+
 UsdReader::UsdReader(const char* pFileName, 
                                  MriGeoReaderHost &pHost) :
     _pluginName("UsdReader"),
@@ -880,7 +882,7 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     _host.trace("%s:%d] Mappping scheme Option %s", _pluginName, __LINE__,
                 mappingScheme.c_str());
 
-    if (mappingScheme == "UV if available, Ptex otherwise\nForce Ptex")
+    if (mappingScheme == kMappingSchemeOptions)
     {
         // Default when unset
         mappingScheme = "UV if available, Ptex otherwise";
