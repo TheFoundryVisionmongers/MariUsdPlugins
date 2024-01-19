@@ -376,6 +376,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
                 // detect handle id
                 std::string handle = "";
+                TfToken orientation;
                 UsdGeomGprim gprim(prim);
                 if (gprim) {
                     TfToken gprimHandleIdToken ("__gprimHandleid");
@@ -388,10 +389,18 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                     VtValue value;
                     primvar.ComputeFlattened(&value);
                     handle = TfStringify(value);
+
+                    UsdAttribute orientationAttr = gprim.GetOrientationAttr();
+                    orientationAttr.Get(&orientation);
                 }
                 if (handle.empty()) {
                     handle = prim.GetPath().GetText();
                 }
+
+                MriAttributeValue orientationValue;
+                orientationValue.m_Type = MRI_ATTR_BOOL;
+                orientationValue.m_Int = orientation==TfToken("leftHanded");
+                _host.setAttribute(entityToPopulate, "MriGeoEntityReverseOrientation", &orientationValue);
 
                 _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
 
