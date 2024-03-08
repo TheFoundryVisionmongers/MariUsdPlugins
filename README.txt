@@ -18,21 +18,21 @@ For information about USD, please visit https://graphics.pixar.com/usd/docs/inde
 Dependencies
 ------------
 The following dependencies are required:
- - C++ 14 compiler
+ - C++ 17 compiler
  - [CMake](https://cmake.org/documentation/) (3.11 onwards)
- - [Boost](https://boost.org) (1.70.0 onwards)
- - [Intel TBB](https://www.threadingbuildingblocks.org/) (2019U6 onwards)
- - [Ninja](https://ninja-build.org/) (1.8.2 onwards)
- - [Usd](https://github.com/PixarAnimationStudios/USD) (21.05)
+ - [Boost](https://boost.org) (1.80.0 onwards)
+ - [Intel TBB](https://www.threadingbuildingblocks.org/) (2020U3 onwards)
+ - [Ninja](https://ninja-build.org/) (1.10.2 onwards)
+ - [Usd](https://github.com/PixarAnimationStudios/USD) (23.05)
 
 The following dependencies are optional:
- - [Python](https://python.org) (3.7.7 onwards)
+ - [Python](https://python.org) (3.10 onwards)
 
 
 Required environment variables
 ------------------------------
 We're using CMake to configure our project, with Ninja as the generator. The latter is chosen because it is cross-platform and works out of the box on both Linux and Windows.
-The code requires a C++14 compiler and we've tested it with GCC 6.3.1 on Linux and Visual Studio 2017 on Windows.
+The code requires a C++17 compiler and we've tested it with GCC 11.2.1 on Linux and Visual Studio 2022 on Windows.
 
 The following paths are required and need to be set as environment variables:
 - USD_ROOT : path to the USD libraries
@@ -42,7 +42,7 @@ The following paths are required and need to be set as environment variables:
 - BOOST_ROOT : path to Boost directory
 - BOOST_INCLUDEDIR : path to Boost include directory
 - BOOST_LIBRARYDIR : path to Boost lib directory
-    - We are assuming that Boost is built as static libraries. If that is not the case, please update line 44 of the CMakeListx.txt file to be: set (Boost_USE_STATIC_LIBS OFF)
+    - We are assuming that Boost is built as static libraries. If that is not the case, please update the CMakeListx.txt file to: set (Boost_USE_STATIC_LIBS OFF)
 - MARI_SDK_INCLUDE_DIR : path to Mari SDK include directory. These are the required CAPI header files.
 - PYTHON_ROOT : path to Python libraries. This is optional and set, the build will look and link python libraries to the plugin.
 
@@ -53,16 +53,16 @@ export TBB_DIR=/tmp/TBB
 export BOOST_ROOT=/tmp/Boost
 export BOOST_INCLUDEDIR=/tmp/Boost/include
 export BOOST_LIBRARYDIR=/tmp/Boost/lib
-export MARI_SDK_INCLUDE_DIR=/tmp/Mari5.0v1/SDK/include
+export MARI_SDK_INCLUDE_DIR=/tmp/Mari7.0v1/SDK/include
 export PYTHON_ROOT=/tmp/Python
 
-Example on Windows 10 in VS2017 x64 Native Tools Command Prompt:
+Example on Windows 10 in VS2022 x64 Native Tools Command Prompt:
 set USD_ROOT=C:/Build/usd
 set TBB_DIR=C:/Build/tbb
 set BOOST_ROOT=C:/Build/Boost
 set BOOST_INCLUDEDIR=C:/Build/Boost/include
 set BOOST_LIBRARYDIR=C:/Build/Boost/lib
-set MARI_SDK_INCLUDE_DIR=C:/Installation/Mari5.0v1/Bundle/SDK/include
+set MARI_SDK_INCLUDE_DIR=C:/Installation/Mari7.0v1/Bundle/SDK/include
 
 
 Building the Code
@@ -77,19 +77,19 @@ Note : CMake uses a temporary path as install directory. Please specify where to
 - cd buildplugin
 
 (Linux)
-- cmake -G Ninja -D CMAKE_MAKE_PROGRAM:FILEPATH=/tmp/Ninja/1.8.2/bin/ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/MyPlugin ../
+- cmake -G Ninja -D CMAKE_MAKE_PROGRAM:FILEPATH=/tmp/Ninja/1.10.2/bin/ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/tmp/MyPlugin ../
 
 (Windows)
-- cmake.exe -G Ninja -D CMAKE_MAKE_PROGRAM:FILEPATH=C:\Installation\Ninja\1.8.2\bin\ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=C:\MyPlugin ..\
+- cmake.exe -G Ninja -D CMAKE_MAKE_PROGRAM:FILEPATH=C:\Installation\Ninja\1.10.2\bin\ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=C:\MyPlugin ..\
 
 
 2. This should create a ninja project for us. Then run "ninja" to compile and install:
 
 (Linux)
-- /tmp/Ninja/1.8.2/bin/ninja install
+- /tmp/Ninja/1.10.2/bin/ninja install
 
 (Windows)
-- C:\Installation\Ninja\1.8.2\bin\ninja.exe install
+- C:\Installation\Ninja\1.10.2\bin\ninja.exe install
 
 The plugin will be built as libUSDImport.so on Linux and USDImport.dll on Windows. A "lib" folder will also be created which contains all the required libraries to make the plugin run.
 
