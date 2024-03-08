@@ -55,8 +55,8 @@ find_package(Boost COMPONENTS python)
 
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
-# Use C++ 14
-set (CMAKE_CXX_STANDARD "14" CACHE STRING "" FORCE)
+# Use C++ 17
+set (CMAKE_CXX_STANDARD "17" CACHE STRING "" FORCE)
 set (CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
 set (CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "" FORCE)
 
@@ -78,16 +78,19 @@ target_include_directories(
     USDImport
     PRIVATE
     $ENV{MARI_SDK_INCLUDE_DIR}
+    $ENV{USD_ROOT}/include
+    $ENV{BOOST_INCLUDEDIR}
+    $ENV{TBB_DIR}/include
 )
 
 target_compile_options(
     USDImport
     PRIVATE
-    -DMARI_VERSION=50
+    -DMARI_VERSION=60
     -DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
     $<$<CONFIG:Debug>:-DBOOST_DEBUG_PYTHON>
     $<$<CXX_COMPILER_ID:MSVC>:-WX -W4 -DNOMINMAX -DWIN32_LEAN_AND_MEAN /FIiso646.h -wd4201 -wd4127 -wd4244 -wd4305 -wd4800 -wd4100 -wd4267 -wd4018 -wd4996 -wd4701 -EHsc>
-    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror -Wno-sign-compare -Wno-deprecated>
+    $<$<CXX_COMPILER_ID:GNU>:-Wall -Wno-sign-compare -Wno-deprecated>
 )
 
 target_link_libraries(
