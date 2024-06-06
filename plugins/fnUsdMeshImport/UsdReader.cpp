@@ -393,10 +393,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                     handle = prim.GetPath().GetText();
                 }
 
-                MriAttributeValue orientationValue;
-                orientationValue.m_Type = MRI_ATTR_BOOL;
-                orientationValue.m_Int = orientation==TfToken("leftHanded");
-                _host.setAttribute(entityToPopulate, "MriGeoEntityReverseOrientation", &orientationValue);
+                Geom.setRightHandedWindingOrder(orientation != TfToken("leftHanded"));
 
                 _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
 
@@ -605,7 +602,7 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
     }
 
     // 3. Create Mesh and add data channels to it
-    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), &MeshObject));
+    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), Geom.isRightHandWindingOrder(), &MeshObject));
     CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Vertices));
     CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, VertexIndices));
     if (Geom.HasNormals())
