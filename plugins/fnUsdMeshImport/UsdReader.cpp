@@ -393,7 +393,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                     handle = prim.GetPath().GetText();
                 }
 
-                Geom.setRightHandedWindingOrder(orientation != TfToken("leftHanded"));
+                Geom.SetRightHandedWindingOrder(orientation != TfToken("leftHanded"));
 
                 _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
 
@@ -602,7 +602,12 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
     }
 
     // 3. Create Mesh and add data channels to it
-    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), Geom.isRightHandWindingOrder(), &MeshObject));
+    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), &MeshObject));
+    MriAttributeValue RightHandedWindingOrder;
+    RightHandedWindingOrder.m_Type = MRI_ATTR_BOOL;
+    RightHandedWindingOrder.m_Int = Geom.IsRightHandWindingOrder();
+    _host.setAttribute(MeshObject, "RightHandedWindingOrder", &RightHandedWindingOrder);
+
     CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Vertices));
     CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, VertexIndices));
     if (Geom.HasNormals())

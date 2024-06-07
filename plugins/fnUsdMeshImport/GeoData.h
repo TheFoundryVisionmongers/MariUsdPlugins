@@ -87,7 +87,7 @@ public:
         // reset
         void Reset();
 
-        void setRightHandedWindingOrder(bool rightHandedWindingOrder);
+        void SetRightHandedWindingOrder(bool rightHandedWindingOrder);
 
         typedef unsigned* uptr;
 
@@ -137,7 +137,7 @@ public:
         inline int PropagateCorner() {return m_propagateCorner;}
         inline int TriangleSubdivision() {return m_triangleSubdivision;}
 
-        inline bool isRightHandWindingOrder() {return m_isRightHandWindingOrder;}
+        inline bool IsRightHandWindingOrder() {return m_isRightHandWindingOrder;}
 
         // is valid?
         operator bool();

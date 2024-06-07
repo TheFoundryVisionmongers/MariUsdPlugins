@@ -631,7 +631,7 @@ bool GeoData::IsValidNode(UsdPrim const &prim)
         return TestPath( prim.GetPath().GetText());
 }
 
-void GeoData::setRightHandedWindingOrder(bool rightHandedWindingOrder)
+void GeoData::SetRightHandedWindingOrder(bool rightHandedWindingOrder)
 {
     m_isRightHandWindingOrder = rightHandedWindingOrder;
 }
