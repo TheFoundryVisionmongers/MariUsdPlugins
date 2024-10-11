@@ -869,6 +869,7 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                     bind_target = subset
             try:
                 UsdShade.MaterialBindingAPI(bind_target).Bind(material)
+                bind_target.AddAppliedSchema("MaterialBindingAPI")
             except Tf.ErrorException:
                 _debuglog("Warning: Unable to bind material to %s" % material_assign_prim)
 
