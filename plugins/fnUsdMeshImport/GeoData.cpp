@@ -75,7 +75,8 @@ GeoData::GeoData(UsdPrim const &prim,
                  bool keepCentered,
                  UsdPrim const &model,
                  const MriGeoReaderHost& host,
-                 std::vector<std::string>& log)
+                 std::vector<std::string>& log,
+                 bool rightHandedWindingOrder)
 {
     // Init
     m_isSubdivMesh = false;
@@ -84,6 +85,7 @@ GeoData::GeoData(UsdPrim const &prim,
     m_faceVaryingLinearInterpolation = 0;
     m_propagateCorner = 0;
     m_triangleSubdivision = 0;
+    m_isRightHandWindingOrder = rightHandedWindingOrder;
 
     UsdGeomMesh mesh(prim);
     if (not mesh)
@@ -645,7 +647,10 @@ bool GeoData::IsValidNode(UsdPrim const &prim)
         return TestPath( prim.GetPath().GetText());
 }
 
-
+void GeoData::SetRightHandedWindingOrder(bool rightHandedWindingOrder)
+{
+    m_isRightHandWindingOrder = rightHandedWindingOrder;
+}
 
 // Pre-scan the UsdStage to see what uv sets are included.
 void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
