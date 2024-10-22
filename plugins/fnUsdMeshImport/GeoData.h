@@ -76,7 +76,8 @@ public:
                 bool keepCentered,
                 PXR_NS::UsdPrim const &model,
                 const MriGeoReaderHost& host,
-                std::vector<std::string>& log);
+                std::vector<std::string>& log,
+                bool rightHandedWindingOrder = true);
         
         ~GeoData();
      
@@ -85,6 +86,8 @@ public:
                 
         // reset
         void Reset();
+
+        void SetRightHandedWindingOrder(bool rightHandedWindingOrder);
 
         typedef unsigned* uptr;
 
@@ -134,6 +137,8 @@ public:
         inline int PropagateCorner() {return m_propagateCorner;}
         inline int TriangleSubdivision() {return m_triangleSubdivision;}
 
+        inline bool IsRightHandWindingOrder() {return m_isRightHandWindingOrder;}
+
         // is valid?
         operator bool();
 
@@ -163,6 +168,7 @@ protected:
         int m_faceVaryingLinearInterpolation;
         int m_propagateCorner;
         int m_triangleSubdivision;
+        bool m_isRightHandWindingOrder;
 
         static std::string _requireGeomPathSubstringEnvVar;
         static std::string _ignoreGeomPathSubstringEnvVar;
