@@ -856,6 +856,7 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
 
             bind_target = material_assign_prim
 
+            subset=None
             if use_selecgion_group_assignment:
                 faces = list(mesh_location_to_face_index_range[material_assign_location])
                 faces.sort()
@@ -868,8 +869,12 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
                     subset.CreateIndicesAttr(faces)
                     bind_target = subset
             try:
-                UsdShade.MaterialBindingAPI(bind_target).Bind(material)
-                material_assign_prim.AddAppliedSchema("MaterialBindingAPI")
+                api = UsdShade.MaterialBindingAPI(bind_target)
+                api.Bind(material)
+                if subset:
+                    api.Apply(bind_target.GetPrim())
+                else:
+                    api.Apply(bind_target)
             except Tf.ErrorException:
                 _debuglog("Warning: Unable to bind material to %s" % material_assign_prim)
 
