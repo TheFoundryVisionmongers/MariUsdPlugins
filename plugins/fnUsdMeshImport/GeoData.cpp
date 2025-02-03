@@ -389,14 +389,19 @@ GeoData::GeoData(UsdPrim const &prim,
 
         // Calculate transforms - if not identity, pre-transform all points in place
         UsdGeomXformCache xformCache(currentTime);
-        GfMatrix4d fullXform = xformCache.GetLocalToWorldTransform(prim);
+        GfMatrix4d fullXform(1.0);
 
         if (keepCentered)
         {
             // ignore transforms up to the model level
             GfMatrix4d m = xformCache.GetLocalToWorldTransform(model);
-            fullXform = fullXform * m.GetInverse();
+            fullXform = m.GetInverse();
         }
+        else
+        {
+            fullXform = xformCache.GetLocalToWorldTransform(prim);
+        }
+
         if (fullXform != IDENTITY)
         {
             unsigned int psize = points.size();
@@ -408,6 +413,8 @@ GeoData::GeoData(UsdPrim const &prim,
                 points[iPoint + 1] = p[1];
                 points[iPoint + 2] = p[2];
             }
+
+            // TODO: Do we need to rotate normals (and tangents/bitangents) as well?
         }
 
         if (conformToMariY && !readerIsUpY)
@@ -419,6 +426,46 @@ GeoData::GeoData(UsdPrim const &prim,
                 float y = points[iPoint + 1];
                 points[iPoint + 1] = points[iPoint + 2];
                 points[iPoint + 2] = -y;
+            }
+
+            // TODO: Do we need to rotate normals (and tangents/bitangents) as well?
+        }
+
+        if (keepCentered)
+        {
+            GfVec3f minExtents(std::numeric_limits<float>::max());
+            GfVec3f maxExtents(std::numeric_limits<float>::min());
+
+            const unsigned int psize = points.size();
+            for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+            {
+                const float px = points[iPoint];
+                const float py = points[iPoint+1];
+                const float pz = points[iPoint+2];
+                if (keepCentered)
+                {
+                    minExtents[0] = std::min(px, minExtents[0]);
+                    minExtents[1] = std::min(py, minExtents[1]);
+                    minExtents[2] = std::min(pz, minExtents[2]);
+
+                    maxExtents[0] = std::max(px, maxExtents[0]);
+                    maxExtents[1] = std::max(py, maxExtents[1]);
+                    maxExtents[2] = std::max(pz, maxExtents[2]);
+                }
+            }
+
+            const float offsetX = minExtents[0] + (maxExtents[0] - minExtents[0]) * 0.5f;
+            const float offsetY = minExtents[1] + (maxExtents[1] - minExtents[1]) * 0.5f;
+            const float offsetZ = minExtents[2] + (maxExtents[2] - minExtents[2]) * 0.5f;
+
+            if ((offsetX != 0.0f) || (offsetY != 0.0f) || (offsetZ != 0.0f))
+            {
+                for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+                {
+                    points[iPoint]   -= offsetX;
+                    points[iPoint+1] -= offsetY;
+                    points[iPoint+2] -= offsetZ;
+                }
             }
         }
 
