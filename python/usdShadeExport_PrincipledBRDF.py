@@ -255,6 +255,6 @@ if mari.app.isRunning():
         "PxrDisney",
         writePrincipledBRDFSurface,
         "out",
-        None,
+        "ri",
         callback_functions
     )
