@@ -776,7 +776,7 @@ class FileBrowseWidget(widgets.QWidget):
         self.type = type
         self.filters = filters
         
-        self.file_system_model = widgets.QFileSystemModel()
+        self.file_system_model = widgets.QFileSystemModel(self)
         self.file_system_model.setRootPath(core.QDir.rootPath())
         self.completer = widgets.QCompleter()
         self.completer.setModel(self.file_system_model)
