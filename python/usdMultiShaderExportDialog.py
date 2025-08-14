@@ -21,18 +21,26 @@
 # language governing permissions and limitations under the Apache License.
 
 import mari
-import PySide2.QtCore as core
-import PySide2.QtGui as gui
-import PySide2.QtWidgets as widgets
-from PySide2.QtCore import Qt as qt
 from . import usdExportManagerTab, usdShadeExport
 import os, json, uuid
 import xml.etree.ElementTree as etree
 
+for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+    try:
+        core = importlib.import_module(f'{base_module}.QtCore')
+        gui = importlib.import_module(f'{base_module}.QtGui')
+        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        QT_VERSION = base_module
+        break
+    except (ImportError, ModuleNotFoundError):
+        continue
+else:
+    raise ImportError("Neither PySide6 nor PySide2 is available")
+
 # When unifying usdExportManagerTab to this usdMultiShaderExportDialog, these implementation should be moved over
 FileBrowseWidget = usdExportManagerTab.FileBrowseWidget
 load_paths = usdExportManagerTab.USDExportWidget.load_paths
-load_text_value = usdExportManagerTab.USDExportWidget.load_text_value 
+load_text_value = usdExportManagerTab.USDExportWidget.load_text_value
 save_paths = usdExportManagerTab.USDExportWidget.save_paths
 save_text_value = usdExportManagerTab.USDExportWidget.save_text_value
 
@@ -109,7 +117,7 @@ class Material_Item():
     def __init__(self, name):
         self.__name = name
         self.__uuid = str(uuid.uuid1())
-        self.__checked = qt.Checked
+        self.__checked = core.Qt.Checked
         self.__shader_assignments = {}
         self.__selection_groups = []
 
@@ -162,7 +170,7 @@ class Material_Item():
         usd_material_data = {
             "name": self.name,
             "uuid": self.uuid,
-            "checked": True if self.checked == qt.Checked else False,
+            "checked": True if self.checked == core.Qt.Checked else False,
             "shader_assignments": shader_assignments,
             "selection_groups": self.selection_groups,
         }
@@ -176,7 +184,7 @@ class Material_Item():
 
             material.name = name
             material.uuid = usd_material_data["uuid"]
-            material.checked = qt.Checked if usd_material_data["checked"] else qt.Unchecked
+            material.checked = core.Qt.Checked if usd_material_data["checked"] else core.Qt.Unchecked
             material.selection_groups = usd_material_data["selection_groups"]
             material.shader_assignments = {}
 
@@ -316,19 +324,19 @@ class Material_Model(core.QAbstractItemModel):
         return self.__material_list
 
     def headerData(self, section, orientation, role):
-        if orientation == qt.Horizontal:
-            if role == qt.DisplayRole:
+        if orientation == core.Qt.Horizontal:
+            if role == core.Qt.DisplayRole:
                 if section == SELECTION_GROUP_COLUMN:
-                    return None 
+                    return None
                 elif section == MATERIAL_COLUMN:
                     return "Material"
                 elif section < len(self.shader_model_list)+SHADER_COLUMN:
                     return self.shader_model_list[section-2]
-            elif role == qt.DecorationRole:
+            elif role == core.Qt.DecorationRole:
                 if section == SELECTION_GROUP_COLUMN:
                     return self.__selection_group_icon
-            elif role == qt.TextAlignmentRole:
-                return qt.AlignHCenter
+            elif role == core.Qt.TextAlignmentRole:
+                return core.Qt.AlignHCenter
         return None
 
     def saveMaterials(self):
@@ -417,7 +425,7 @@ class Material_Model(core.QAbstractItemModel):
         self.__shader_model_list.sort()
 
     def data(self, index, role):
-        if role == qt.DisplayRole:
+        if role == core.Qt.DisplayRole:
             row = index.row()
             col = index.column()
             material = self.material_list[row]
@@ -432,7 +440,7 @@ class Material_Model(core.QAbstractItemModel):
                     return shader_assignments[shader_model_name].name()
                 else:
                     return ""
-        elif role == qt.DecorationRole:
+        elif role == core.Qt.DecorationRole:
             row = index.row()
             col = index.column()
             if col == SELECTION_GROUP_COLUMN:
@@ -444,14 +452,14 @@ class Material_Model(core.QAbstractItemModel):
                     shader = shader_assignments[shader_model_name]
                     if self.__shader_inputs_empty[shader]:
                         return self.__shader_error_icon
-        elif role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
+        elif role == core.Qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
             material = self.material_list[index.row()]
             return material.checked
-        elif role == qt.ForegroundRole:
-            if self.material_list[index.row()].checked == qt.Unchecked:
+        elif role == core.Qt.ForegroundRole:
+            if self.material_list[index.row()].checked == core.Qt.Unchecked:
                 palette = gui.QPalette()
                 return palette.brush(palette.Disabled, palette.Foreground)
-        elif role == qt.ToolTipRole:
+        elif role == core.Qt.ToolTipRole:
             shader_model_name = self.shader_model_list[index.column()-SHADER_COLUMN]
             shader_assignments = self.material_list[index.row()].shader_assignments
             if shader_model_name in shader_assignments and shader_assignments[shader_model_name] != None:
@@ -461,11 +469,11 @@ class Material_Model(core.QAbstractItemModel):
         return None
 
     def setData(self, index, value, role):
-        if role == qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
+        if role == core.Qt.CheckStateRole and index.column()==MATERIAL_COLUMN:
             material = self.material_list[index.row()]
             material.checked = value
             self.dataChanged.emit(index, index, [role])
-            self.dataChanged.emit(index, self.createIndex(index.row(), self.columnCount()-1), [qt.ForegroundRole])
+            self.dataChanged.emit(index, self.createIndex(index.row(), self.columnCount()-1), [core.Qt.ForegroundRole])
             return True
         return super(Material_Model, self).setData(index, value, role)
 
@@ -475,9 +483,9 @@ class Material_Model(core.QAbstractItemModel):
     def flags(self, index):
         default_flags = super(Material_Model, self).flags(index)
         if index.column() == MATERIAL_COLUMN:
-            return default_flags | qt.ItemIsEditable | qt.ItemIsUserCheckable
+            return default_flags | core.Qt.ItemIsEditable | core.Qt.ItemIsUserCheckable
         elif index.column() >= SHADER_COLUMN:
-            return default_flags | qt.ItemIsEditable
+            return default_flags | core.Qt.ItemIsEditable
         return default_flags
 
     def parent(self, index):
@@ -495,13 +503,13 @@ class ExportItemModel(mari.system.batch_export_dialog.ExportItemModel):
 
     def data(self, index, role):
         index = resolveSourceIndex(index)
-        if role == qt.DisplayRole and index.column()==0:
+        if role == core.Qt.DisplayRole and index.column() == 0:
             # Shown stream names instead of channel/node names
             item = index.internalPointer()
             if isinstance(item, mari.ExportItem):
                 if item.hasMetadata("_STREAM"):
                     return item.metadata("_STREAM")
-        elif role == qt.DecorationRole:
+        elif role == core.Qt.DecorationRole:
             return None
         return super(ExportItemModel, self).data(index, role)
 
@@ -582,7 +590,7 @@ class EditSelectionGroupDialog(widgets.QDialog):
         for selection_group in mari.selection_groups.list():
             if isinstance(selection_group, mari.FaceSelectionGroup):
                 item = widgets.QListWidgetItem(selection_group.name())
-                item.setData(qt.UserRole, selection_group.uuid())
+                item.setData(core.Qt.UserRole, selection_group.uuid())
                 self.project_selection_groups_list.addItem(item)
 
         self.addItems(selection_group_uuids)
@@ -602,28 +610,28 @@ class EditSelectionGroupDialog(widgets.QDialog):
         existing_uuids = set()
         for i in range(self.material_selection_groups_list.count()):
             item = self.material_selection_groups_list.item(i)
-            existing_uuids.add(item.data(qt.UserRole))
+            existing_uuids.add(item.data(core.Qt.UserRole))
 
         for selection_group_uuid in selection_group_uuids:
             if selection_group_uuid in existing_uuids:
                 continue
             if selection_group_uuid in project_selection_group_map:
                 item = widgets.QListWidgetItem(project_selection_group_map[selection_group_uuid].name())
-                item.setData(qt.UserRole, selection_group_uuid)
+                item.setData(core.Qt.UserRole, selection_group_uuid)
                 self.material_selection_groups_list.addItem(item)
 
     def addAll(self):
         selection_group_uuids = []
         for i in range(self.project_selection_groups_list.count()):
             item = self.project_selection_groups_list.item(i)
-            selection_group_uuids.append(item.data(qt.UserRole))
+            selection_group_uuids.append(item.data(core.Qt.UserRole))
         self.addItems(selection_group_uuids)
 
 
     def addSelected(self):
         selection_group_uuids = []
         for item in self.project_selection_groups_list.selectedItems():
-            selection_group_uuids.append(item.data(qt.UserRole))
+            selection_group_uuids.append(item.data(core.Qt.UserRole))
         self.addItems(selection_group_uuids)
 
     def removeAll(self):
@@ -637,7 +645,7 @@ class EditSelectionGroupDialog(widgets.QDialog):
         selection_group_uuids = []
         for i in range(self.material_selection_groups_list.count()):
             item = self.material_selection_groups_list.item(i)
-            selection_group_uuids.append(item.data(qt.UserRole))
+            selection_group_uuids.append(item.data(core.Qt.UserRole))
         return selection_group_uuids
 
 class SelectionGroupListWidget(widgets.QListWidget):
@@ -652,7 +660,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
         self.setSelectionMode(self.ExtendedSelection)
 
     def supportedDropActions(self):
-        return qt.CopyAction | qt.MoveAction
+        return core.Qt.CopyAction | core.Qt.MoveAction
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
@@ -681,13 +689,14 @@ class SelectionGroupListWidget(widgets.QListWidget):
             selection_group_map[selection_group.uuid()] = selection_group
 
             # Maintain a single signal connection to a name change of geometry selection group so that the names in this list are dynamically updated
-            selection_group.nameChanged.connect(self.updateSelectionGroups, qt.UniqueConnection)
+            selection_group.nameChanged.connect(
+                self.updateSelectionGroups, core.Qt.UniqueConnection)
 
         for uuid in self.__material.selection_groups:
             if uuid in selection_group_map:
                 selection_group = selection_group_map[uuid]
                 item = widgets.QListWidgetItem(selection_group.name())
-                item.setData(qt.UserRole, selection_group.uuid())
+                item.setData(core.Qt.UserRole, selection_group.uuid())
                 self.addItem(item)
 
     def setMaterial(self, material):
@@ -724,7 +733,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
     def deleteSelectedSelectionGroups(self):
         if self.__material:
             for item in self.selectedItems():
-                uuid = item.data(qt.UserRole)
+                uuid = item.data(core.Qt.UserRole)
                 self.__material.selection_groups.remove(uuid)
             self.updateSelectionGroups()
 
@@ -849,28 +858,28 @@ class MultiShaderExportWidget(widgets.QWidget):
 
         self.export_usd_target_dir_widget = FileBrowseWidget(self, widgets.QFileDialog.Directory, "", load_paths("UsdMultiTargetDirPaths", mari.resources.path("MARI_DEFAULT_EXPORT_PATH")))
         target_dir_label = widgets.QLabel("Texture Target Directory", self)
-        target_dir_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        target_dir_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(target_dir_label, 0, 0)
         options_layout.addWidget(self.export_usd_target_dir_widget, 0, 1)
         
         look_file_filter = "USD Look File (*.usd *.usda *.usdz)"
         self.look_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, look_file_filter, load_paths("UsdMultiLookPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "LookFile.usda")))
         look_file_label = widgets.QLabel("USD Look File", self)
-        look_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        look_file_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(look_file_label, 1, 0)
         options_layout.addWidget(self.look_file_widget, 1, 1)
 
         assembly_file_filter = "USD Assembly File (*.usd *.usda *.usdz)"
         self.assembly_file_widget = FileBrowseWidget(self, widgets.QFileDialog.AnyFile, assembly_file_filter, load_paths("UsdMultiAssemblyPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Assembly.usda")))
         assembly_file_label= widgets.QLabel("USD Assembly File", self)
-        assembly_file_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        assembly_file_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(assembly_file_label, 2, 0)
         options_layout.addWidget(self.assembly_file_widget, 2, 1)
         
         payload_file_filter = "USD (*.usd *.usda *.usdz)"
         self.payload_file_widget = FileBrowseWidget(self, widgets.QFileDialog.ExistingFile, payload_file_filter, load_paths("UsdMultiPayloadPaths", os.path.join(mari.resources.path("MARI_DEFAULT_EXPORT_PATH"), "Payload.usd")))
         payload_label = widgets.QLabel("USD Payload", self)
-        payload_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        payload_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(payload_label, 3, 0)
         options_layout.addWidget(self.payload_file_widget, 3, 1)
 
@@ -881,7 +890,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         for depth in mari.exports.depthList():
             self.default_depth_combo_box.addItem(depth, depth)
         override_depth_label = widgets.QLabel("Override Depth", self)
-        override_depth_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        override_depth_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(override_depth_label, 0, 2)
         options_layout.addWidget(self.default_depth_combo_box, 0, 3)
 
@@ -892,7 +901,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         for size in mari.exports.resolutionList():
             self.default_size_combo_box.addItem(size, size)
         override_resolution_label = widgets.QLabel("Override Resolution", self)
-        override_resolution_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        override_resolution_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(override_resolution_label, 1, 2)
         options_layout.addWidget(self.default_size_combo_box, 1, 3)
 
@@ -904,7 +913,7 @@ class MultiShaderExportWidget(widgets.QWidget):
             root_name = load_text_value("UsdMultiRootName", root_name)
         self.root_name_widget.setText(root_name)
         root_name_label = widgets.QLabel("Root Name", self)
-        root_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        root_name_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(root_name_label, 2, 2)
         options_layout.addWidget(self.root_name_widget, 2, 3)
 
@@ -916,7 +925,7 @@ class MultiShaderExportWidget(widgets.QWidget):
             uv_set_name = load_text_value("UsdMultiUvSetName", "st")
         self.uv_set_name_widget.setText(uv_set_name)
         uv_set_name_label = widgets.QLabel("UV Set Name", self)
-        uv_set_name_label.setAlignment(qt.AlignRight | qt.AlignVCenter)
+        uv_set_name_label.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
         options_layout.addWidget(uv_set_name_label, 3, 2)
         options_layout.addWidget(self.uv_set_name_widget, 3, 3)
 
@@ -1165,7 +1174,7 @@ class EditShaderInputsDialog(widgets.QDialog):
 
         close_button = widgets.QPushButton("Close", self)
         close_button.pressed.connect(self.accept)
-        dialog_layout.addWidget(close_button, alignment = qt.AlignRight)
+        dialog_layout.addWidget(close_button, alignment=core.Qt.AlignRight)
 
         # Populate ExportItems + update the stated
         self.onShaderInputEditCurrentShaderChanged()
