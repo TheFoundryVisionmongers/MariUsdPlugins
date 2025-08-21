@@ -21,14 +21,22 @@
 # language governing permissions and limitations under the Apache License.
 
 import mari
-import PySide2.QtCore as core
-import PySide2.QtGui as gui
-import PySide2.QtWidgets as widgets
-qt = core.Qt
+import importlib
+
+for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+    try:
+        core = importlib.import_module(f'{base_module}.QtCore')
+        gui = importlib.import_module(f'{base_module}.QtGui')
+        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        break
+    except (ImportError, ModuleNotFoundError):
+        continue
+else:
+    raise ImportError("Neither PySide6 nor PySide2 is available")
 
 from fnpxr import Sdf, Usd, UsdGeom
 
-USER_ROLE_PATH = qt.UserRole
+USER_ROLE_PATH = core.Qt.UserRole
 
 CONFORM_TO_MARI_Y_AS_UP_ICON = mari.resources.createIcon("USDImporterIcons_ConformToMariYasUp.svg")
 CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON = mari.resources.createIcon("USDImporterIcons_CreateFaceSelectionGroupPerMesh.svg")
@@ -84,8 +92,8 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                 path = "/"+token if path is None else path+"/"+token
                 self._item_map[path] = item_for_token
                 item_for_token.setData(0, USER_ROLE_PATH, path)
-                item_for_token.setFlags(item_for_token.flags() | qt.ItemIsUserCheckable | qt.ItemIsAutoTristate)
-                item_for_token.setCheckState(0, qt.Checked)
+                item_for_token.setFlags(item_for_token.flags() | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsAutoTristate)
+                item_for_token.setCheckState(0, core.Qt.Checked)
                 item_for_token.setText(0, token)
                 tree_item.addChild(item_for_token)
 
@@ -128,7 +136,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                  result += self._get_selected_leaf_paths(item.child(i))
         else:
             # Leaf nodes
-            if item.checkState(0)==qt.Checked:
+            if item.checkState(0)==core.Qt.Checked:
                 result += [item.data(0, USER_ROLE_PATH)]
         return result
 
@@ -136,10 +144,10 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return self._get_selected_leaf_paths(self.invisibleRootItem())
 
     def _get_selected_paths(self, item):
-        if item.checkState(0)==qt.Checked:
+        if item.checkState(0)==core.Qt.Checked:
             # Total selection. Stop here returning the path to here.
             return [item.data(0, USER_ROLE_PATH)]
-        elif item.checkState(0)==qt.Unchecked:
+        elif item.checkState(0)==core.Qt.Unchecked:
             # No selection. Stop here returning nothing.
             return []
         else:
@@ -157,7 +165,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return result
 
     def _get_selected_variants(self, item):
-        if item.checkState(0)==qt.Unchecked:
+        if item.checkState(0)==core.Qt.Unchecked:
             # No selection. Stop here returning nothing.
             return []
 
@@ -197,9 +205,9 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         result = menu.exec_(event.globalPos())
 
         if result==select_all:
-            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Checked))
+            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Checked))
         elif result==select_none:
-            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Unchecked))
         elif result==expand_all:
             self._expand_to_level(self.invisibleRootItem(),0,-1)
         elif result==collapse_all:
@@ -234,13 +242,13 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                     mari.utils.message("Invalid paths were found. There are no prims specified by these paths.", "Invalid Expression", icon=widgets.QMessageBox.Warning, details="\n".join(invalid_paths))
                 else:
                     # First select none
-                    self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, qt.Unchecked))
+                    self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Unchecked))
 
                     for path in check_paths:
-                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, qt.Checked))
+                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, core.Qt.Checked))
                     for path in uncheck_paths:
                         # Apply uncheck after all checking for negation to take priority
-                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, qt.Unchecked))
+                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, core.Qt.Unchecked))
 
     def walk(self, item, func):
         for i in range(item.childCount()):

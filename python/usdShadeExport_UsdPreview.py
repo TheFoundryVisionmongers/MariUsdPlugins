@@ -24,7 +24,7 @@ import mari
 import os
 import re
 from . import usdShadeExport
-from pxr import Sdf, UsdShade
+from fnpxr import Sdf, UsdShade
 
 def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.

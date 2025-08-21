@@ -21,16 +21,16 @@
 # language governing permissions and limitations under the Apache License.
 
 import mari
-from . import usdExportManagerTab, usdShadeExport
+import importlib
 import os, json, uuid
 import xml.etree.ElementTree as etree
+from . import usdExportManagerTab, usdShadeExport
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
         core = importlib.import_module(f'{base_module}.QtCore')
         gui = importlib.import_module(f'{base_module}.QtGui')
         widgets = importlib.import_module(f'{base_module}.QtWidgets')
-        QT_VERSION = base_module
         break
     except (ImportError, ModuleNotFoundError):
         continue

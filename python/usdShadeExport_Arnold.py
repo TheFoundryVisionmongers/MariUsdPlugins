@@ -23,9 +23,18 @@
 import mari
 import os
 import re
-import PySide2.QtWidgets as widgets
+import importlib
 from . import usdShadeExport
-from pxr import Sdf, UsdShade
+from fnpxr import Sdf, UsdShade
+
+for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+    try:
+        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        break
+    except (ImportError, ModuleNotFoundError):
+        continue
+else:
+    raise ImportError("Neither PySide6 nor PySide2 is available")
 
 ARNOLD_SETTINGS_GROUP = "ArnoldUSDExportSettings"
 ARNOLD_SETTING_POSTPROCESS = "PostProcessCommand"
