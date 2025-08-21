@@ -24,7 +24,7 @@ import datetime
 import os
 
 import mari
-from pxr import Sdf, Usd, UsdShade, Tf, UsdGeom
+from fnpxr import Sdf, Usd, UsdShade, Tf, UsdGeom
 
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
