@@ -31,6 +31,7 @@ for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
         core = importlib.import_module(f'{base_module}.QtCore')
         gui = importlib.import_module(f'{base_module}.QtGui')
         widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        QT_VERSION = base_module
         break
     except (ImportError, ModuleNotFoundError):
         continue
@@ -820,7 +821,10 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.view = Material_View(self)
         self.view.setModel(self.model)
         self.view.horizontalHeader().setSectionResizeMode(widgets.QHeaderView.Stretch)
-        self.view.setSelectionBehavior(self.view.SelectRows)
+        if QT_VERSION == 'PySide6':
+            self.view.setSelectionBehavior(self.view.SelectionBehavior.SelectRows)
+        else:
+            self.view.setSelectionBehavior(self.view.SelectRows)
         self.view.setSelectionMode(self.view.ExtendedSelection)
         self.view.setItemDelegate(ShaderAssignment_Item_Delegate(parent=self))
         self.view.initialize()
@@ -1163,7 +1167,10 @@ class EditShaderInputsDialog(widgets.QDialog):
 
         export_item_view.setItemDelegate(mari.system.batch_export_dialog.ComboBoxDelegate(parent=self))
         export_item_view.horizontalHeader().setStretchLastSection(True)
-        export_item_view.setSelectionBehavior(export_item_view.SelectRows)
+        if QT_VERSION == 'PySide6':
+            export_item_view.setSelectionBehavior(export_item_view.SelectionBehavior.SelectRows)
+        else:
+            export_item_view.setSelectionBehavior(export_item_view.SelectRows)
         export_item_view.setSelectionMode(export_item_view.ExtendedSelection)
         export_item_view.horizontalHeader().setHighlightSections(False)
         export_item_view.setModel(self.export_item_filter_model)
