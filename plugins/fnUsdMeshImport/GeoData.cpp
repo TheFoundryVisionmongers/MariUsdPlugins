@@ -130,7 +130,7 @@ GeoData::GeoData(UsdPrim const &prim,
     // Create face selection indices
     {
         m_faceSelectionIndices.reserve(m_faceCounts.size());
-        for(int x = 0; x < m_faceCounts.size(); ++x)
+        for(auto x = 0u; x < m_faceCounts.size(); ++x)
         {
             m_faceSelectionIndices.push_back(x);
         }
@@ -166,7 +166,7 @@ GeoData::GeoData(UsdPrim const &prim,
                     {
                         // Read uvs
                         m_uvs.resize(values.size()*2);
-                        for (int i = 0; i < values.size(); ++i)
+                        for (auto i = 0u; i < values.size(); ++i)
                         {
                             m_uvs[i * 2    ] = values[i][0];
                             m_uvs[i * 2 + 1] = values[i][1];
@@ -193,7 +193,7 @@ GeoData::GeoData(UsdPrim const &prim,
                                 // VITAL NOTE: the final uv indices array count MUST MATCH the vertex indices array count
                                 std::vector<int> UvIndices = vector<int>(indices.begin(), indices.end());
                                 int globalIndex = 0;
-                                for(int x = 0; x < m_faceCounts.size(); ++x)
+                                for(auto x = 0u; x < m_faceCounts.size(); ++x)
                                 {
                                     int vertCount = m_faceCounts[x];
                                     for (int vertIndex = 0; vertIndex < vertCount; ++vertIndex)
@@ -299,7 +299,7 @@ GeoData::GeoData(UsdPrim const &prim,
 
                     indices.reserve(numVertIndices);
 
-                    if (numNormals == maxVertexIndex+1)
+                    if (numNormals == static_cast<size_t>(maxVertexIndex)+1)
                     {
                         // In the case where there are as many normals as there are vertices
                         // we'll match up the normal indices to the vertex indices.
@@ -380,7 +380,7 @@ GeoData::GeoData(UsdPrim const &prim,
         }
         
         points.resize(pointsVt.size() * 3);
-        for(int i = 0; i < pointsVt.size(); ++i) 
+        for(auto i = 0u; i < pointsVt.size(); ++i) 
         {
             points[i * 3    ] = pointsVt[i][0];
             points[i * 3 + 1] = pointsVt[i][1];
