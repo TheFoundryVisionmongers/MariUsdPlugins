@@ -404,14 +404,14 @@ GeoData::GeoData(UsdPrim const &prim,
 
         if (fullXform != IDENTITY)
         {
-            unsigned int psize = points.size();
-            for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+            auto psize = points.size();
+            for (auto iPoint = 0u; iPoint < psize; iPoint += 3)
             {
                 GfVec4d p(points[iPoint], points[iPoint + 1], points[iPoint + 2], 1.0);
                 p = p * fullXform;
-                points[iPoint    ] = p[0];
-                points[iPoint + 1] = p[1];
-                points[iPoint + 2] = p[2];
+                points[iPoint    ] = static_cast<float>(p[0]);
+                points[iPoint + 1] = static_cast<float>(p[1]);
+                points[iPoint + 2] = static_cast<float>(p[2]);
             }
 
             // TODO: Do we need to rotate normals (and tangents/bitangents) as well?
@@ -420,8 +420,8 @@ GeoData::GeoData(UsdPrim const &prim,
         if (conformToMariY && !readerIsUpY)
         {
             // Our source is Z and we need to conform to Y -> let's flip
-            unsigned int psize = points.size();
-            for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+            auto psize = points.size();
+            for (auto iPoint = 0u; iPoint < psize; iPoint += 3)
             {
                 float y = points[iPoint + 1];
                 points[iPoint + 1] = points[iPoint + 2];
@@ -436,8 +436,8 @@ GeoData::GeoData(UsdPrim const &prim,
             GfVec3f minExtents(std::numeric_limits<float>::max());
             GfVec3f maxExtents(std::numeric_limits<float>::min());
 
-            const unsigned int psize = points.size();
-            for (unsigned int iPoint = 0; iPoint < psize; iPoint += 3)
+            const auto psize = points.size();
+            for (auto iPoint = 0u; iPoint < psize; iPoint += 3)
             {
                 const float px = points[iPoint];
                 const float py = points[iPoint+1];
