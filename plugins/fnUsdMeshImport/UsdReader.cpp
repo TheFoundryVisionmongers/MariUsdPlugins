@@ -491,11 +491,11 @@ UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPat
 
 MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups)
 {
-    MriGeoDataHandle FaceVertexCounts, Vertices, Normals, VertexIndices, NormalIndices;
-    MriGeoDataHandle UVs, UVIndices;
-    MriGeoDataHandle CreaseIndices, CreaseLengths, CreaseSharpness, CornerIndices, CornerSharpness, Holes;
-    MriGeoObjectHandle MeshObject;
-    MriGeoPluginResult Result;
+    MriGeoDataHandle FaceVertexCounts{}, Vertices{}, Normals{}, VertexIndices{}, NormalIndices{};
+    MriGeoDataHandle UVs{}, UVIndices{};
+    MriGeoDataHandle CreaseIndices{}, CreaseLengths{}, CreaseSharpness{}, CornerIndices{}, CornerSharpness{}, Holes{};
+    MriGeoObjectHandle MeshObject{};
+    MriGeoPluginResult Result{};
 
     // 1 Create a version - not needed, as Mari creates a default one for us
 

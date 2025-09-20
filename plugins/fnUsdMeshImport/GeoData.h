@@ -92,43 +92,43 @@ public:
         typedef unsigned* uptr;
 
         inline uptr GetVertexIndices() {return (unsigned*)&(m_vertexIndices[0]);}
-        inline int GetNumVertexIndices() {return m_vertexIndices.size();}
+        inline int GetNumVertexIndices() {return static_cast<int>(m_vertexIndices.size());}
 
         inline uptr GetFaceVertexCounts() {return (unsigned*)&(m_faceCounts[0]);}
-        inline int GetNumFaceVertexCounts() {return m_faceCounts.size();}
+        inline int GetNumFaceVertexCounts() {return static_cast<int>(m_faceCounts.size());}
 
         inline int* GetFaceSelectionIndices() {return &(m_faceSelectionIndices[0]);}
 
         float* GetVertices(int frameSample);
-        inline int GetNumPoints() {return m_vertices.begin()->second.size();}
+        inline int GetNumPoints() {return static_cast<int>(m_vertices.begin()->second.size());}
 
         inline bool HasNormals() {return (m_normals.size() != 0);}
         inline uptr GetNormalIndices() {return (unsigned*)&(m_normalIndices[0]);}
         inline float* GetNormals() {return &(m_normals[0]);}
-        inline int GetNumNormals() {return m_normals.size();}
+        inline int GetNumNormals() {return static_cast<int>(m_normals.size());}
 
         inline bool HasUVs() {return (m_uvs.size() != 0);}
         inline uptr GetUVIndices() {return (unsigned*)&(m_uvIndices[0]);}
         inline float* GetUVs() {return &(m_uvs[0]);}
-        inline int GetNumUvs() {return m_uvs.size();}
+        inline int GetNumUvs() {return static_cast<int>(m_uvs.size());}
 
         inline uptr GetCreaseIndices() {return (unsigned*)&(m_creaseIndices[0]);}
-        inline int GetNumCreaseIndices() {return m_creaseIndices.size();}
+        inline int GetNumCreaseIndices() {return static_cast<int>(m_creaseIndices.size());}
 
         inline uptr GetCreaseLengths() {return (unsigned*)&(m_creaseLengths[0]);}
-        inline int GetNumCreaseLengths() {return m_creaseLengths.size();}
+        inline int GetNumCreaseLengths() {return static_cast<int>(m_creaseLengths.size());}
 
         inline float* GetCreaseSharpness() {return &(m_creaseSharpness[0]);}
-        inline int GetNumCreaseSharpness() {return m_creaseSharpness.size();}
+        inline int GetNumCreaseSharpness() {return static_cast<int>(m_creaseSharpness.size());}
 
         inline uptr GetCornerIndices() {return (unsigned*)&(m_cornerIndices[0]);}
-        inline int GetNumCornerIndices() {return m_cornerIndices.size();}
+        inline int GetNumCornerIndices() {return static_cast<int>(m_cornerIndices.size());}
 
         inline float* GetCornerSharpness() {return &(m_cornerSharpness[0]);}
-        inline int GetNumCornerSharpness() {return m_cornerSharpness.size();}
+        inline int GetNumCornerSharpness() {return static_cast<int>(m_cornerSharpness.size());}
 
         inline uptr GetHoleIndicess() {return (unsigned*)&(m_holeIndices[0]);}
-        inline int GetNumHoleIndices() {return m_holeIndices.size();}
+        inline int GetNumHoleIndices() {return static_cast<int>(m_holeIndices.size());}
 
         inline bool IsSubdivMesh() {return m_isSubdivMesh;}
         inline std::string SubdivisionScheme() {return m_subdivisionScheme;}
