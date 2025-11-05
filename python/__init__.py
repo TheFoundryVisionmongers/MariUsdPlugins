@@ -28,6 +28,16 @@ from . import usdShadeExport_Arnold
 from . import usdShadeExport_PRMan
 from . import usdShadeExport_PrincipledBRDF
 from . import usdMultiShaderExportDialog
-
 from . import usdLoaderTab
 
+__all__ = [
+    'usdShadeExport',
+    'usdExportManagerTab',
+    'usdShader',
+    'usdShadeExport_UsdPreview',
+    'usdShadeExport_Arnold',
+    'usdShadeExport_PRMan',
+    'usdShadeExport_PrincipledBRDF',
+    'usdMultiShaderExportDialog',
+    'usdLoaderTab',
+]

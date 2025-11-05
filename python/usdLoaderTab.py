@@ -22,6 +22,7 @@
 
 import mari
 import importlib
+from fnpxr import Sdf, Usd, UsdGeom
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
@@ -34,14 +35,15 @@ for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
 else:
     raise ImportError("Neither PySide6 nor PySide2 is available")
 
-from fnpxr import Sdf, Usd, UsdGeom
-
 USER_ROLE_PATH = core.Qt.UserRole
 
 CONFORM_TO_MARI_Y_AS_UP_ICON = mari.resources.createIcon("USDImporterIcons_ConformToMariYasUp.svg")
-CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON = mari.resources.createIcon("USDImporterIcons_CreateFaceSelectionGroupPerMesh.svg")
+CREATE_FACE_SELECTION_GROUP_PER_MESH_ICON = (
+    mari.resources.createIcon("USDImporterIcons_CreateFaceSelectionGroupPerMesh.svg")
+)
 INCLUDE_INVISIBLE_ICON = mari.resources.createIcon("USDImporterIcons_IncludeInvisible.svg")
 KEEP_CENTERED_ICON = mari.resources.createIcon("USDImporterIcons_KeepCentered.svg")
+
 
 class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
@@ -49,8 +51,8 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         widgets.QTreeWidget.__init__(self, Parent)
 
         self.setColumnCount(2)
-        self.headerItem().setText(0,"Mesh")
-        self.headerItem().setText(1,"Variant Sets")
+        self.headerItem().setText(0, "Mesh")
+        self.headerItem().setText(1, "Variant Sets")
 
         self.header().setSectionResizeMode(widgets.QHeaderView.Stretch)
         self.header().setStretchLastSection(False)
@@ -67,7 +69,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         self._expand_to_level(self.invisibleRootItem(), 0, 2)
 
     def _expand_to_level(self, item, level, target):
-        if level<=target or target<0:
+        if level <= target or target < 0:
             item.setExpanded(True)
         else:
             item.setExpanded(False)
@@ -84,15 +86,17 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             item_for_token = None
             for i in range(tree_item.childCount()):
                 child_item = tree_item.child(i)
-                if child_item.text(0)==token:
+                if child_item.text(0) == token:
                     item_for_token = child_item
-            if item_for_token==None:
+            if item_for_token is None:
                 item_for_token = widgets.QTreeWidgetItem()
                 path = tree_item.data(0, USER_ROLE_PATH)
                 path = "/"+token if path is None else path+"/"+token
                 self._item_map[path] = item_for_token
                 item_for_token.setData(0, USER_ROLE_PATH, path)
-                item_for_token.setFlags(item_for_token.flags() | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsAutoTristate)
+                item_for_token.setFlags(
+                    item_for_token.flags() | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsAutoTristate
+                )
                 item_for_token.setCheckState(0, core.Qt.Checked)
                 item_for_token.setText(0, token)
                 tree_item.addChild(item_for_token)
@@ -101,7 +105,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                 if prim_for_token.HasVariantSets():
                     variant_sets_widget = widgets.QWidget()
                     variant_sets_layout = widgets.QFormLayout()
-                    variant_sets_layout.setContentsMargins(1,1,1,1);
+                    variant_sets_layout.setContentsMargins(1, 1, 1, 1)
                     variant_sets_widget.setLayout(variant_sets_layout)
                     for variant_set_name in prim_for_token.GetVariantSets().GetNames():
                         variant_set = prim_for_token.GetVariantSet(variant_set_name)
@@ -130,13 +134,13 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
     def _get_selected_leaf_paths(self, item):
         result = []
-        if item.childCount()>0:
+        if item.childCount() > 0:
             # Intermediate nodes
-             for i in range(item.childCount()):
-                 result += self._get_selected_leaf_paths(item.child(i))
+            for i in range(item.childCount()):
+                result += self._get_selected_leaf_paths(item.child(i))
         else:
             # Leaf nodes
-            if item.checkState(0)==core.Qt.Checked:
+            if item.checkState(0) == core.Qt.Checked:
                 result += [item.data(0, USER_ROLE_PATH)]
         return result
 
@@ -144,10 +148,10 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return self._get_selected_leaf_paths(self.invisibleRootItem())
 
     def _get_selected_paths(self, item):
-        if item.checkState(0)==core.Qt.Checked:
+        if item.checkState(0) == core.Qt.Checked:
             # Total selection. Stop here returning the path to here.
             return [item.data(0, USER_ROLE_PATH)]
-        elif item.checkState(0)==core.Qt.Unchecked:
+        elif item.checkState(0) == core.Qt.Unchecked:
             # No selection. Stop here returning nothing.
             return []
         else:
@@ -165,13 +169,13 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return result
 
     def _get_selected_variants(self, item):
-        if item.checkState(0)==core.Qt.Unchecked:
+        if item.checkState(0) == core.Qt.Unchecked:
             # No selection. Stop here returning nothing.
             return []
 
         # Get the variant info
         result = []
-        widget = self.itemWidget(item,1)
+        widget = self.itemWidget(item, 1)
         if widget:
             path = item.data(0, USER_ROLE_PATH)
             layout = widget.layout()
@@ -204,22 +208,26 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         collapse_all = menu.addAction("Collapse All")
         result = menu.exec_(event.globalPos())
 
-        if result==select_all:
-            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Checked))
-        elif result==select_none:
-            self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Unchecked))
-        elif result==expand_all:
-            self._expand_to_level(self.invisibleRootItem(),0,-1)
-        elif result==collapse_all:
-            self._expand_to_level(self.invisibleRootItem(),0,0)
-        elif result==select_by_expression:
+        if result == select_all:
+            self.walk(self.invisibleRootItem(), lambda item: item.setCheckState(0, core.Qt.Checked))
+        elif result == select_none:
+            self.walk(self.invisibleRootItem(), lambda item: item.setCheckState(0, core.Qt.Unchecked))
+        elif result == expand_all:
+            self._expand_to_level(self.invisibleRootItem(), 0, -1)
+        elif result == collapse_all:
+            self._expand_to_level(self.invisibleRootItem(), 0, 0)
+        elif result == select_by_expression:
             dialog = widgets.QInputDialog()
             dialog.setWindowTitle("Select USD Mesh by Expression")
             dialog.setLabelText("Type the expression")
             dialog.setTextValue("")
             line_edit = dialog.children()[1]
-            line_edit.setToolTip('Enter a list of comma-delimited prim paths to be selected for loading. Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.')
-            if dialog.exec()==dialog.Accepted:
+            line_edit.setToolTip(
+                'Enter a list of comma-delimited prim paths to be selected for loading. '
+                'Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n'
+                ' e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.'
+            )
+            if dialog.exec() == dialog.Accepted:
                 # Check validity and sort checking and unchecking
                 paths = dialog.textValue().split(",")
                 check_paths = []
@@ -238,17 +246,32 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                         else:
                             invalid_paths.append(path)
 
-                if len(invalid_paths)>0:
-                    mari.utils.message("Invalid paths were found. There are no prims specified by these paths.", "Invalid Expression", icon=widgets.QMessageBox.Warning, details="\n".join(invalid_paths))
+                if len(invalid_paths) > 0:
+                    mari.utils.message(
+                        "Invalid paths were found. There are no prims specified by these paths.",
+                        "Invalid Expression",
+                        icon=widgets.QMessageBox.Warning,
+                        details="\n".join(invalid_paths)
+                    )
                 else:
                     # First select none
-                    self.walk(self.invisibleRootItem(), lambda item : item.setCheckState(0, core.Qt.Unchecked))
+                    self.walk(self.invisibleRootItem(), lambda item: item.setCheckState(0, core.Qt.Unchecked))
 
                     for path in check_paths:
-                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, core.Qt.Checked))
+                        self.visit(
+                            self.invisibleRootItem(),
+                            list(filter(None, path.split("/"))),
+                            None,
+                            lambda item: item.setCheckState(0, core.Qt.Checked)
+                        )
                     for path in uncheck_paths:
                         # Apply uncheck after all checking for negation to take priority
-                        self.visit(self.invisibleRootItem(), list(filter(None, path.split("/"))), None, lambda item : item.setCheckState(0, core.Qt.Unchecked))
+                        self.visit(
+                            self.invisibleRootItem(),
+                            list(filter(None, path.split("/"))),
+                            None,
+                            lambda item: item.setCheckState(0, core.Qt.Unchecked)
+                        )
 
     def walk(self, item, func):
         for i in range(item.childCount()):
@@ -256,7 +279,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         func(item)
 
     def visit(self, item, path_tokens, func, leaf_func):
-        if len(path_tokens)==0:
+        if len(path_tokens) == 0:
             if leaf_func:
                 leaf_func(item)
             return
@@ -264,7 +287,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         # Visit only the child matching the path token.
         for i in range(item.childCount()):
             child = item.child(i)
-            if child.text(0)==child_path_token:
+            if child.text(0) == child_path_token:
                 self.visit(child, path_tokens, func, leaf_func)
         if func:
             func(item)
@@ -274,8 +297,8 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
 
 class UsdLoaderWidget(widgets.QWidget):
-    def __init__(self, parent = None):
-        widgets.QWidget.__init__(self, parent = parent)
+    def __init__(self, parent=None):
+        widgets.QWidget.__init__(self, parent=parent)
 
         layout = widgets.QFormLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -329,7 +352,7 @@ class UsdLoaderWidget(widgets.QWidget):
         self.mapping_scheme_box.setToolTip("""Specify the mode for UV layout
   - UV if available, Ptex otherwise : Load the UV layout if available. If there is no UV layout, Ptex texture is created
   - Force Ptex : Force to create Ptex texture no matter if there is UV layout
-  - UV if available, empty otherwise : Load the UV layout if available. If there is no UV layout, an empty UV layout is created
+  - UV if available, empty otherwise : Load the UV layout if available. If there is no UV layout, an empty UV layout
   - Force empty : Force to create empty UV layout no matter if there is UV layout""")
         options_layout.addWidget(widgets.QLabel("Mapping Scheme"), 1, 2)
         options_layout.addWidget(self.mapping_scheme_box, 1, 3)
@@ -358,7 +381,7 @@ class UsdLoaderWidget(widgets.QWidget):
         self.create_face_selection_group_checkbox.setToolTip("""Enable to create selection groups per mesh""")
         checkbox_layout.addWidget(self.create_face_selection_group_checkbox)
 
-        options_layout.addLayout(checkbox_layout, 2,0,4,0)
+        options_layout.addLayout(checkbox_layout, 2, 0, 4, 0)
 
     def showEvent(self, event):
         attr = mari.app.getGeoPluginAttribute("Merge Type")
@@ -390,7 +413,10 @@ class UsdLoaderWidget(widgets.QWidget):
         mari.app.setGeoPluginAttribute("Keep Centered", self.keep_centered_checkbox.isChecked())
         mari.app.setGeoPluginAttribute("Conform to Mari Y as up", self.conform_y_up_checkbox.isChecked())
         mari.app.setGeoPluginAttribute("Include Invisible", self.include_invisible_checkbox.isChecked())
-        mari.app.setGeoPluginAttribute("Create Face Selection Group per mesh", self.create_face_selection_group_checkbox.isChecked())
+        mari.app.setGeoPluginAttribute(
+            "Create Face Selection Group per mesh",
+            self.create_face_selection_group_checkbox.isChecked()
+        )
 
         # Fill model names based on the tree view
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
@@ -407,7 +433,7 @@ class UsdLoaderWidget(widgets.QWidget):
 
         self.selected_items_edit.setText(",".join(self.tree_widget.selected_paths()))
 
+
 usd_loader_widget = UsdLoaderWidget()
 if mari.app.isRunning():
     mari.app.registerGeoPluginWidget(["usda", "usdc", "usdz", "usd"], usd_loader_widget)
-

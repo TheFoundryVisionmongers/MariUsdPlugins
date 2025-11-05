@@ -43,11 +43,13 @@ ARNOLD_DEFAULT_SETTINGS = {
     ARNOLD_SETTING_POSTPROCESS: "maketx $EXPORTED -o $POSTPROCESSED"
 }
 
+
 def colorsFuzzyEqual(color0, color1):
     for i in range(4):
-        if abs(color0[i]-color1[i])>0.003:
+        if abs(color0[i] - color1[i]) > 0.003:
             return False
     return True
+
 
 def colorComponentForType(sdf_type):
     if sdf_type == Sdf.ValueTypeNames.Color3f:
@@ -69,83 +71,76 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
     """
     mari_to_usd_input_map = {
-#        ('aov_id1', str),
-#        ('aov_id2', str),
-#        ('aov_id3', str),
-#        ('aov_id4', str),
-#        ('aov_id5', str),
-#        ('aov_id6', str),
-#        ('aov_id7', str),
-#        ('aov_id8', str),
-        "DiffuseWeight":('base', Sdf.ValueTypeNames.Float),
-        "DiffuseColor":('base_color', Sdf.ValueTypeNames.Color3f),
-#        ('caustics', bool),
-        "CoatWeight":('coat', Sdf.ValueTypeNames.Float),
-#        ('coat_affect_color', Sdf.ValueTypeNames.Float),
-#        ('coat_affect_roughness', Sdf.ValueTypeNames.Float),
-#        ('coat_anisotropy', Sdf.ValueTypeNames.Float),
-        "CoatColor":('coat_color', Sdf.ValueTypeNames.Color3f),
-        "CoatIOR":('coat_IOR', Sdf.ValueTypeNames.Float),
-#        ('coat_normal', Sdf.ValueTypeNames.Color3f),
-#        ('coat_rotation', Sdf.ValueTypeNames.Float),
-        "CoatRoughness":('coat_roughness', Sdf.ValueTypeNames.Float),
-#        ('dielectric_priority', int),
-        "DiffuseRoughness":('diffuse_roughness', Sdf.ValueTypeNames.Float),
-        "EmissionWeight":('emission', Sdf.ValueTypeNames.Float),
-        "EmissionColor":('emission_color', Sdf.ValueTypeNames.Color3f),
-#        ('exit_to_background', bool),
-#        ('id1', Sdf.ValueTypeNames.Color3f),
-#        ('id2', Sdf.ValueTypeNames.Color3f),
-#        ('id3', Sdf.ValueTypeNames.Color3f),
-#        ('id4', Sdf.ValueTypeNames.Color3f),
-#        ('id5', Sdf.ValueTypeNames.Color3f),
-#        ('id6', Sdf.ValueTypeNames.Color3f),
-#        ('id7', Sdf.ValueTypeNames.Color3f),
-#        ('id8', Sdf.ValueTypeNames.Color3f),
-#        ('indirect_diffuse', Sdf.ValueTypeNames.Float),
-#        ('indirect_specular', Sdf.ValueTypeNames.Float),
-#        ('internal_reflections', bool),
-        "Metalness":('metalness', Sdf.ValueTypeNames.Float),
-#        ('name', str),
-        "Bump":('normal', Sdf.ValueTypeNames.Normal3f),
-        "Normal":('normal', Sdf.ValueTypeNames.Normal3f),
-        "Opacity":('opacity', Sdf.ValueTypeNames.Color3f),
-        "SheenWeight":('sheen', Sdf.ValueTypeNames.Float),
-        "SheenColor":('sheen_color', Sdf.ValueTypeNames.Color3f),
-        "SheenRoughness":('sheen_roughness', Sdf.ValueTypeNames.Float),
-        "SpecularWeight":('specular', Sdf.ValueTypeNames.Float),
-        "Anisotropy":('specular_anisotropy', Sdf.ValueTypeNames.Float),
-        "SpecularColor":('specular_color', Sdf.ValueTypeNames.Color3f),
-        "SpecularIOR":('specular_IOR', Sdf.ValueTypeNames.Float),
-        "Rotation":('specular_rotation', Sdf.ValueTypeNames.Float),
-        "SpecularRoughness":('specular_roughness', Sdf.ValueTypeNames.Float),
-        "SSSWeight":('subsurface', Sdf.ValueTypeNames.Float),
-#        ('subsurface_anisotropy', Sdf.ValueTypeNames.Float),
-        "SSSColor":('subsurface_color', Sdf.ValueTypeNames.Color3f),
-        "SSSRadius":('subsurface_radius', Sdf.ValueTypeNames.Color3f),
-        "SSSScale":('subsurface_scale', Sdf.ValueTypeNames.Float),
-#        ('subsurface_type', str),
-#        ('tangent', Sdf.ValueTypeNames.Color3f),
-        "ThinIOR":('thin_film_IOR', Sdf.ValueTypeNames.Float),
-        "ThinThick":('thin_film_thickness', Sdf.ValueTypeNames.Float),
-#        ('thin_walled', bool),
-        "TransmissionWeight":('transmission', Sdf.ValueTypeNames.Float),
-        "TransmissionColor":('transmission_color', Sdf.ValueTypeNames.Color3f),
-        "TransmissionDepth":('transmission_depth', Sdf.ValueTypeNames.Float),
-        "TransmissionDisp":('transmission_dispersion', Sdf.ValueTypeNames.Float),
-        "TransmissionRoughness":('transmission_extra_roughness', Sdf.ValueTypeNames.Float),
-        "TransmissionScatter":('transmission_scatter', Sdf.ValueTypeNames.Color3f),
-        "TransmissionScatAnis":('transmission_scatter_anisotropy', Sdf.ValueTypeNames.Float),
-#        ('transmit_aovs', bool),
+        "DiffuseWeight": ('base', Sdf.ValueTypeNames.Float),
+        "DiffuseColor": ('base_color', Sdf.ValueTypeNames.Color3f),
+        # ('caustics', bool),
+        "CoatWeight": ('coat', Sdf.ValueTypeNames.Float),
+        # ('coat_affect_color', Sdf.ValueTypeNames.Float),
+        # ('coat_affect_roughness', Sdf.ValueTypeNames.Float),
+        # ('coat_anisotropy', Sdf.ValueTypeNames.Float),
+        "CoatColor": ('coat_color', Sdf.ValueTypeNames.Color3f),
+        "CoatIOR": ('coat_IOR', Sdf.ValueTypeNames.Float),
+        # ('coat_normal', Sdf.ValueTypeNames.Color3f),
+        # ('coat_rotation', Sdf.ValueTypeNames.Float),
+        "CoatRoughness": ('coat_roughness', Sdf.ValueTypeNames.Float),
+        # ('dielectric_priority', int),
+        "DiffuseRoughness": ('diffuse_roughness', Sdf.ValueTypeNames.Float),
+        "EmissionWeight": ('emission', Sdf.ValueTypeNames.Float),
+        "EmissionColor": ('emission_color', Sdf.ValueTypeNames.Color3f),
+        # ('exit_to_background', bool),
+        # ('id1', Sdf.ValueTypeNames.Color3f),
+        # ('id2', Sdf.ValueTypeNames.Color3f),
+        # ('id3', Sdf.ValueTypeNames.Color3f),
+        # ('id4', Sdf.ValueTypeNames.Color3f),
+        # ('id5', Sdf.ValueTypeNames.Color3f),
+        # ('id6', Sdf.ValueTypeNames.Color3f),
+        # ('id7', Sdf.ValueTypeNames.Color3f),
+        # ('id8', Sdf.ValueTypeNames.Color3f),
+        # ('indirect_diffuse', Sdf.ValueTypeNames.Float),
+        # ('indirect_specular', Sdf.ValueTypeNames.Float),
+        # ('internal_reflections', bool),
+        "Metalness": ('metalness', Sdf.ValueTypeNames.Float),
+        # ('name', str),
+        "Bump": ('normal', Sdf.ValueTypeNames.Normal3f),
+        "Normal": ('normal', Sdf.ValueTypeNames.Normal3f),
+        "Opacity": ('opacity', Sdf.ValueTypeNames.Color3f),
+        "SheenWeight": ('sheen', Sdf.ValueTypeNames.Float),
+        "SheenColor": ('sheen_color', Sdf.ValueTypeNames.Color3f),
+        "SheenRoughness": ('sheen_roughness', Sdf.ValueTypeNames.Float),
+        "SpecularWeight": ('specular', Sdf.ValueTypeNames.Float),
+        "Anisotropy": ('specular_anisotropy', Sdf.ValueTypeNames.Float),
+        "SpecularColor": ('specular_color', Sdf.ValueTypeNames.Color3f),
+        "SpecularIOR": ('specular_IOR', Sdf.ValueTypeNames.Float),
+        "Rotation": ('specular_rotation', Sdf.ValueTypeNames.Float),
+        "SpecularRoughness": ('specular_roughness', Sdf.ValueTypeNames.Float),
+        "SSSWeight": ('subsurface', Sdf.ValueTypeNames.Float),
+        # ('subsurface_anisotropy', Sdf.ValueTypeNames.Float),
+        "SSSColor": ('subsurface_color', Sdf.ValueTypeNames.Color3f),
+        "SSSRadius": ('subsurface_radius', Sdf.ValueTypeNames.Color3f),
+        "SSSScale": ('subsurface_scale', Sdf.ValueTypeNames.Float),
+        # ('subsurface_type', str),
+        # ('tangent', Sdf.ValueTypeNames.Color3f),
+        "ThinIOR": ('thin_film_IOR', Sdf.ValueTypeNames.Float),
+        "ThinThick": ('thin_film_thickness', Sdf.ValueTypeNames.Float),
+        # ('thin_walled', bool),
+        "TransmissionWeight": ('transmission', Sdf.ValueTypeNames.Float),
+        "TransmissionColor": ('transmission_color', Sdf.ValueTypeNames.Color3f),
+        "TransmissionDepth": ('transmission_depth', Sdf.ValueTypeNames.Float),
+        "TransmissionDisp": ('transmission_dispersion', Sdf.ValueTypeNames.Float),
+        "TransmissionRoughness": ('transmission_extra_roughness', Sdf.ValueTypeNames.Float),
+        "TransmissionScatter": ('transmission_scatter', Sdf.ValueTypeNames.Color3f),
+        "TransmissionScatAnis": ('transmission_scatter_anisotropy', Sdf.ValueTypeNames.Float),
+        # ('transmit_aovs', bool),
         "Vector": (None, None),
         "Displacement": (None, None),
     }
-    usdShadeExport._debuglog("Writing USD Arnold Standard Surface shader network for %s" % usd_shader_source.sourceShader().name())
+    usdShadeExport._debuglog(
+        "Writing USD Arnold Standard Surface shader network for %s" % usd_shader_source.sourceShader().name())
     material_sdf_path = usd_shader.GetPath().GetParentPath()
 
     shader_model = usd_shader_source.shaderModel()
     source_shader = usd_shader_source.sourceShader()
-    node_prefix = source_shader.name().replace(" ","_")
+    node_prefix = source_shader.name().replace(" ", "_")
     export_items = []
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map[shader_input_name]
@@ -164,7 +159,12 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
                 usd_export_parameters.exportRootPath()
             )
         )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), usd_export_parameters.exportOverrides(), ShowProgressDialog = True)
+        mari.exports.exportTextures(
+            export_items,
+            usd_export_parameters.exportRootPath(),
+            usd_export_parameters.exportOverrides(),
+            ShowProgressDialog=True
+        )
 
     normal_node = None
     bump_node = None
@@ -185,7 +185,8 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
         if export_item and export_item.exportEnabled():
             if export_item.exportedImagesUniform():
                 exported_uniform_color = export_item.exportedImagesUniformColor().rgba()
-                if exported_uniform_color != mari.Color(0,0,0,0).rgba() and not colorsFuzzyEqual(exported_uniform_color, default_color.rgba()):
+                if (exported_uniform_color != mari.Color(0, 0, 0, 0).rgba() and
+                        not colorsFuzzyEqual(exported_uniform_color, default_color.rgba())):
                     assign_texture = True
             else:
                 assign_texture = True
@@ -198,14 +199,16 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             #     mari.exports.exportTextures([export_item], export_root_path)
 
             # Create and connect the texture reading shading node
-            if len(export_item.postProcessedFileTemplate())==0:
+            if len(export_item.postProcessedFileTemplate()) == 0:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
             else:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolvePostProcessedFileTemplate())
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}_{1}Texture".format(node_prefix,shader_input_name))
+            texture_sampler_sdf_path = material_sdf_path.AppendChild(
+                "{0}_{1}Texture".format(node_prefix, shader_input_name))
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
-            texture_sampler.CreateIdAttr("image") # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
+            # Arnold standard_surface uses image instead of UsdUVTexture although UsdUVTexture is compatible
+            texture_sampler.CreateIdAttr("image")
             texture_sampler.CreateInput("uvset", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
@@ -243,7 +246,8 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
     # Bump and Normal need to be combined, so treated specifically
     if bump_node:
         if normal_node:
-            # We have both Normal and Bump. Combine them. i.e. connect Bump to the normal input of standard_surface and connect Normal to the normal input of normal_map
+            # We have both Normal and Bump. Combine them. i.e. connect Bump to the normal input of
+            # standard_surface and connect Normal to the normal input of normal_map
             usd_shader.CreateInput("normal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
                 bump_node.ConnectableAPI(),
                 "out"
@@ -265,15 +269,19 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
             "out"
         )
 
+
 class Arnold_SettingsWidget(widgets.QWidget):
-    def __init__(self, parent = None):
+    def __init__(self, parent=None):
         widgets.QWidget.__init__(self, parent)
-        
+
         settings = mari.Settings()
         settings.beginGroup(ARNOLD_SETTINGS_GROUP)
-        post_process_command = settings.value(ARNOLD_SETTING_POSTPROCESS, ARNOLD_DEFAULT_SETTINGS[ARNOLD_SETTING_POSTPROCESS])
+        post_process_command = settings.value(
+            ARNOLD_SETTING_POSTPROCESS,
+            ARNOLD_DEFAULT_SETTINGS[ARNOLD_SETTING_POSTPROCESS]
+        )
         settings.endGroup()
-        
+
         main_layout = widgets.QVBoxLayout()
         post_process_layout = widgets.QHBoxLayout()
         post_process_layout.addWidget(widgets.QLabel("Default Post Process Command"))
@@ -282,9 +290,9 @@ class Arnold_SettingsWidget(widgets.QWidget):
         self.post_process_editbox.editingFinished.connect(self.onPostProcessCommandEdited)
         post_process_layout.addWidget(self.post_process_editbox)
         main_layout.addLayout(post_process_layout)
-        
+
         self.setLayout(main_layout)
-        
+
     def onPostProcessCommandEdited(self):
         settings = mari.Settings()
         settings.beginGroup(ARNOLD_SETTINGS_GROUP)
@@ -292,32 +300,40 @@ class Arnold_SettingsWidget(widgets.QWidget):
         settings.setValue(ARNOLD_SETTING_POSTPROCESS, value)
         settings.endGroup()
 
+
 def Arnold_Callback_SettingsWidget():
     return Arnold_SettingsWidget()
+
 
 def Arnold_Callback_SetupExportItem(export_item):
     if not isinstance(export_item, mari.ExportItem):
         print("Invalid Export Item received for Arnold SetupExportItem callback.")
         return
-    
+
     settings = mari.Settings()
     settings.beginGroup(ARNOLD_SETTINGS_GROUP)
-    post_process_command = settings.value(ARNOLD_SETTING_POSTPROCESS, ARNOLD_DEFAULT_SETTINGS[ARNOLD_SETTING_POSTPROCESS])
+    post_process_command = settings.value(
+        ARNOLD_SETTING_POSTPROCESS,
+        ARNOLD_DEFAULT_SETTINGS[ARNOLD_SETTING_POSTPROCESS]
+    )
     settings.endGroup()
 
     previous_default_post_process_command = None
     if export_item.hasMetadata("PreviousDefaultPostProcessCommand"):
         previous_default_post_process_command = export_item.metadata("PreviousDefaultPostProcessCommand")
 
-    # If the existing post process command is the same as the previous command then, assume that the post process command is not individually customized. Apply the default command change
-    if previous_default_post_process_command==None or previous_default_post_process_command==export_item.postProcessCommand():
+    # If the existing post process command is the same as the previous command then,
+    # assume that the post process command is not individually customized. Apply the default command change
+    if (previous_default_post_process_command is None or
+            previous_default_post_process_command == export_item.postProcessCommand()):
         export_item.setPostProcessCommand(post_process_command)
         template = export_item.fileTemplate()
         basepath = os.path.splitext(template)[0]
-        export_item.setPostProcessedFileTemplate(basepath+".tx")
+        export_item.setPostProcessedFileTemplate(basepath + ".tx")
 
     # Record the default post process command for the next time
     export_item.setMetadata("PreviousDefaultPostProcessCommand", post_process_command)
+
 
 if mari.app.isRunning():
     callback_functions = {
@@ -325,7 +341,7 @@ if mari.app.isRunning():
         usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM: None,
         usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET:    Arnold_Callback_SettingsWidget
     }
-    
+
     usdShadeExport.registerRendererExportPlugin(
         "Arnold Standard Surface",
         "standard_surface",

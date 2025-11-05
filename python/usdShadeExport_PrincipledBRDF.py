@@ -43,6 +43,7 @@ PRINCIPLED_BRDF_DEFAULT_SETTINGS = {
     PRINCIPLED_BRDF_SETTING_POSTPROCESS: "txmake $EXPORTED $POSTPROCESSED"
 }
 
+
 def colorComponentForType(sdf_type):
     if sdf_type == Sdf.ValueTypeNames.Color3f:
         return "resultRGB"
@@ -51,6 +52,7 @@ def colorComponentForType(sdf_type):
     elif sdf_type == Sdf.ValueTypeNames.Float:
         return "resultR"
     return "resultRGB"
+
 
 def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
     """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
@@ -62,24 +64,24 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
         usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
     """
     mari_to_usd_input_map = {
-        "BaseColor":('baseColor', Sdf.ValueTypeNames.Color3f),
-        "EmissiveColor":('emitColor', Sdf.ValueTypeNames.Color3f),
-        "subsurface":('subsurface', Sdf.ValueTypeNames.Float),
-#        ('subsurfaceColor', Sdf.ValueTypeNames.Color3f),
-        "metallic":('metallic', Sdf.ValueTypeNames.Float),
-        "specular":('specular', Sdf.ValueTypeNames.Float),
-        "specularTint":('specularTint', Sdf.ValueTypeNames.Float),
-        "roughness":('roughness', Sdf.ValueTypeNames.Float),
-        "anisotropic":('anisotropic', Sdf.ValueTypeNames.Float),
-        "sheen":('sheen', Sdf.ValueTypeNames.Float),
-        "sheenTint":('sheenTint', Sdf.ValueTypeNames.Float),
-        "clearcoat":('clearcoat', Sdf.ValueTypeNames.Float),
-        "clearcoatGloss":('clearcoatGloss', Sdf.ValueTypeNames.Float),
-        "Bump":('bumpNormal', Sdf.ValueTypeNames.Normal3f),
-        "Normal":('bumpNormal', Sdf.ValueTypeNames.Normal3f),
-#        ('shadowBumpTerminator', <type 'int'>),
-#        ('presence', Sdf.ValueTypeNames.Float),
-#        ('inputAOV', <type 'int'>),
+        "BaseColor": ('baseColor', Sdf.ValueTypeNames.Color3f),
+        "EmissiveColor": ('emitColor', Sdf.ValueTypeNames.Color3f),
+        "subsurface": ('subsurface', Sdf.ValueTypeNames.Float),
+        # "subsurfaceColor": ('subsurfaceColor', Sdf.ValueTypeNames.Color3f),
+        "metallic": ('metallic', Sdf.ValueTypeNames.Float),
+        "specular": ('specular', Sdf.ValueTypeNames.Float),
+        "specularTint": ('specularTint', Sdf.ValueTypeNames.Float),
+        "roughness": ('roughness', Sdf.ValueTypeNames.Float),
+        "anisotropic": ('anisotropic', Sdf.ValueTypeNames.Float),
+        "sheen": ('sheen', Sdf.ValueTypeNames.Float),
+        "sheenTint": ('sheenTint', Sdf.ValueTypeNames.Float),
+        "clearcoat": ('clearcoat', Sdf.ValueTypeNames.Float),
+        "clearcoatGloss": ('clearcoatGloss', Sdf.ValueTypeNames.Float),
+        "Bump": ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
+        "Normal": ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
+        # "shadowBumpTerminator": ('shadowBumpTerminator', Sdf.ValueTypeNames.Int),
+        # "presence": ('presence', Sdf.ValueTypeNames.Float),
+        # "inputAOV": ('inputAOV', Sdf.ValueTypeNames.Int),
     }
     usdShadeExport._debuglog("Writing Principled BRDF shader network for %s" % usd_shader_source.sourceShader().name())
     material_sdf_path = usd_shader.GetPath().GetParentPath()
@@ -89,7 +91,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
     export_items = []
     bump_sampler = None
     normal_sampler = None
-    node_prefix = source_shader.name().replace(" ","_")
+    node_prefix = source_shader.name().replace(" ", "_")
     for shader_input_name in shader_model.inputNames():
         usd_shader_input_name, sdf_type = mari_to_usd_input_map.get(shader_input_name, (None, None))
         if usd_shader_input_name is None:
@@ -103,22 +105,25 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
             #     mari.exports.exportTextures([export_item], export_root_path)
 
             # Create and connect the texture reading shading node
-            if len(export_item.postProcessedFileTemplate())==0:
+            if len(export_item.postProcessedFileTemplate()) == 0:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolveFileTemplate())
             else:
                 texture_usd_file_name = re.sub(r"\$UDIM", "<UDIM>", export_item.resolvePostProcessedFileTemplate())
             texture_usd_file_path = os.path.join(usd_export_parameters.exportRootPath(), texture_usd_file_name)
-            texture_sampler_sdf_path = material_sdf_path.AppendChild("{0}_{1}Texture".format(node_prefix, shader_input_name))
+            texture_sampler_sdf_path = material_sdf_path.AppendChild(
+                "{0}_{1}Texture".format(node_prefix, shader_input_name)
+            )
             texture_sampler = UsdShade.Shader.Define(looks_stage, texture_sampler_sdf_path)
             if sdf_type == Sdf.ValueTypeNames.Normal3f:
-                if shader_input_name=="Bump":
+                if shader_input_name == "Bump":
                     texture_sampler.CreateIdAttr("PxrTexture")
 
                     mixer_path = material_sdf_path.AppendChild("{0}_BumpMixer".format(node_prefix))
                     bump_sampler = UsdShade.Shader.Define(looks_stage, mixer_path)
                     bump_sampler.CreateIdAttr("PxrBumpMixer")
 
-                    # store Mari's bump weight in the amount input on the first surface gradient on the PxrBumpMixer node
+                    # store Mari's bump weight in the amount input on the first surface gradient on the
+                    # PxrBumpMixer node
                     bump_scale = source_shader.getParameter("BumpWeight")
                     bump_sampler.CreateInput("amount1", Sdf.ValueTypeNames.Float).Set(bump_scale)
 
@@ -127,7 +132,7 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
                         texture_sampler.ConnectableAPI(),
                         "resultNG"
                     )
-                elif shader_input_name=="Normal":
+                elif shader_input_name == "Normal":
                     texture_sampler.CreateIdAttr("PxrNormalMap")
                     normal_sampler = texture_sampler
                 else:
@@ -140,9 +145,11 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
                 )
             texture_sampler.CreateInput("filename", Sdf.ValueTypeNames.Asset).Set(texture_usd_file_path)
 
-            if usd_shader_source.uvSetName()!="st":
+            if usd_shader_source.uvSetName() != "st":
                 # If the UV set name is not st, then we need to create the PxrManifold2D node to specify the UV set name
-                manifold_sdf_path = material_sdf_path.AppendChild("{0}_{1}TextureManifold".format(node_prefix,shader_input_name))
+                manifold_sdf_path = material_sdf_path.AppendChild(
+                    "{0}_{1}TextureManifold".format(node_prefix, shader_input_name)
+                )
                 manifold = UsdShade.Shader.Define(looks_stage, manifold_sdf_path)
                 manifold.CreateIdAttr("PxrManifold2D")
                 manifold.CreateInput("name_uvSet", Sdf.ValueTypeNames.String).Set(usd_shader_source.uvSetName())
@@ -165,7 +172,8 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
     # Bump and Normal need to be combined, so treated specifically
     if bump_sampler:
         if normal_sampler:
-            # We have both Normal and Bump. Combine them. i.e. connect Normal to the bumpNormal input of PxrSurface and connect Bump to the bumpOverlay input of PxrNormalMap
+            # We have both Normal and Bump. Combine them. i.e. connect Normal to the bumpNormal input of
+            # PxrSurface and connect Bump to the bumpOverlay input of PxrNormalMap
             usd_shader.CreateInput("bumpNormal", Sdf.ValueTypeNames.Normal3f).ConnectToSource(
                 normal_sampler.ConnectableAPI(),
                 colorComponentForType(Sdf.ValueTypeNames.Normal3f)
@@ -196,17 +204,26 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
                 usd_export_parameters.exportRootPath()
             )
         )
-        mari.exports.exportTextures(export_items, usd_export_parameters.exportRootPath(), usd_export_parameters.exportOverrides(), ShowProgressDialog = True)
+        mari.exports.exportTextures(
+            export_items,
+            usd_export_parameters.exportRootPath(),
+            usd_export_parameters.exportOverrides(),
+            ShowProgressDialog=True
+        )
+
 
 class Principled_BRDF_SettingsWidget(widgets.QWidget):
-    def __init__(self, parent = None):
+    def __init__(self, parent=None):
         widgets.QWidget.__init__(self, parent)
-        
+
         settings = mari.Settings()
         settings.beginGroup(PRINCIPLED_BRDF_SETTINGS_GROUP)
-        post_process_command = settings.value(PRINCIPLED_BRDF_SETTING_POSTPROCESS, PRINCIPLED_BRDF_DEFAULT_SETTINGS[PRINCIPLED_BRDF_SETTING_POSTPROCESS])
+        post_process_command = settings.value(
+            PRINCIPLED_BRDF_SETTING_POSTPROCESS,
+            PRINCIPLED_BRDF_DEFAULT_SETTINGS[PRINCIPLED_BRDF_SETTING_POSTPROCESS]
+        )
         settings.endGroup()
-        
+
         main_layout = widgets.QVBoxLayout()
         post_process_layout = widgets.QHBoxLayout()
         post_process_layout.addWidget(widgets.QLabel("Default Post Process Command"))
@@ -215,9 +232,9 @@ class Principled_BRDF_SettingsWidget(widgets.QWidget):
         self.post_process_editbox.editingFinished.connect(self.onPostProcessCommandEdited)
         post_process_layout.addWidget(self.post_process_editbox)
         main_layout.addLayout(post_process_layout)
-        
+
         self.setLayout(main_layout)
-        
+
     def onPostProcessCommandEdited(self):
         settings = mari.Settings()
         settings.beginGroup(PRINCIPLED_BRDF_SETTINGS_GROUP)
@@ -225,25 +242,32 @@ class Principled_BRDF_SettingsWidget(widgets.QWidget):
         settings.setValue(PRINCIPLED_BRDF_SETTING_POSTPROCESS, value)
         settings.endGroup()
 
+
 def Principled_BRDF_Callback_SettingsWidget():
     return Principled_BRDF_SettingsWidget()
+
 
 def Principled_BRDF_Callback_SetupExportItem(export_item):
     if not isinstance(export_item, mari.ExportItem):
         print("Invalid Export Item received for Principled BRDF SetupExportItem callback.")
         return
-    
+
     settings = mari.Settings()
     settings.beginGroup(PRINCIPLED_BRDF_SETTINGS_GROUP)
-    post_process_command = settings.value(PRINCIPLED_BRDF_SETTING_POSTPROCESS, PRINCIPLED_BRDF_DEFAULT_SETTINGS[PRINCIPLED_BRDF_SETTING_POSTPROCESS])
+    post_process_command = settings.value(
+        PRINCIPLED_BRDF_SETTING_POSTPROCESS,
+        PRINCIPLED_BRDF_DEFAULT_SETTINGS[PRINCIPLED_BRDF_SETTING_POSTPROCESS]
+    )
     settings.endGroup()
 
     previous_default_post_process_command = None
     if export_item.hasMetadata("PreviousDefaultPostProcessCommand"):
         previous_default_post_process_command = export_item.metadata("PreviousDefaultPostProcessCommand")
-    
-    # If the existing post process command is the same as the previous command then, assume that the post process command is not individually customized. Apply the default command change
-    if previous_default_post_process_command==None or previous_default_post_process_command==export_item.postProcessCommand():
+
+    # If the existing post process command is the same as the previous command then, assume that the
+    # post process command is not individually customized. Apply the default command change
+    if (previous_default_post_process_command is None or
+            previous_default_post_process_command == export_item.postProcessCommand()):
         export_item.setPostProcessCommand(post_process_command)
         template = export_item.fileTemplate()
         basepath = os.path.splitext(template)[0]
@@ -252,13 +276,14 @@ def Principled_BRDF_Callback_SetupExportItem(export_item):
     # Record the default post process command for the next time
     export_item.setMetadata("PreviousDefaultPostProcessCommand", post_process_command)
 
+
 if mari.app.isRunning():
     callback_functions = {
         usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM:  Principled_BRDF_Callback_SetupExportItem,
         usdShadeExport.CALLBACK_NAME_EXPORT_EXPORT_ITEM: None,
         usdShadeExport.CALLBACK_NAME_SETTINGS_WIDGET:    Principled_BRDF_Callback_SettingsWidget
     }
-   
+
     usdShadeExport.registerRendererExportPlugin(
         "Principled BRDF",
         "PxrDisney",

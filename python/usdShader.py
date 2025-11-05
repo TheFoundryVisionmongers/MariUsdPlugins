@@ -23,12 +23,26 @@
 import mari
 import os
 
+
+def _make_path(path, filename):
+    shader_path = os.path.join(path, "shaders")
+    return os.path.join(shader_path, filename)
+
+
 if mari.app.isRunning():
     usd_path = mari.resources.bundledUsdPath()
 
-    shader_path = os.path.join(usd_path, "shaders")
-    mari.gl_render.registerCustomHeaderFile("mriUsdPreviewSurfaceFuncsHeader", os.path.join(shader_path, "mriUsdPreviewSurfaceFuncs.glslh"))
-    mari.gl_render.registerCustomCodeFile("mriUsdPreviewSurfaceFuncsBody", os.path.join(shader_path, "mriUsdPreviewSurfaceFuncs.glslc"))
-    
     node_path = os.path.join(usd_path, "nodes")
-    mari.gl_render.registerCustomStandaloneShaderFromXMLFile("USD Preview Surface", os.path.join(node_path, "mriUsdPreviewSurface.xml"))
+    shader_path = os.path.join(usd_path, "shaders")
+
+    mari.gl_render.registerCustomHeaderFile(
+        "mriUsdPreviewSurfaceFuncsHeader",
+        _make_path(usd_path, "mriUsdPreviewSurfaceFuncs.glslh"))
+
+    mari.gl_render.registerCustomCodeFile(
+        "mriUsdPreviewSurfaceFuncsBody",
+        _make_path(usd_path, "mriUsdPreviewSurfaceFuncs.glslc"))
+
+    mari.gl_render.registerCustomStandaloneShaderFromXMLFile(
+        "USD Preview Surface",
+        _make_path(node_path, "mriUsdPreviewSurface.xml"))
