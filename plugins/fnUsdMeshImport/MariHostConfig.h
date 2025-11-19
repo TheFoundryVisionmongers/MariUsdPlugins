@@ -34,9 +34,9 @@
 #include <MriGeoReaderPlugin.h>
 
 #if MARI_VERSION < 30
-typedef MriGeoReaderHostV2 MriGeoReaderHost;
+typedef MriGeoReaderHostV2  MriGeoReaderHost;
 #else
-typedef MriGeoReaderHostV6 MriGeoReaderHost;
+typedef MriGeoReaderHostV7  MriGeoReaderHost;
 #endif
 
 /// Holds all the hosts available to this plugin.
@@ -46,4 +46,4 @@ struct PluginHosts
     MriGeoReaderHost    geoReaderHost;      ///< The geometry host structure, which contains functions that the plug-in can call
 };
 
-#endif
+#endif // MARI_HOST_CONFIG_H

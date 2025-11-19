@@ -29,6 +29,7 @@
 //
 
 #include "UsdReader.h"
+#include "CameraData.h"
 #include "MriGeoReaderPlugin.h"
 #include "GeoData.h"
 #include "ModelData.h"
@@ -201,6 +202,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     bool oneModelLoaded = false;
     ModelData* currentModelData = nullptr;
     std::vector<ModelData*> modelDataList;
+    std::vector<CameraData> cameraDataList;
     
     for (auto primIt = range.begin(); primIt != range.end(); ++primIt)
     {
@@ -280,6 +282,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             }
         }
 
+        if (CameraData::IsValidNode(*primIt))
+        {
+            cameraDataList.emplace_back(CameraData(*primIt));
+            continue;
+        }
+
         if (not GeoData::IsValidNode(*primIt)) 
         {
             /*_host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());*/
@@ -347,6 +355,11 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     if (createChildren)
     {
         _pluginHosts->geoReaderHost.setEntityType(Entity, MRI_SET_ENTITY);
+    }
+
+    for (const auto& cameraData : cameraDataList)
+    {
+        cameraData.MakeEntity(_pluginHosts, Entity);
     }
 
     for (ModelData* modelData: modelDataList)
