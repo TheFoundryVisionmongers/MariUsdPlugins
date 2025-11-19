@@ -54,15 +54,24 @@ std::string UsdReader::kNoUvSetFoundStr = "* no uv set found *";
 const std::string UsdReader::kMappingSchemeOptions = "UV if available, Ptex otherwise\nForce Ptex\nUV if available, empty otherwise\nForce empty";
 
 UsdReader::UsdReader(const char* pFileName, const PluginHosts* pluginHosts) :
+    _startTime(clock()),
     _pluginName("UsdReader"),
     _fileName(pFileName),
     _pluginHosts(pluginHosts),
-    _startTime(clock())
+    _diagnosticDelegate(std::make_unique<DiagnosticDelegate>(pluginHosts))
 {
     // Evaluate and store PathSubstringLists at initialization time so we don't
     // look at environment variables more than once.
     GeoData::InitializePathSubstringLists();
+
+    TfDiagnosticMgr::GetInstance().AddDelegate(_diagnosticDelegate.get());
 }
+
+UsdReader::~UsdReader()
+{
+    TfDiagnosticMgr::GetInstance().RemoveDelegate(_diagnosticDelegate.get());
+}
+
 UsdStageRefPtr
 UsdReader::_OpenUsdStage()
 {

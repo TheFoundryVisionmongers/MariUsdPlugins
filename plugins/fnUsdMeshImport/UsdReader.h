@@ -32,6 +32,7 @@
 //
 
 #include "MriGeoReaderPlugin.h"
+#include "Diagnostics.h"
 #include "GeoData.h"
 #include "ModelData.h"
 #include "pxr/usd/usd/stage.h"
@@ -50,8 +51,12 @@
 class UsdReader
 {
     public:
+        int _startTime{};
+
+    public:
 
         UsdReader(const char* pFileName, const PluginHosts* pluginHosts);
+        ~UsdReader();
 
         std::string GetLog();
 
@@ -99,18 +104,14 @@ class UsdReader
                 const ModelData& modelData);
     
     protected:
-        const char* _pluginName;
-        const char* _fileName;
-        const PluginHosts* _pluginHosts;
-        std::vector<std::string> _log;
-        std::map<std::string, MriSelectionGroupHandle> _selectionGroups;
-
-        bool    m_upAxisIsY;
-
-        static std::string kNoUvSetFoundStr;
-
-    public:
-        int _startTime;
+        const char*                                     _pluginName;
+        const char*                                     _fileName;
+        const PluginHosts*                              _pluginHosts;
+        std::vector<std::string>                        _log;
+        std::map<std::string, MriSelectionGroupHandle>  _selectionGroups;
+        bool                                            m_upAxisIsY;
+        std::unique_ptr<DiagnosticDelegate>             _diagnosticDelegate;
+        static std::string                              kNoUvSetFoundStr;
 
     private:
         PXR_NS::UsdStageRefPtr _OpenUsdStage();

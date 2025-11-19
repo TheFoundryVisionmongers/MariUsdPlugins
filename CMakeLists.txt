@@ -63,6 +63,7 @@ set (CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "" FORCE)
 add_library(
     USDImport
     SHARED
+    ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/Diagnostics.cpp
     ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/GeoData.cpp
     ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/ModelData.cpp
     ${CMAKE_CURRENT_LIST_DIR}/plugins/fnUsdMeshImport/pxrMariUsdReaderPlugin.cpp
