@@ -40,6 +40,18 @@
 
 PXR_NAMESPACE_USING_DIRECTIVE
 
+namespace
+{
+    MriGeoReaderPluginV1 pluginSuite =
+    {
+        &load,
+        &getSettings,
+        &supportedFormats
+    };
+
+    PluginHosts pluginHosts;
+}
+
 //-----------------------------------------------------------------------------
 // Plug-in function suite definitions
 //-----------------------------------------------------------------------------
@@ -58,14 +70,13 @@ MriGeoPluginResult load(MriGeoEntityHandle Entity,
        (!TfStringEndsWith(pFileName, ".usda")) &&
        (!TfStringEndsWith(pFileName, ".usdc")) &&
        (!TfStringEndsWith(pFileName, ".usdz"))) {
-        host.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
+        pluginHosts.geoReaderHost.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
         return MRI_GPR_FAILED;
     }
     // else
     
-    host.trace("[UsdPlugin] Load %s\n", pFileName);
-    reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, 
-                                                        host));
+    pluginHosts.geoReaderHost.trace("[UsdPlugin] Load %s\n", pFileName);
+    reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, &pluginHosts));
     MriGeoPluginResult res = reader->Load(Entity);
     sUsdLog = reader->GetLog();
     *ppMessagesOut = sUsdLog.c_str();
@@ -98,7 +109,7 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
         const char *pFileName)
 {
     
-    host.trace("[UsdPlugin] getSettings %s\n", pFileName);
+    pluginHosts.geoReaderHost.trace("[UsdPlugin] getSettings %s\n", pFileName);
 
     boost::shared_ptr<UsdReader> reader;
 
@@ -107,37 +118,30 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
        (!TfStringEndsWith(pFileName, ".usda")) &&
        (!TfStringEndsWith(pFileName, ".usdc")) &&
        (!TfStringEndsWith(pFileName, ".usdz"))) {
-        host.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
+        pluginHosts.geoReaderHost.trace("[UsdPlugin] Unrecognized extension. Failed to getSettings for %s\n", pFileName);
         return MRI_GPR_FAILED;
     }
     // else
     
-    reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, 
-                                                        host));
+    reader = boost::shared_ptr<UsdReader>(new UsdReader(pFileName, &pluginHosts));
 
     // Load option
     MriAttributeValue LoadValue;
     LoadValue.m_Type = MRI_ATTR_STRING_LIST;
     LoadValue.m_pString = "First Found\nAll Models\nSpecified Models in Model Names";
-    host.setAttribute(SettingsHandle,
-        "Load",
-        &LoadValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Load", &LoadValue);
 
     // Merge option
     MriAttributeValue MergeValue;
     MergeValue.m_Type = MRI_ATTR_STRING_LIST;
     MergeValue.m_pString = "Merge Models\nKeep Models Separate";
-    host.setAttribute(SettingsHandle,
-        "Merge Type",
-        &MergeValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Merge Type", &MergeValue);
 
     // Model option
     MriAttributeValue ModelValue;
     ModelValue.m_Type = MRI_ATTR_STRING;
     ModelValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "Model Names",
-        &ModelValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Model Names", &ModelValue);
 
     MriGeoPluginResult res = reader->GetSettings(SettingsHandle);
 
@@ -145,53 +149,49 @@ MriGeoPluginResult getSettings(MriUserItemHandle SettingsHandle,
     MriAttributeValue MappingSchemeValue;
     MappingSchemeValue.m_Type = MRI_ATTR_STRING_LIST;
     MappingSchemeValue.m_pString = UsdReader::kMappingSchemeOptions.c_str();
-    host.setAttribute(SettingsHandle, "Mapping Scheme", &MappingSchemeValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Mapping Scheme", &MappingSchemeValue);
 
     // frame number
     MriAttributeValue FrameNumberValue;
     FrameNumberValue.m_Type = MRI_ATTR_STRING;
     FrameNumberValue.m_pString = "1";
-    host.setAttribute(SettingsHandle, "Frame Numbers", &FrameNumberValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Frame Numbers", &FrameNumberValue);
     
     // Gprim Names
     MriAttributeValue GprimValue;
     GprimValue.m_Type = MRI_ATTR_STRING;
     GprimValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "Gprim Names",
-        &GprimValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Gprim Names", &GprimValue);
 
     // Variants
     MriAttributeValue variantsValue;
     variantsValue.m_Type = MRI_ATTR_STRING;
     variantsValue.m_pString = "";
-    host.setAttribute(SettingsHandle,
-        "Variants",
-        &variantsValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Variants", &variantsValue);
 
     // Keep centered
     MriAttributeValue KeepCenteredValue;
     KeepCenteredValue.m_Type = MRI_ATTR_BOOL;
     KeepCenteredValue.m_Int = 0;
-    host.setAttribute(SettingsHandle, "Keep Centered", &KeepCenteredValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Keep Centered", &KeepCenteredValue);
 
     // Mari y up
     MriAttributeValue ConformToMariY;
     ConformToMariY.m_Type = MRI_ATTR_BOOL;
     ConformToMariY.m_Int = 1;
-    host.setAttribute(SettingsHandle, "Conform to Mari Y as up", &ConformToMariY);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Conform to Mari Y as up", &ConformToMariY);
 
     // Include Invisible
     MriAttributeValue IncludeInvisibleValue;
     IncludeInvisibleValue.m_Type = MRI_ATTR_BOOL;
     IncludeInvisibleValue.m_Int = 0;
-    host.setAttribute(SettingsHandle, "Include Invisible", &IncludeInvisibleValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Include Invisible", &IncludeInvisibleValue);
 
     // Include CreateFaceSelectionGroups
     MriAttributeValue CreateFaceSelectionGroupsValue;
     CreateFaceSelectionGroupsValue.m_Type = MRI_ATTR_BOOL;
     CreateFaceSelectionGroupsValue.m_Int = 0;
-    host.setAttribute(SettingsHandle, "Create Face Selection Group per mesh", &CreateFaceSelectionGroupsValue);
+    pluginHosts.geoReaderHost.setAttribute(SettingsHandle, "Create Face Selection Group per mesh", &CreateFaceSelectionGroupsValue);
 
     return res;
 }
@@ -213,27 +213,19 @@ void flushPluginSuite()
 
 //------------------------------------------------------------------------------
 
-FnPluginStatus setHost(const FnPluginHost *pHost)
+FnPluginStatus setHost(const FnPluginHost* fnPluginHost)
 {
-    const void *pHostSuite = NULL;
-    
-    if (pHost == NULL)
+    if (fnPluginHost == NULL)
         return FnPluginStatusError;
     
-    pHostSuite = pHost->getSuite(MRI_GEO_READER_API_NAME, 
-#if MARI_VERSION < 30
-            MRI_GEO_READER_API_VERSION);
-#else
-            5004);
-#endif
+    pluginHosts.pFnPluginHost = fnPluginHost;
+    const void* pHostSuite = pluginHosts.pFnPluginHost->getSuite(MRI_GEO_READER_API_NAME, MRI_GEO_READER_API_VERSION);
 
     if (pHostSuite == NULL)
         return FnPluginStatusError;
     
-    host = *(MriGeoReaderHost *)pHostSuite;
-
-    host.trace("[UsdPlugin] Plug-in connected to host '%s' version '%s'"
-            "(%u)", pHost->name, pHost->versionStr, pHost->versionInt);
+    pluginHosts.geoReaderHost = *(MriGeoReaderHost *)pHostSuite;
+    pluginHosts.geoReaderHost.trace("[UsdPlugin] Plug-in connected to host '%s' version '%s'" "(%u)", pluginHosts.pFnPluginHost->name, pluginHosts.pFnPluginHost->versionStr, pluginHosts.pFnPluginHost->versionInt);
     return FnPluginStatusOK;
 }
 

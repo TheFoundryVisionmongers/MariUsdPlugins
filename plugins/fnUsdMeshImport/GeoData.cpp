@@ -74,7 +74,7 @@ GeoData::GeoData(UsdPrim const &prim,
                  bool readerIsUpY,
                  bool keepCentered,
                  UsdPrim const &model,
-                 const MriGeoReaderHost& host,
+                 const PluginHosts* pluginHosts,
                  std::vector<std::string>& log,
                  bool rightHandedWindingOrder)
 {
@@ -90,7 +90,7 @@ GeoData::GeoData(UsdPrim const &prim,
     UsdGeomMesh mesh(prim);
     if (not mesh)
     {
-        host.trace("[GeoData:%d] Invalid non-mesh prim %s (type %s)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d] Invalid non-mesh prim %s (type %s)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
         log.push_back("** Invalid non-mesh prim " + std::string(prim.GetPath().GetText()) + " of type " + std::string(prim.GetTypeName().GetText()));
         return;
     }
@@ -98,8 +98,8 @@ GeoData::GeoData(UsdPrim const &prim,
     bool isTopologyVarying = mesh.GetFaceVertexIndicesAttr().GetNumTimeSamples() >= 1;
 
 #if defined(PRINT_DEBUG)
-    host.trace("[ !! ] ---------------------------------------");
-    host.trace("[ GeoData:%d] Reading MESH %s (type %s) (topology Varying %d)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText(), isTopologyVarying);
+    pluginHosts->geoReaderHost.trace("[ !! ] ---------------------------------------");
+    pluginHosts->geoReaderHost.trace("[ GeoData:%d] Reading MESH %s (type %s) (topology Varying %d)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText(), isTopologyVarying);
 #endif
     // Read vertex/face indices
     {
@@ -107,7 +107,7 @@ GeoData::GeoData(UsdPrim const &prim,
         bool ok = isTopologyVarying ? mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray, UsdTimeCode::EarliestTime()) : mesh.GetFaceVertexIndicesAttr().Get(&vertsIndicesArray);
         if (!ok)
         {
-            host.trace("[GeoData:%d]\tfailed getting face vertex indices on %s.", __LINE__, prim.GetPath().GetText());
+            pluginHosts->geoReaderHost.trace("[GeoData:%d]\tfailed getting face vertex indices on %s.", __LINE__, prim.GetPath().GetText());
             log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
@@ -120,7 +120,7 @@ GeoData::GeoData(UsdPrim const &prim,
         bool ok = isTopologyVarying ? mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray, UsdTimeCode::EarliestTime()) : mesh.GetFaceVertexCountsAttr().Get(&nvertsPerFaceArray);
         if (!ok)
         {
-            host.trace("[GeoData:%d]\tfailed getting face counts on %s", __LINE__, prim.GetPath().GetText());
+            pluginHosts->geoReaderHost.trace("[GeoData:%d]\tfailed getting face counts on %s", __LINE__, prim.GetPath().GetText());
             log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
@@ -219,7 +219,7 @@ GeoData::GeoData(UsdPrim const &prim,
                     else
                     {
                         // Could not read uvs
-                        host.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s cannot be read", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
+                        pluginHosts->geoReaderHost.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s cannot be read", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
                         log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " cannot be read");
                         return;
                     }
@@ -227,7 +227,7 @@ GeoData::GeoData(UsdPrim const &prim,
                 else
                 {
                     // Incorrect interpolation
-                    host.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s is not of type 'faceVarying or vertex'", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
+                    pluginHosts->geoReaderHost.trace("[GeoData:%d]\tDiscarding mesh %s - specified uv set %s is not of type 'faceVarying or vertex'", __LINE__, prim.GetPath().GetText(), uvSet.c_str());
                     log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " is not of type 'faceVarying or vertex'");
                     return;
                 }
@@ -235,7 +235,7 @@ GeoData::GeoData(UsdPrim const &prim,
             else
             {
                 // UV set not found on mesh
-                host.trace("[GeoData:%d]\tSpecified uv set %s not found on mesh %s - will use ptex", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
+                pluginHosts->geoReaderHost.trace("[GeoData:%d]\tSpecified uv set %s not found on mesh %s - will use ptex", __LINE__, uvSet.c_str(), prim.GetPath().GetText());
                 log.push_back("** Discarding mesh " + std::string(prim.GetPath().GetText()) + " - specified uv set " + uvSet + " not found");
             }
         }
@@ -355,7 +355,7 @@ GeoData::GeoData(UsdPrim const &prim,
             else
             {
                 // UV set not found on mesh
-                host.trace("[GeoData:%d]\tVertex normals for mesh %s are not interpolated as 'vertex' or 'faceVarying', ignoring them.", __LINE__, prim.GetPath().GetText());
+                pluginHosts->geoReaderHost.trace("[GeoData:%d]\tVertex normals for mesh %s are not interpolated as 'vertex' or 'faceVarying', ignoring them.", __LINE__, prim.GetPath().GetText());
                 log.push_back("** Vertex normals for mesh " + std::string(prim.GetPath().GetText()) + " are not interpolated as 'vertex' or 'faceVarying', ignoring them.");
             }
         }
@@ -374,7 +374,7 @@ GeoData::GeoData(UsdPrim const &prim,
         VtVec3fArray pointsVt;
         if (!mesh.GetPointsAttr().Get(&pointsVt, frameSample))
         {
-            host.trace("[GeoData:%d]\tfailed getting vertices on %s.", __LINE__, prim.GetPath().GetName().c_str());
+            pluginHosts->geoReaderHost.trace("[GeoData:%d]\tfailed getting vertices on %s.", __LINE__, prim.GetPath().GetName().c_str());
             log.push_back("** Failed getting faces on " + prim.GetPath().GetName());
             return;// this is not optional!
         }
@@ -477,61 +477,61 @@ GeoData::GeoData(UsdPrim const &prim,
     // DEBUG
 #if defined(PRINT_DEBUG)
     {
-        host.trace("[GeoData:%d]\t\t Face counts %i", __LINE__, m_faceCounts.size());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t Face counts %i", __LINE__, m_faceCounts.size());
     #if defined(PRINT_ARRAYS)
         for (unsigned int x = 0; x < m_faceCounts.size(); ++x)
         {
-            host.trace("\t\t face count[%d] : %d", x, m_faceCounts[x]);
+            pluginHosts->geoReaderHost.trace("\t\t face count[%d] : %d", x, m_faceCounts[x]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t vertex indices %i", __LINE__, m_vertexIndices.size());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex indices %i", __LINE__, m_vertexIndices.size());
     #if defined(PRINT_ARRAYS)
         for (unsigned x = 0; x < m_vertexIndices.size(); ++x)
         {
-            host.trace("\t\t vertex Index[%d] : %d", x, m_vertexIndices[x]);
+            pluginHosts->geoReaderHost.trace("\t\t vertex Index[%d] : %d", x, m_vertexIndices[x]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t vertex frame count %i", __LINE__, m_vertices.size());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex frame count %i", __LINE__, m_vertices.size());
         std::vector<float> vertices0 = m_vertices.begin()->second;
-        host.trace("[GeoData:%d]\t\t vertex @ frame0 count %i", __LINE__, vertices0.size()/3);
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex @ frame0 count %i", __LINE__, vertices0.size()/3);
     #if defined(PRINT_ARRAYS)
         for (unsigned x = 0; x < vertices0.size()/3; ++x)
         {
-            host.trace("\t\t vertex[%d] : (%f, %f, %f)", x, vertices0[(x*3)+0], vertices0[(x*3)+1], vertices0[(x*3)+2]);
+            pluginHosts->geoReaderHost.trace("\t\t vertex[%d] : (%f, %f, %f)", x, vertices0[(x*3)+0], vertices0[(x*3)+1], vertices0[(x*3)+2]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t uvs count %i", __LINE__, m_uvs.size()/2);
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t uvs count %i", __LINE__, m_uvs.size()/2);
     #if defined(PRINT_ARRAYS)
         for(int x = 0; x < m_uvs.size()/2; ++x)
         {
-            host.trace("\t\t uv[%d] : (%f, %f)", x, m_uvs[(x*2)+0], m_uvs[(x*2)+1]);
+            pluginHosts->geoReaderHost.trace("\t\t uv[%d] : (%f, %f)", x, m_uvs[(x*2)+0], m_uvs[(x*2)+1]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t uv indices %i", __LINE__, m_uvIndices.size());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t uv indices %i", __LINE__, m_uvIndices.size());
     #if defined(PRINT_ARRAYS)
         for(int x = 0; x < m_uvIndices.size(); ++x)
         {
-            host.trace("\t\t UV Index[%d] : %d", x, m_uvIndices[x]);
+            pluginHosts->geoReaderHost.trace("\t\t UV Index[%d] : %d", x, m_uvIndices[x]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t normals count %i", __LINE__, m_normals.size()/3);
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t normals count %i", __LINE__, m_normals.size()/3);
     #if defined(PRINT_ARRAYS)
         for(int x = 0; x < m_normals.size()/3; ++x)
         {
-            host.trace("\t\t normal[%d] : (%f, %f, %f)", x, m_normals[(x*3)+0], m_normals[(x*3)+1], m_normals[(x*3)+2]);
+            pluginHosts->geoReaderHost.trace("\t\t normal[%d] : (%f, %f, %f)", x, m_normals[(x*3)+0], m_normals[(x*3)+1], m_normals[(x*3)+2]);
         }
     #endif
 
-        host.trace("[GeoData:%d]\t\t normals indices %i", __LINE__, m_normalIndices.size());
+        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t normals indices %i", __LINE__, m_normalIndices.size());
     #if defined(PRINT_ARRAYS)
         for(int x = 0; x < m_normalIndices.size(); ++x)
         {
-            host.trace("\t\t Normal Index[%d] : %d", x, m_normalIndices[x]);
+            pluginHosts->geoReaderHost.trace("\t\t Normal Index[%d] : %d", x, m_normalIndices[x]);
         }
     #endif
     }
@@ -675,7 +675,7 @@ GeoData::~GeoData()
 
 
 // Print the internal status of the Geometric Data.
-void GeoData::Log(const MriGeoReaderHost& host)
+void GeoData::Log(const PluginHosts* /*pluginHosts*/)
 {
 }
 

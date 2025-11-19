@@ -62,14 +62,3 @@ const void *getPluginSuite();
 /// Cleans up the plug-in
 void flushPluginSuite();
 
-///< The host structure, which contains functions that the plug-in can call
-MriGeoReaderHost host;
-
-/// The plug-in structure, to provide to the host so it can call functions 
-/// when needed
-MriGeoReaderPluginV1 pluginSuite =
-{
-    &load,
-    &getSettings,
-    &supportedFormats
-};

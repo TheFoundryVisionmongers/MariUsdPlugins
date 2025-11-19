@@ -51,7 +51,7 @@ class UsdReader
 {
     public:
 
-        UsdReader(const char* pFileName, MriGeoReaderHost &pHost);
+        UsdReader(const char* pFileName, const PluginHosts* pluginHosts);
 
         std::string GetLog();
 
@@ -101,7 +101,7 @@ class UsdReader
     protected:
         const char* _pluginName;
         const char* _fileName;
-        MriGeoReaderHost _host;
+        const PluginHosts* _pluginHosts;
         std::vector<std::string> _log;
         std::map<std::string, MriSelectionGroupHandle> _selectionGroups;
 
