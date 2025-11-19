@@ -95,13 +95,6 @@ UsdReader::_OpenUsdStage()
     m_upAxisIsY = upAxis.data() == UsdGeomTokens->y;
     _pluginHosts->geoReaderHost.trace("[%s:%d] Stage up axis is : %s", _pluginName, __LINE__, m_upAxisIsY ? "y" : "z");
 
-    // NOTES FROM RAJIV:
-    // The following crashes on windows only. The USD documentation warns against using Reload in the face of threading.
-    // We do not seem to need Reload to be called here, since we are only doing reading of the file and no scene
-    // composition and writing.
-    // // reload the stage to flush any USD level cache
-    // stage->Reload();
-
     return stage;
 }
 
@@ -272,13 +265,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             TfToken visibility = imageable.ComputeVisibility();
             if(visibility == UsdGeomTokens->invisible) 
             {
-                /*_host.trace("%s:%d] %s Is invisible",
-                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
                 primIt.PruneChildren();
                 continue;
-            } else {
-                /*_host.trace("%s:%d] %s Is visible",
-                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
             }
         }
 
@@ -290,7 +278,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
         if (not GeoData::IsValidNode(*primIt)) 
         {
-            /*_host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());*/
             // not even a gprim.
             continue;
         }
@@ -303,9 +290,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         // XXX This might start to get costly with very large lists of
         // gprims. 2(O^2). 
 
-
-        //_host.trace("%s:%d] looking for %s and %s in requested names %d.", 
-        //            _pluginName, __LINE__, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
         if (
             requestedGprimNames.size() > 0 &&
             (std::find(requestedGprimNames.begin(),

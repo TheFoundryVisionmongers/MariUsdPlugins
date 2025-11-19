@@ -52,9 +52,6 @@ std::vector<std::string> GeoData::_ignoreGeomPathSubstring;
 std::string GeoData::_requireGeomPathSubstringEnvVar = "PX_USDREADER_REQUIRE_GEOM_PATH_SUBSTR";
 std::string GeoData::_ignoreGeomPathSubstringEnvVar = "PX_USDREADER_IGNORE_GEOM_PATH_SUBSTR";
 
-//#define PRINT_DEBUG
-//#define PRINT_ARRAYS
-
 //------------------------------------------------------------------------------
 // GeoData implementation
 //------------------------------------------------------------------------------
@@ -97,10 +94,6 @@ GeoData::GeoData(UsdPrim const &prim,
 
     bool isTopologyVarying = mesh.GetFaceVertexIndicesAttr().GetNumTimeSamples() >= 1;
 
-#if defined(PRINT_DEBUG)
-    pluginHosts->geoReaderHost.trace("[ !! ] ---------------------------------------");
-    pluginHosts->geoReaderHost.trace("[ GeoData:%d] Reading MESH %s (type %s) (topology Varying %d)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText(), isTopologyVarying);
-#endif
     // Read vertex/face indices
     {
         VtIntArray vertsIndicesArray;
@@ -473,69 +466,6 @@ GeoData::GeoData(UsdPrim const &prim,
         m_vertices[frameSample].resize(points.size());
         m_vertices[frameSample] = points;
     }
-
-    // DEBUG
-#if defined(PRINT_DEBUG)
-    {
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t Face counts %i", __LINE__, m_faceCounts.size());
-    #if defined(PRINT_ARRAYS)
-        for (unsigned int x = 0; x < m_faceCounts.size(); ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t face count[%d] : %d", x, m_faceCounts[x]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex indices %i", __LINE__, m_vertexIndices.size());
-    #if defined(PRINT_ARRAYS)
-        for (unsigned x = 0; x < m_vertexIndices.size(); ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t vertex Index[%d] : %d", x, m_vertexIndices[x]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex frame count %i", __LINE__, m_vertices.size());
-        std::vector<float> vertices0 = m_vertices.begin()->second;
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t vertex @ frame0 count %i", __LINE__, vertices0.size()/3);
-    #if defined(PRINT_ARRAYS)
-        for (unsigned x = 0; x < vertices0.size()/3; ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t vertex[%d] : (%f, %f, %f)", x, vertices0[(x*3)+0], vertices0[(x*3)+1], vertices0[(x*3)+2]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t uvs count %i", __LINE__, m_uvs.size()/2);
-    #if defined(PRINT_ARRAYS)
-        for(int x = 0; x < m_uvs.size()/2; ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t uv[%d] : (%f, %f)", x, m_uvs[(x*2)+0], m_uvs[(x*2)+1]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t uv indices %i", __LINE__, m_uvIndices.size());
-    #if defined(PRINT_ARRAYS)
-        for(int x = 0; x < m_uvIndices.size(); ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t UV Index[%d] : %d", x, m_uvIndices[x]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t normals count %i", __LINE__, m_normals.size()/3);
-    #if defined(PRINT_ARRAYS)
-        for(int x = 0; x < m_normals.size()/3; ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t normal[%d] : (%f, %f, %f)", x, m_normals[(x*3)+0], m_normals[(x*3)+1], m_normals[(x*3)+2]);
-        }
-    #endif
-
-        pluginHosts->geoReaderHost.trace("[GeoData:%d]\t\t normals indices %i", __LINE__, m_normalIndices.size());
-    #if defined(PRINT_ARRAYS)
-        for(int x = 0; x < m_normalIndices.size(); ++x)
-        {
-            pluginHosts->geoReaderHost.trace("\t\t Normal Index[%d] : %d", x, m_normalIndices[x]);
-        }
-    #endif
-    }
-#endif
 
     // Read OpenSubdiv structures
     {
