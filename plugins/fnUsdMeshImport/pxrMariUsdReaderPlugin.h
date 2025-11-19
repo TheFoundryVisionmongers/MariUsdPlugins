@@ -37,16 +37,11 @@
 #include <stdlib.h>
 #include <string>
 
+#include "Defines.h"
 #include "MariHostConfig.h"
 
 /// Returns the list of plug-ins in this library
-extern "C"
-#ifdef _WIN32
-__declspec(dllexport)
-#else
-__attribute__((visibility("default")))
-#endif
-FnPlugin *getPlugins(unsigned int *pNumPlugins);
+extern "C" USD_PLUGIN_EXPORT_SYMBOL FnPlugin *getPlugins(unsigned int *pNumPlugins);
 
 
 /// Loads a geometry file
