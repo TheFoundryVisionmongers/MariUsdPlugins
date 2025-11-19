@@ -47,7 +47,6 @@
 #include <string>
 #include <time.h>
 
-using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
 std::string UsdReader::kNoUvSetFoundStr = "* no uv set found *";
@@ -138,10 +137,10 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
 MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
-    vector<int> frames;
+    std::vector<int> frames;
     std::string loadOption, mergeOption, frameString, UVSet = "", mappingScheme;
-    vector<std::string> requestedModelNames,requestedGprimNames;
-    vector<SdfPath> variantSelections;
+    std::vector<std::string> requestedModelNames,requestedGprimNames;
+    std::vector<SdfPath> variantSelections;
     bool conformToMariY = true;
     bool keepCentered = false;
     bool includeInvisible = false;
@@ -199,14 +198,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     {
         // Check to see if this path matches a variant
         SdfPath path = primIt->GetPath();
-        for(vector<SdfPath>::iterator it = variantSelections.begin();
-            it != variantSelections.end();
-            ++it) 
+        for(auto it = variantSelections.begin(); it != variantSelections.end(); ++it) 
         {
             // The user has requested a variant selection for this prim through the variants parameter.
             // If it exists, let's set it.
             if (it->GetAbsoluteRootOrPrimPath() == path) {
-                pair<string,string> variantSelection = it->GetVariantSelection();
+                std::pair<std::string, std::string> variantSelection = it->GetVariantSelection();
                 UsdVariantSet  vs = primIt->GetVariantSet(variantSelection.first);
                 if (vs && vs.IsValid() && vs.HasAuthoredVariant(variantSelection.second)) 
                 {
@@ -439,14 +436,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
 
 void 
-UsdReader::_GetFrameList(const string &frameString, vector<int> &frames)
+UsdReader::_GetFrameList(const std::string &frameString, std::vector<int> &frames)
 {
     std::vector<std::string> framesStringTokens;
     framesStringTokens = TfStringTokenize(frameString, ",");
     
-    for (vector<string>::iterator it = framesStringTokens.begin();
-            it != framesStringTokens.end();
-            ++it)
+    for (auto it = framesStringTokens.begin(); it != framesStringTokens.end(); ++it)
     {
         // Process range values
         std::vector<std::string> rangeStringTokens = TfStringTokenize(*it, "-");
@@ -472,14 +467,12 @@ UsdReader::_GetFrameList(const string &frameString, vector<int> &frames)
 }
 
 void 
-UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPath> &variants)
+UsdReader::_GetVariantSelectionsList(const std::string &variantsString, std::vector<SdfPath> &variants)
 {
     std::vector<std::string> variantsStringTokens;
     variantsStringTokens = TfStringTokenize(variantsString, " ");
     
-    for (vector<string>::iterator it = variantsStringTokens.begin();
-            it != variantsStringTokens.end();
-            ++it)
+    for (auto it = variantsStringTokens.begin(); it != variantsStringTokens.end(); ++it)
     {
         SdfPath path = SdfPath(*it);
         if (path.IsPrimVariantSelectionPath() )
@@ -489,7 +482,7 @@ UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPat
     }
 }
 
-MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups)
+MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, std::string label, const std::vector<int> &frames, bool createFaceSelectionGroups)
 {
     MriGeoDataHandle FaceVertexCounts{}, Vertices{}, Normals{}, VertexIndices{}, NormalIndices{};
     MriGeoDataHandle UVs{}, UVIndices{};
@@ -791,7 +784,7 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
                            GeoData::UVSet uvs, 
                            int size)
 {
-    string choices = "";
+    std::string choices = "";
     for (GeoData::UVSet::iterator it = uvs.begin(); it != uvs.end(); ++it)
     {
         if (choices.length() > 0)
@@ -800,7 +793,7 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
             choices += "\n";
         }
 
-        stringstream oss;
+        std::stringstream oss;
         oss << it->first << " (" << it->second << "/" << size <<  ")";
         choices += oss.str();
     }
@@ -821,12 +814,12 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     std::string& loadOption,
                                     std::string& mergeOption,
                                     std::string& mappingScheme,
-                                    vector<int>& frames,
+                                    std::vector<int>& frames,
                                     std::string& frameString,
-                                    vector<string>& requestedModelNames,
-                                    vector<string>& requestedGprimNames,
+                                    std::vector<std::string>& requestedModelNames,
+                                    std::vector<std::string>& requestedGprimNames,
                                     std::string& UVSet,
-                                    vector<SdfPath>& variantSelections,
+                                    std::vector<SdfPath>& variantSelections,
                                     bool& conformToMariY,
                                     bool& keepCentered,
                                     bool& includeInvisible,
@@ -961,10 +954,9 @@ UsdReader::_SaveMetadata(
 {
     MriAttributeValue Value;
     Value.m_Type = MRI_ATTR_STRING;
-    map<string, string> metadata = modelData.GetMetadata();
-    map<string, string>::iterator it;
+    std::map<std::string, std::string> metadata = modelData.GetMetadata();
     _host.trace("%s:%d] Using metadata setAttribute (>2.0)", _pluginName, __LINE__);
-    for (it = metadata.begin(); it!=metadata.end();++it)
+    for (auto it = metadata.begin(); it!=metadata.end();++it)
     {
         Value.m_pString = it->second.c_str();
         _host.trace("%s:%d] setting metadata %s to %s", _pluginName, __LINE__, 

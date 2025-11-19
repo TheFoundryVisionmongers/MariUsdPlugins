@@ -40,7 +40,7 @@
 #include "pxr/usd/usdGeom/primvarsAPI.h"
 
 #include <float.h>
-using namespace std;
+
 PXR_NAMESPACE_USING_DIRECTIVE
 
 TF_DEFINE_ENV_SETTING(MARI_READ_FLOAT2_AS_UV, true,
@@ -111,7 +111,7 @@ GeoData::GeoData(UsdPrim const &prim,
             log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
-        m_vertexIndices = vector<int>(vertsIndicesArray.begin(), vertsIndicesArray.end());
+        m_vertexIndices = std::vector<int>(vertsIndicesArray.begin(), vertsIndicesArray.end());
     }
 
     // Read face counts
@@ -124,7 +124,7 @@ GeoData::GeoData(UsdPrim const &prim,
             log.push_back("** Failed getting faces on " + std::string(prim.GetPath().GetText()));
             return;// this is not optional!
         }
-        m_faceCounts = vector<int>(nvertsPerFaceArray.begin(), nvertsPerFaceArray.end());
+        m_faceCounts = std::vector<int>(nvertsPerFaceArray.begin(), nvertsPerFaceArray.end());
     }
 
     // Create face selection indices
@@ -179,7 +179,7 @@ GeoData::GeoData(UsdPrim const &prim,
                             if (interpolation == UsdGeomTokens->faceVarying)
                             {
                                 // All good -> primvar is indexed: validate/process values and indices together
-                                m_uvIndices = vector<int>(indices.begin(), indices.end());
+                                m_uvIndices = std::vector<int>(indices.begin(), indices.end());
                             }
                             else
                             {
@@ -191,7 +191,7 @@ GeoData::GeoData(UsdPrim const &prim,
                                 // 2. use VI as an index into the original vertex-interpolcated uv index table, to get uv index UVI
                                 // 3. add UVI to final face varying uv index array
                                 // VITAL NOTE: the final uv indices array count MUST MATCH the vertex indices array count
-                                std::vector<int> UvIndices = vector<int>(indices.begin(), indices.end());
+                                std::vector<int> UvIndices = std::vector<int>(indices.begin(), indices.end());
                                 int globalIndex = 0;
                                 for(auto x = 0u; x < m_faceCounts.size(); ++x)
                                 {
@@ -332,7 +332,7 @@ GeoData::GeoData(UsdPrim const &prim,
                 if (interpolation == UsdGeomTokens->faceVarying)
                 {
                     // For face varying, we can take the index list as-is.
-                    m_normalIndices = vector<int>(indices.begin(), indices.end());
+                    m_normalIndices = std::vector<int>(indices.begin(), indices.end());
                 }
                 else if (interpolation == UsdGeomTokens->vertex)
                 {
@@ -363,7 +363,7 @@ GeoData::GeoData(UsdPrim const &prim,
 
     // Load vertices and animation frames
     GfMatrix4d const IDENTITY(1);
-    vector<float> points;
+    std::vector<float> points;
     for (unsigned int iFrame = 0; iFrame < frames.size(); ++iFrame) 
     {
         // Get frame sample corresponding to frame index
@@ -494,7 +494,7 @@ GeoData::GeoData(UsdPrim const &prim,
     #endif
 
         host.trace("[GeoData:%d]\t\t vertex frame count %i", __LINE__, m_vertices.size());
-        vector<float> vertices0 = m_vertices.begin()->second;
+        std::vector<float> vertices0 = m_vertices.begin()->second;
         host.trace("[GeoData:%d]\t\t vertex @ frame0 count %i", __LINE__, vertices0.size()/3);
     #if defined(PRINT_ARRAYS)
         for (unsigned x = 0; x < vertices0.size()/3; ++x)
@@ -542,37 +542,37 @@ GeoData::GeoData(UsdPrim const &prim,
         VtIntArray creaseIndicesArray;
         if (mesh.GetCreaseIndicesAttr().Get(&creaseIndicesArray))
         {
-            m_creaseIndices = vector<int>(creaseIndicesArray.begin(), creaseIndicesArray.end());
+            m_creaseIndices = std::vector<int>(creaseIndicesArray.begin(), creaseIndicesArray.end());
         }
 
         VtIntArray creaseLengthsArray;
         if (mesh.GetCreaseLengthsAttr().Get(&creaseLengthsArray))
         {
-            m_creaseLengths = vector<int>(creaseLengthsArray.begin(), creaseLengthsArray.end());
+            m_creaseLengths = std::vector<int>(creaseLengthsArray.begin(), creaseLengthsArray.end());
         }
 
         VtFloatArray creaseSharpnessArray;
         if (mesh.GetCreaseSharpnessesAttr().Get(&creaseSharpnessArray))
         {
-            m_creaseSharpness = vector<float>(creaseSharpnessArray.begin(), creaseSharpnessArray.end());
+            m_creaseSharpness = std::vector<float>(creaseSharpnessArray.begin(), creaseSharpnessArray.end());
         }
 
         VtIntArray cornerIndicesArray;
         if (mesh.GetCornerIndicesAttr().Get(&cornerIndicesArray))
         {
-            m_cornerIndices = vector<int>(cornerIndicesArray.begin(), cornerIndicesArray.end());
+            m_cornerIndices = std::vector<int>(cornerIndicesArray.begin(), cornerIndicesArray.end());
         }
 
         VtFloatArray cornerSharpnessArray;
         if (mesh.GetCornerSharpnessesAttr().Get(&cornerSharpnessArray))
         {
-            m_cornerSharpness = vector<float>(cornerSharpnessArray.begin(), cornerSharpnessArray.end());
+            m_cornerSharpness = std::vector<float>(cornerSharpnessArray.begin(), cornerSharpnessArray.end());
         }
 
         VtIntArray holeIndicesArray;
         if (mesh.GetHoleIndicesAttr().Get(&holeIndicesArray))
         {
-            m_holeIndices = vector<int>(holeIndicesArray.begin(), holeIndicesArray.end());
+            m_holeIndices = std::vector<int>(holeIndicesArray.begin(), holeIndicesArray.end());
         }
 
         m_isSubdivMesh = false;
@@ -708,7 +708,7 @@ void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
 
     UsdGeomPrimvarsAPI gPrimApi(gprim);
 
-    vector<UsdGeomPrimvar> primvars = gPrimApi.GetPrimvars();
+    std::vector<UsdGeomPrimvar> primvars = gPrimApi.GetPrimvars();
     TF_FOR_ALL(primvar, primvars) 
     {
         TfToken          name, interpolation;
@@ -721,8 +721,8 @@ void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
         if (interpolation == UsdGeomTokens->vertex or
              interpolation == UsdGeomTokens->faceVarying)
         {
-            string prefix = name.GetString().substr(0,2);
-            string mapName("");
+            std::string prefix = name.GetString().substr(0,2);
+            std::string mapName("");
         
             if ((prefix == "v_" || prefix == "u_") and
                 (typeName == SdfValueTypeNames->FloatArray))
@@ -786,13 +786,13 @@ void GeoData::Reset()
     m_holeIndices.clear();
 }
 
-bool GeoData::TestPath(string path)
+bool GeoData::TestPath(std::string path)
 {
     bool requiredSubstringFound = true;
     std::vector<std::string>::iterator i;
     for (i=_requireGeomPathSubstring.begin(); i!=_requireGeomPathSubstring.end(); ++i)
     {
-        if (path.find(*i) != string::npos)
+        if (path.find(*i) != std::string::npos)
         {
             requiredSubstringFound = true;
             break;
@@ -808,7 +808,7 @@ bool GeoData::TestPath(string path)
 
     for (i=_ignoreGeomPathSubstring.begin(); i!=_ignoreGeomPathSubstring.end(); ++i)
     {
-        if (path.find(*i) != string::npos)
+        if (path.find(*i) != std::string::npos)
         {
             return false;
         }

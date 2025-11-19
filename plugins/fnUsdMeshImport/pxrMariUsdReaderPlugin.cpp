@@ -38,7 +38,6 @@
 #include <time.h>
 #include <sstream>
 
-using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
 //-----------------------------------------------------------------------------
