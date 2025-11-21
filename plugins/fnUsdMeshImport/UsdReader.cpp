@@ -29,6 +29,7 @@
 //
 
 #include "UsdReader.h"
+#include "CameraData.h"
 #include "MriGeoReaderPlugin.h"
 #include "GeoData.h"
 #include "ModelData.h"
@@ -47,28 +48,35 @@
 #include <string>
 #include <time.h>
 
-using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
 std::string UsdReader::kNoUvSetFoundStr = "* no uv set found *";
 
 const std::string UsdReader::kMappingSchemeOptions = "UV if available, Ptex otherwise\nForce Ptex\nUV if available, empty otherwise\nForce empty";
 
-UsdReader::UsdReader(const char* pFileName, 
-                                 MriGeoReaderHost &pHost) :
+UsdReader::UsdReader(const char* pFileName, const PluginHosts* pluginHosts) :
+    _startTime(clock()),
     _pluginName("UsdReader"),
     _fileName(pFileName),
-    _host(pHost),
-    _startTime(clock())
+    _pluginHosts(pluginHosts),
+    _diagnosticDelegate(std::make_unique<DiagnosticDelegate>(pluginHosts))
 {
     // Evaluate and store PathSubstringLists at initialization time so we don't
     // look at environment variables more than once.
     GeoData::InitializePathSubstringLists();
+
+    TfDiagnosticMgr::GetInstance().AddDelegate(_diagnosticDelegate.get());
 }
+
+UsdReader::~UsdReader()
+{
+    TfDiagnosticMgr::GetInstance().RemoveDelegate(_diagnosticDelegate.get());
+}
+
 UsdStageRefPtr
 UsdReader::_OpenUsdStage()
 {
-    _host.trace("[%s:%d] Opening: %s", _pluginName, __LINE__, _fileName);
+    _pluginHosts->geoReaderHost.trace("[%s:%d] Opening: %s", _pluginName, __LINE__, _fileName);
     
     SdfLayerRefPtr rootLayer = SdfLayer::FindOrOpen(_fileName);
 
@@ -78,21 +86,14 @@ UsdReader::_OpenUsdStage()
 
     if (!stage)
     {
-        _host.trace("%s:%d] Cannot load usd file from %s", _pluginName, __LINE__, _fileName);
+        _pluginHosts->geoReaderHost.trace("%s:%d] Cannot load usd file from %s", _pluginName, __LINE__, _fileName);
         _log.push_back("Cannot load usd file from " + std::string(_fileName) + ".");
         return NULL;
     }
 
     TfToken upAxis = UsdGeomGetStageUpAxis(stage);
     m_upAxisIsY = upAxis.data() == UsdGeomTokens->y;
-    _host.trace("[%s:%d] Stage up axis is : %s", _pluginName, __LINE__, m_upAxisIsY ? "y" : "z");
-
-    // NOTES FROM RAJIV:
-    // The following crashes on windows only. The USD documentation warns against using Reload in the face of threading.
-    // We do not seem to need Reload to be called here, since we are only doing reading of the file and no scene
-    // composition and writing.
-    // // reload the stage to flush any USD level cache
-    // stage->Reload();
+    _pluginHosts->geoReaderHost.trace("[%s:%d] Stage up axis is : %s", _pluginName, __LINE__, m_upAxisIsY ? "y" : "z");
 
     return stage;
 }
@@ -113,7 +114,7 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
 
     if (range.empty())
     {
-        _host.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
+        _pluginHosts->geoReaderHost.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
 
         return MRI_GPR_FAILED;
@@ -138,10 +139,10 @@ UsdReader::GetSettings(MriUserItemHandle SettingsHandle)
 MriGeoPluginResult
 UsdReader::Load(MriGeoEntityHandle &Entity)
 {
-    vector<int> frames;
+    std::vector<int> frames;
     std::string loadOption, mergeOption, frameString, UVSet = "", mappingScheme;
-    vector<std::string> requestedModelNames,requestedGprimNames;
-    vector<SdfPath> variantSelections;
+    std::vector<std::string> requestedModelNames,requestedGprimNames;
+    std::vector<SdfPath> variantSelections;
     bool conformToMariY = true;
     bool keepCentered = false;
     bool includeInvisible = false;
@@ -169,7 +170,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     if (range.empty())
     {
-        _host.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
+        _pluginHosts->geoReaderHost.trace("%s:%d] File %s is empty!", _pluginName, __LINE__, _fileName);
         _log.push_back("File "+ std::string(_fileName) + " is empty!");
         return MRI_GPR_FAILED;
     }
@@ -182,39 +183,38 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     MriAttributeValue stagePrimValue;
     stagePrimValue.m_Type = MRI_ATTR_STRING;
     stagePrimValue.m_pString = stagePrimPathString.c_str();
-    _host.setAttribute(Entity, "StagePrimPath", &stagePrimValue);
+    _pluginHosts->geoReaderHost.setAttribute(Entity, "StagePrimPath", &stagePrimValue);
 
     MriAttributeValue uvSetValue;
     uvSetValue.m_Type = MRI_ATTR_STRING;
     uvSetValue.m_pString = UVSet.c_str();
-    _host.setAttribute(Entity, "UvSetName", &uvSetValue);
+    _pluginHosts->geoReaderHost.setAttribute(Entity, "UvSetName", &uvSetValue);
     
     // variables used to coordinate which model should be loaded
     bool loadThisModel = false;
     bool oneModelLoaded = false;
     ModelData* currentModelData = nullptr;
     std::vector<ModelData*> modelDataList;
+    std::vector<CameraData> cameraDataList;
     
     for (auto primIt = range.begin(); primIt != range.end(); ++primIt)
     {
         // Check to see if this path matches a variant
         SdfPath path = primIt->GetPath();
-        for(vector<SdfPath>::iterator it = variantSelections.begin();
-            it != variantSelections.end();
-            ++it) 
+        for(auto it = variantSelections.begin(); it != variantSelections.end(); ++it) 
         {
             // The user has requested a variant selection for this prim through the variants parameter.
             // If it exists, let's set it.
             if (it->GetAbsoluteRootOrPrimPath() == path) {
-                pair<string,string> variantSelection = it->GetVariantSelection();
+                std::pair<std::string, std::string> variantSelection = it->GetVariantSelection();
                 UsdVariantSet  vs = primIt->GetVariantSet(variantSelection.first);
                 if (vs && vs.IsValid() && vs.HasAuthoredVariant(variantSelection.second)) 
                 {
                     vs.SetVariantSelection(variantSelection.second);
-                    _host.trace("set variant set %s  =  %s on prim %s", 
-                                variantSelection.first.c_str(),
-                                variantSelection.second.c_str(),
-                                path.GetString().c_str());
+                    _pluginHosts->geoReaderHost.trace("set variant set %s  =  %s on prim %s",
+                                                      variantSelection.first.c_str(),
+                                                      variantSelection.second.c_str(),
+                                                      path.GetString().c_str());
                 }
             }
         }
@@ -265,19 +265,19 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             TfToken visibility = imageable.ComputeVisibility();
             if(visibility == UsdGeomTokens->invisible) 
             {
-                /*_host.trace("%s:%d] %s Is invisible",
-                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
                 primIt.PruneChildren();
                 continue;
-            } else {
-                /*_host.trace("%s:%d] %s Is visible",
-                    _pluginName, __LINE__, primIt->GetPath().GetText());*/
             }
+        }
+
+        if (CameraData::IsValidNode(*primIt))
+        {
+            cameraDataList.emplace_back(CameraData(*primIt));
+            continue;
         }
 
         if (not GeoData::IsValidNode(*primIt)) 
         {
-            /*_host.trace("[%s:%d] %s Not a valid node", _pluginName, __LINE__, primIt->GetPath().GetText());*/
             // not even a gprim.
             continue;
         }
@@ -290,9 +290,6 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         // XXX This might start to get costly with very large lists of
         // gprims. 2(O^2). 
 
-
-        //_host.trace("%s:%d] looking for %s and %s in requested names %d.", 
-        //            _pluginName, __LINE__, path.GetName().c_str(), path.GetText(), requestedGprimNames.size());
         if (
             requestedGprimNames.size() > 0 &&
             (std::find(requestedGprimNames.begin(),
@@ -313,11 +310,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         }
 
         else {
-            _host.trace("[%s] Could not make mari geo entity with uv set %s for"
-                " prim %s", _pluginName, UVSet.c_str(),
-                path.GetString().c_str());
-            _log.push_back("Could not make mari geo entity with uv set "
-                + UVSet + " for prim " + path.GetString() + ".");
+            _pluginHosts->geoReaderHost.trace("[%s] Could not make mari geo entity with uv set %s for prim %s", _pluginName, UVSet.c_str(), path.GetString().c_str());
+            _log.push_back("Could not make mari geo entity with uv set " + UVSet + " for prim " + path.GetString() + ".");
         }
     }
 
@@ -334,7 +328,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     {
         // No UsdGeomMesh found to load -> error out now!
 
-        _host.trace("[%s:%d] No model of type UsdGeomMesh found to load in %s", _pluginName, __LINE__, _fileName);
+        _pluginHosts->geoReaderHost.trace("[%s:%d] No model of type UsdGeomMesh found to load in %s", _pluginName, __LINE__, _fileName);
         _log.push_back("> No model of type UsdGeomMesh found to load in " + std::string(_fileName));
 
         return MRI_GPR_FAILED;
@@ -344,7 +338,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     if (createChildren)
     {
-        _host.setEntityType(Entity, MRI_SET_ENTITY);
+        _pluginHosts->geoReaderHost.setEntityType(Entity, MRI_SET_ENTITY);
+    }
+
+    for (const auto& cameraData : cameraDataList)
+    {
+        cameraData.MakeEntity(_pluginHosts, Entity);
     }
 
     for (ModelData* modelData: modelDataList)
@@ -359,8 +358,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         if (createChildren)
         {
             MriGeoEntityHandle childEntity;
-            _host.createChildGeoEntity(Entity, _fileName, &childEntity);
-            _host.setEntityName(childEntity, modelData->instanceName.c_str());
+            _pluginHosts->geoReaderHost.createChildGeoEntity(Entity, _fileName, &childEntity);
+            _pluginHosts->geoReaderHost.setEntityName(childEntity, modelData->instanceName.c_str());
 
             entityToPopulate = childEntity; 
         }
@@ -369,10 +368,10 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
         for (auto prim: modelData->gprims)
         {
             // Create a mari-compatible geometry
-            GeoData Geom(prim, UVSet, mappingScheme, frames, conformToMariY, m_upAxisIsY, keepCentered, modelData->mprim, _host, _log);
+            GeoData Geom(prim, UVSet, mappingScheme, frames, conformToMariY, m_upAxisIsY, keepCentered, modelData->mprim, _pluginHosts, _log);
             if (Geom)
             {
-                _host.trace("[%s:%d] * Found importable mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
+                _pluginHosts->geoReaderHost.trace("[%s:%d] * Found importable mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
 
                 // detect handle id
                 std::string handle = "";
@@ -405,7 +404,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             }
             else
             {
-                _host.trace("[%s:%d] X Could not load mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
+                _pluginHosts->geoReaderHost.trace("[%s:%d] X Could not load mesh %s", _pluginName, __LINE__, prim.GetPath().GetName().c_str());
                 --modelCount;
             }
         }
@@ -421,7 +420,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     if (modelDataList.size()==0 or modelCount == 0)
     {
-        _host.trace("[%s:%d] No valid geometry found in %s", _pluginName, __LINE__, _fileName);
+        _pluginHosts->geoReaderHost.trace("[%s:%d] No valid geometry found in %s", _pluginName, __LINE__, _fileName);
         _log.push_back("> No valid geometry found in " + std::string(_fileName));
 
         result = MRI_GPR_FAILED;
@@ -439,14 +438,12 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
 
 void 
-UsdReader::_GetFrameList(const string &frameString, vector<int> &frames)
+UsdReader::_GetFrameList(const std::string &frameString, std::vector<int> &frames)
 {
     std::vector<std::string> framesStringTokens;
     framesStringTokens = TfStringTokenize(frameString, ",");
     
-    for (vector<string>::iterator it = framesStringTokens.begin();
-            it != framesStringTokens.end();
-            ++it)
+    for (auto it = framesStringTokens.begin(); it != framesStringTokens.end(); ++it)
     {
         // Process range values
         std::vector<std::string> rangeStringTokens = TfStringTokenize(*it, "-");
@@ -472,14 +469,12 @@ UsdReader::_GetFrameList(const string &frameString, vector<int> &frames)
 }
 
 void 
-UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPath> &variants)
+UsdReader::_GetVariantSelectionsList(const std::string &variantsString, std::vector<SdfPath> &variants)
 {
     std::vector<std::string> variantsStringTokens;
     variantsStringTokens = TfStringTokenize(variantsString, " ");
     
-    for (vector<string>::iterator it = variantsStringTokens.begin();
-            it != variantsStringTokens.end();
-            ++it)
+    for (auto it = variantsStringTokens.begin(); it != variantsStringTokens.end(); ++it)
     {
         SdfPath path = SdfPath(*it);
         if (path.IsPrimVariantSelectionPath() )
@@ -489,7 +484,7 @@ UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPat
     }
 }
 
-MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups)
+MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, std::string label, const std::vector<int> &frames, bool createFaceSelectionGroups)
 {
     MriGeoDataHandle FaceVertexCounts{}, Vertices{}, Normals{}, VertexIndices{}, NormalIndices{};
     MriGeoDataHandle UVs{}, UVIndices{};
@@ -500,165 +495,165 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
     // 1 Create a version - not needed, as Mari creates a default one for us
 
     // 2. Create our geometry data channels
-    CHECK_RESULT(_host.createGeoData(Entity,
-                                     Geom.GetVertices(0),
-                                     Geom.GetNumPoints() * sizeof(float),
-                                     MRI_GDT_FLOAT_BUFFER,
-                                     MRI_GDR_MESH_VERTICES,
-                                     &Vertices));
-    CHECK_RESULT(_host.createGeoData(Entity,
-                                     Geom.GetVertexIndices(),
-                                     Geom.GetNumVertexIndices() * sizeof(unsigned int),
-                                     MRI_GDT_U32_BUFFER,
-                                     MRI_GDR_MESH_VERTEX_INDICES,
-                                     &VertexIndices));
-    CHECK_RESULT(_host.createGeoData(Entity,
-                                     Geom.GetFaceVertexCounts(),
-                                     Geom.GetNumFaceVertexCounts() * sizeof(unsigned int),
-                                     MRI_GDT_U32_BUFFER,
-                                     MRI_GDR_MESH_FACE_VERTEX_COUNTS,
-                                     &FaceVertexCounts));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                           Geom.GetVertices(0),
+                                                           Geom.GetNumPoints() * sizeof(float),
+                                                           MRI_GDT_FLOAT_BUFFER,
+                                                           MRI_GDR_MESH_VERTICES,
+                                                           &Vertices));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                           Geom.GetVertexIndices(),
+                                                           Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                                           MRI_GDT_U32_BUFFER,
+                                                           MRI_GDR_MESH_VERTEX_INDICES,
+                                                           &VertexIndices));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                           Geom.GetFaceVertexCounts(),
+                                                           Geom.GetNumFaceVertexCounts() * sizeof(unsigned int),
+                                                           MRI_GDT_U32_BUFFER,
+                                                           MRI_GDR_MESH_FACE_VERTEX_COUNTS,
+                                                           &FaceVertexCounts));
 
     if (Geom.HasNormals())
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetNormals(),
-                                         Geom.GetNumNormals() * sizeof(float),
-                                         MRI_GDT_FLOAT_BUFFER,
-                                         MRI_GDR_MESH_NORMALS,
-                                         &Normals));
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetNormalIndices(),
-                                         Geom.GetNumVertexIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_NORMAL_INDICES,
-                                         &NormalIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetNormals(),
+                                                               Geom.GetNumNormals() * sizeof(float),
+                                                               MRI_GDT_FLOAT_BUFFER,
+                                                               MRI_GDR_MESH_NORMALS,
+                                                               &Normals));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetNormalIndices(),
+                                                               Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_NORMAL_INDICES,
+                                                               &NormalIndices));
     }
     if (Geom.HasUVs())
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetUVs(),
-                                         Geom.GetNumUvs() * sizeof(float),
-                                         MRI_GDT_FLOAT_BUFFER,
-                                         MRI_GDR_MESH_UV0,
-                                         &UVs));
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetUVIndices(),
-                                         Geom.GetNumVertexIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_UV0_INDICES,
-                                         &UVIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetUVs(),
+                                                               Geom.GetNumUvs() * sizeof(float),
+                                                               MRI_GDT_FLOAT_BUFFER,
+                                                               MRI_GDR_MESH_UV0,
+                                                               &UVs));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetUVIndices(),
+                                                               Geom.GetNumVertexIndices() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_UV0_INDICES,
+                                                               &UVIndices));
     }
 
     if (Geom.GetNumCreaseIndices() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetCreaseLengths(),
-                                         Geom.GetNumCreaseLengths() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_SUBD_CREASE_LENGTHS,
-                                         &CreaseLengths));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetCreaseLengths(),
+                                                               Geom.GetNumCreaseLengths() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_CREASE_LENGTHS,
+                                                               &CreaseLengths));
     }
     if (Geom.GetNumCreaseLengths() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetCreaseIndices(),
-                                         Geom.GetNumCreaseIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_SUBD_CREASE_INDICES,
-                                         &CreaseIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetCreaseIndices(),
+                                                               Geom.GetNumCreaseIndices() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_CREASE_INDICES,
+                                                               &CreaseIndices));
     }
     if (Geom.GetNumCreaseSharpness() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetCreaseSharpness(),
-                                         Geom.GetNumCreaseSharpness() * sizeof(float),
-                                         MRI_GDT_FLOAT_BUFFER,
-                                         MRI_GDR_MESH_SUBD_CREASE_SHARPNESS,
-                                         &CreaseSharpness));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetCreaseSharpness(),
+                                                               Geom.GetNumCreaseSharpness() * sizeof(float),
+                                                               MRI_GDT_FLOAT_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_CREASE_SHARPNESS,
+                                                               &CreaseSharpness));
     }
     if (Geom.GetNumCornerIndices() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetCornerIndices(),
-                                         Geom.GetNumCornerIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_SUBD_CORNER_INDICES,
-                                         &CornerIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetCornerIndices(),
+                                                               Geom.GetNumCornerIndices() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_CORNER_INDICES,
+                                                               &CornerIndices));
     }
     if (Geom.GetNumCornerSharpness() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetCornerSharpness(),
-                                         Geom.GetNumCornerSharpness() * sizeof(float),
-                                         MRI_GDT_FLOAT_BUFFER,
-                                         MRI_GDR_MESH_SUBD_CORNER_SHARPNESS,
-                                         &CornerSharpness));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetCornerSharpness(),
+                                                               Geom.GetNumCornerSharpness() * sizeof(float),
+                                                               MRI_GDT_FLOAT_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_CORNER_SHARPNESS,
+                                                               &CornerSharpness));
     }
     if (Geom.GetNumHoleIndices() > 0)
     {
-        CHECK_RESULT(_host.createGeoData(Entity,
-                                         Geom.GetHoleIndicess(),
-                                         Geom.GetNumHoleIndices() * sizeof(unsigned int),
-                                         MRI_GDT_U32_BUFFER,
-                                         MRI_GDR_MESH_SUBD_HOLES,
-                                         &Holes));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createGeoData(Entity,
+                                                               Geom.GetHoleIndicess(),
+                                                               Geom.GetNumHoleIndices() * sizeof(unsigned int),
+                                                               MRI_GDT_U32_BUFFER,
+                                                               MRI_GDR_MESH_SUBD_HOLES,
+                                                               &Holes));
     }
 
     // 3. Create Mesh and add data channels to it
-    CHECK_RESULT(_host.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), &MeshObject));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.createMeshObject(Entity, label.c_str(), Geom.GetNumFaceVertexCounts(), &MeshObject));
     MriAttributeValue RightHandedWindingOrder;
     RightHandedWindingOrder.m_Type = MRI_ATTR_BOOL;
     RightHandedWindingOrder.m_Int = Geom.IsRightHandWindingOrder();
-    _host.setAttribute(MeshObject, "RightHandedWindingOrder", &RightHandedWindingOrder);
+    _pluginHosts->geoReaderHost.setAttribute(MeshObject, "RightHandedWindingOrder", &RightHandedWindingOrder);
 
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Vertices));
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, VertexIndices));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, Vertices));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, VertexIndices));
     if (Geom.HasNormals())
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Normals));
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, NormalIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, Normals));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, NormalIndices));
     }
-    CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, FaceVertexCounts));
+    CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, FaceVertexCounts));
     if (Geom.HasUVs())
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVs));
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, UVIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, UVs));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, UVIndices));
     }
 
     if (Geom.GetNumCreaseIndices() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, CreaseIndices));
     }
     if (Geom.GetNumCreaseLengths() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseLengths));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, CreaseLengths));
     }
     if (Geom.GetNumCreaseSharpness() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CreaseSharpness));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, CreaseSharpness));
     }
     if (Geom.GetNumCornerIndices() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerIndices));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, CornerIndices));
     }
     if (Geom.GetNumCornerSharpness() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, CornerSharpness));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, CornerSharpness));
     }
     if (Geom.GetNumHoleIndices() > 0)
     {
-        CHECK_RESULT(_host.addGeoDataToObject(Entity, MeshObject, Holes));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addGeoDataToObject(Entity, MeshObject, Holes));
     }
     if (Geom.IsSubdivMesh())
     {
-        CHECK_RESULT(_host.setSubdivisionOnMeshObject(Entity,
-                                                      MeshObject,
-                                                      Geom.SubdivisionScheme().c_str(),
-                                                      Geom.InterpolateBoundary(),
-                                                      Geom.FaceVaryingLinearInterpolation(),
-                                                      Geom.PropagateCorner(),
-                                                      Geom.TriangleSubdivision()));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.setSubdivisionOnMeshObject(Entity,
+                                                                            MeshObject,
+                                                                            Geom.SubdivisionScheme().c_str(),
+                                                                            Geom.InterpolateBoundary(),
+                                                                            Geom.FaceVaryingLinearInterpolation(),
+                                                                            Geom.PropagateCorner(),
+                                                                            Geom.TriangleSubdivision()));
     }
 
     // Load animated frames
@@ -672,100 +667,100 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
             continue;
         }
 
-        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                              Vertices,
-                                              frame,
-                                              Geom.GetVertices(frame),
-                                              Geom.GetNumPoints() * sizeof(float)));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                    Vertices,
+                                                                    frame,
+                                                                    Geom.GetVertices(frame),
+                                                                    Geom.GetNumPoints() * sizeof(float)));
 
-        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                              VertexIndices,
-                                              frame,
-                                              Geom.GetVertexIndices(),
-                                              Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                    VertexIndices,
+                                                                    frame,
+                                                                    Geom.GetVertexIndices(),
+                                                                    Geom.GetNumVertexIndices() * sizeof(unsigned int)));
 
-        CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                              FaceVertexCounts,
-                                              frame,
-                                              Geom.GetFaceVertexCounts(),
-                                              Geom.GetNumFaceVertexCounts() * sizeof(unsigned)))
+        CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                    FaceVertexCounts,
+                                                                    frame,
+                                                                    Geom.GetFaceVertexCounts(),
+                                                                    Geom.GetNumFaceVertexCounts() * sizeof(unsigned)))
         if (Geom.HasNormals())
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  Normals,
-                                                  frame,
-                                                  Geom.GetNormals(),
-                                                  Geom.GetNumNormals() * sizeof(float)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        Normals,
+                                                                        frame,
+                                                                        Geom.GetNormals(),
+                                                                        Geom.GetNumNormals() * sizeof(float)));
 
             // REQUIRED To prevent Mari from automatically reindexing for latter frames and creating mangled rendereing
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  NormalIndices,
-                                                  frame,
-                                                  Geom.GetNormalIndices(),
-                                                  Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        NormalIndices,
+                                                                        frame,
+                                                                        Geom.GetNormalIndices(),
+                                                                        Geom.GetNumVertexIndices() * sizeof(unsigned int)));
         }
         if (Geom.HasUVs())
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  UVs,
-                                                  frame,
-                                                  Geom.GetUVs(),
-                                                  Geom.GetNumUvs() * sizeof(float)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        UVs,
+                                                                        frame,
+                                                                        Geom.GetUVs(),
+                                                                        Geom.GetNumUvs() * sizeof(float)));
             // REQUIRED To prevent Mari from automatically reindexing for latter frames and creating mangled rendereing
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  UVIndices,
-                                                  frame,
-                                                  Geom.GetUVIndices(),
-                                                  Geom.GetNumVertexIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        UVIndices,
+                                                                        frame,
+                                                                        Geom.GetUVIndices(),
+                                                                        Geom.GetNumVertexIndices() * sizeof(unsigned int)));
         }
 
         if (Geom.GetNumCreaseIndices() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  CreaseLengths,
-                                                  frame,
-                                                  Geom.GetCreaseLengths(),
-                                                  Geom.GetNumCreaseLengths() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        CreaseLengths,
+                                                                        frame,
+                                                                        Geom.GetCreaseLengths(),
+                                                                        Geom.GetNumCreaseLengths() * sizeof(unsigned int)));
         }
         if (Geom.GetNumCreaseLengths() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  CreaseIndices,
-                                                  frame,
-                                                  Geom.GetCreaseIndices(),
-                                                  Geom.GetNumCreaseIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        CreaseIndices,
+                                                                        frame,
+                                                                        Geom.GetCreaseIndices(),
+                                                                        Geom.GetNumCreaseIndices() * sizeof(unsigned int)));
         }
         if (Geom.GetNumCreaseSharpness() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  CreaseSharpness,
-                                                  frame,
-                                                  Geom.GetCreaseSharpness(),
-                                                  Geom.GetNumCreaseSharpness() * sizeof(float)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        CreaseSharpness,
+                                                                        frame,
+                                                                        Geom.GetCreaseSharpness(),
+                                                                        Geom.GetNumCreaseSharpness() * sizeof(float)));
         }
         if (Geom.GetNumCornerIndices() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  CornerIndices,
-                                                  frame,
-                                                  Geom.GetCornerIndices(),
-                                                  Geom.GetNumCornerIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        CornerIndices,
+                                                                        frame,
+                                                                        Geom.GetCornerIndices(),
+                                                                        Geom.GetNumCornerIndices() * sizeof(unsigned int)));
         }
         if (Geom.GetNumCornerSharpness() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  CornerSharpness,
-                                                  frame,
-                                                  Geom.GetCornerSharpness(),
-                                                  Geom.GetNumCornerSharpness() * sizeof(float)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        CornerSharpness,
+                                                                        frame,
+                                                                        Geom.GetCornerSharpness(),
+                                                                        Geom.GetNumCornerSharpness() * sizeof(float)));
         }
         if (Geom.GetNumHoleIndices() > 0)
         {
-            CHECK_RESULT(_host.setGeoDataForFrame(Entity,
-                                                  Holes,
-                                                  frame,
-                                                  Geom.GetHoleIndicess(),
-                                                  Geom.GetNumHoleIndices() * sizeof(unsigned int)));
+            CHECK_RESULT(_pluginHosts->geoReaderHost.setGeoDataForFrame(Entity,
+                                                                        Holes,
+                                                                        frame,
+                                                                        Geom.GetHoleIndicess(),
+                                                                        Geom.GetNumHoleIndices() * sizeof(unsigned int)));
         }
     }
 
@@ -779,8 +774,8 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
         MriSelectionGroupHandle FaceSelection;
 
         snprintf(pszBuffer, sizeof(pszBuffer), "Faces_%s", label.c_str());
-        CHECK_RESULT(_host.createSelectionGroup(Entity, pszBuffer, &FaceSelection));
-        CHECK_RESULT(_host.addFacesToSelectionGroup(Entity, FaceSelection, MeshObject, Geom.GetFaceSelectionIndices(), Geom.GetNumFaceVertexCounts()));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.createSelectionGroup(Entity, pszBuffer, &FaceSelection));
+        CHECK_RESULT(_pluginHosts->geoReaderHost.addFacesToSelectionGroup(Entity, FaceSelection, MeshObject, Geom.GetFaceSelectionIndices(), Geom.GetNumFaceVertexCounts()));
     }
 
     return MRI_GPR_SUCCEEDED;
@@ -791,7 +786,7 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
                            GeoData::UVSet uvs, 
                            int size)
 {
-    string choices = "";
+    std::string choices = "";
     for (GeoData::UVSet::iterator it = uvs.begin(); it != uvs.end(); ++it)
     {
         if (choices.length() > 0)
@@ -800,7 +795,7 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
             choices += "\n";
         }
 
-        stringstream oss;
+        std::stringstream oss;
         oss << it->first << " (" << it->second << "/" << size <<  ")";
         choices += oss.str();
     }
@@ -813,7 +808,7 @@ UsdReader::_ParseUVs(MriUserItemHandle SettingsHandle,
     MriAttributeValue UVValue;
     UVValue.m_Type = MRI_ATTR_STRING_LIST;
     UVValue.m_pString = choices.c_str();
-    _host.setAttribute(SettingsHandle, "UV Set", &UVValue);
+    _pluginHosts->geoReaderHost.setAttribute(SettingsHandle, "UV Set", &UVValue);
 }
 
 void
@@ -821,12 +816,12 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     std::string& loadOption,
                                     std::string& mergeOption,
                                     std::string& mappingScheme,
-                                    vector<int>& frames,
+                                    std::vector<int>& frames,
                                     std::string& frameString,
-                                    vector<string>& requestedModelNames,
-                                    vector<string>& requestedGprimNames,
+                                    std::vector<std::string>& requestedModelNames,
+                                    std::vector<std::string>& requestedGprimNames,
                                     std::string& UVSet,
-                                    vector<SdfPath>& variantSelections,
+                                    std::vector<SdfPath>& variantSelections,
                                     bool& conformToMariY,
                                     bool& keepCentered,
                                     bool& includeInvisible,
@@ -835,11 +830,10 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     MriAttributeValue Value;
 
     // detect requested load option
-    if (_host.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Load", &Value) == MRI_UPR_SUCCEEDED)
         loadOption = Value.m_pString;
 
-    _host.trace("%s:%d] requested Load Option %s", _pluginName, __LINE__,
-                loadOption.c_str());
+    _pluginHosts->geoReaderHost.trace("%s:%d] requested Load Option %s", _pluginName, __LINE__, loadOption.c_str());
 
     if (loadOption == "First Found\nAll Models\nSpecified Models in Model Names")
     {
@@ -848,10 +842,9 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     }
 
     // detect requested merge option
-    if (_host.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Merge Type", &Value) == MRI_UPR_SUCCEEDED)
         mergeOption = Value.m_pString;
-    _host.trace("%s:%d] requested Merge Option %s", _pluginName, __LINE__,
-                mergeOption.c_str());
+    _pluginHosts->geoReaderHost.trace("%s:%d] requested Merge Option %s", _pluginName, __LINE__, mergeOption.c_str());
 
     if (mergeOption == "Merge Models\nKeep Models Separate")
     {
@@ -861,37 +854,35 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
 
     // detect requested model name
     std::string modelNamesString;
-    if (_host.getAttribute(Entity, "Model Names", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Model Names", &Value) == MRI_UPR_SUCCEEDED)
         modelNamesString = Value.m_pString;
 
     requestedModelNames = TfStringTokenize(modelNamesString, ",");
 
-    _host.trace("%s:%d] requested modelNames %s", _pluginName, __LINE__,
-                modelNamesString.c_str());
+    _pluginHosts->geoReaderHost.trace("%s:%d] requested modelNames %s", _pluginName, __LINE__, modelNamesString.c_str());
 
     // detect requested UV set
-    if (_host.getAttribute(Entity, "UV Set", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "UV Set", &Value) == MRI_UPR_SUCCEEDED)
     {
         if (Value.m_pString == kNoUvSetFoundStr)
         {
             UVSet = "";
-            _host.trace("%s:%d] No uv set found", _pluginName, __LINE__);
+            _pluginHosts->geoReaderHost.trace("%s:%d] No uv set found", _pluginName, __LINE__);
         }
         else
         {
             UVSet = Value.m_pString;
             UVSet = UVSet.substr(0, UVSet.find(" "));
 
-            _host.trace("%s:%d] Using uv set %s", _pluginName, __LINE__, UVSet.c_str());
+            _pluginHosts->geoReaderHost.trace("%s:%d] Using uv set %s", _pluginName, __LINE__, UVSet.c_str());
         }
     }
 
     // Mapping scheme option
-    if (_host.getAttribute(Entity, "Mapping Scheme", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Mapping Scheme", &Value) == MRI_UPR_SUCCEEDED)
         mappingScheme = Value.m_pString;
 
-    _host.trace("%s:%d] Mappping scheme Option %s", _pluginName, __LINE__,
-                mappingScheme.c_str());
+    _pluginHosts->geoReaderHost.trace("%s:%d] Mappping scheme Option %s", _pluginName, __LINE__, mappingScheme.c_str());
 
     if (mappingScheme == kMappingSchemeOptions)
     {
@@ -900,58 +891,51 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
     }
 
     // detect requested frames
-    if (_host.getAttribute(Entity, "Frame Numbers", &Value) ==
-            MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Frame Numbers", &Value) == MRI_UPR_SUCCEEDED)
         frameString = Value.m_pString;
 
     _GetFrameList(frameString, frames);
-    _host.trace("%s:%d] requested %lu frames", _pluginName, __LINE__,
-                frames.size());
+    _pluginHosts->geoReaderHost.trace("%s:%d] requested %lu frames", _pluginName, __LINE__, frames.size());
 
     // detect requested gprim names
     std::string gprimNamesString;
-    if (_host.getAttribute(Entity, "Gprim Names", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Gprim Names", &Value) == MRI_UPR_SUCCEEDED)
         gprimNamesString = Value.m_pString;
     requestedGprimNames = TfStringTokenize(gprimNamesString, ",");
 
-    _host.trace("%s:%d] requested gprimString %s", _pluginName, __LINE__, 
-                gprimNamesString.c_str());
+    _pluginHosts->geoReaderHost.trace("%s:%d] requested gprimString %s", _pluginName, __LINE__, gprimNamesString.c_str());
 
     std::string variantsString;
-    if (_host.getAttribute(Entity, "Variants", &Value) == MRI_UPR_SUCCEEDED)
+    if (_pluginHosts->geoReaderHost.getAttribute(Entity, "Variants", &Value) == MRI_UPR_SUCCEEDED)
     {
         variantsString = Value.m_pString;
         _GetVariantSelectionsList(variantsString, variantSelections);
-        _host.trace("%s:%d] Using variants %s", _pluginName, __LINE__, variantsString.c_str());
+        _pluginHosts->geoReaderHost.trace("%s:%d] Using variants %s", _pluginName, __LINE__, variantsString.c_str());
     }
 
     // conform to Mari Y is up
-    if( _host.getAttribute(Entity, "Conform to Mari Y as up", &Value) ==
-        MRI_UPR_SUCCEEDED )
+    if(_pluginHosts->geoReaderHost.getAttribute(Entity, "Conform to Mari Y as up", &Value) == MRI_UPR_SUCCEEDED )
         conformToMariY = (Value.m_Int !=0);
-    _host.trace("%s:%d] Conform to Mari Y is up : %d", _pluginName, __LINE__, conformToMariY);
+    _pluginHosts->geoReaderHost.trace("%s:%d] Conform to Mari Y is up : %d", _pluginName, __LINE__, conformToMariY);
 
     // detect if we want to ignore model transforms
-    if( _host.getAttribute(Entity, "Keep Centered", &Value) ==
-        MRI_UPR_SUCCEEDED )
+    if(_pluginHosts->geoReaderHost.getAttribute(Entity, "Keep Centered", &Value) == MRI_UPR_SUCCEEDED )
         keepCentered = (Value.m_Int !=0);
     if( keepCentered )
-        _host.trace("%s:%d] Discarding model transforms.", _pluginName, __LINE__);
+        _pluginHosts->geoReaderHost.trace("%s:%d] Discarding model transforms.", _pluginName, __LINE__);
 
     // detect if we want to include invisible gprims
-    if( _host.getAttribute(Entity, "Include Invisible", &Value) ==
-        MRI_UPR_SUCCEEDED )
+    if(_pluginHosts->geoReaderHost.getAttribute(Entity, "Include Invisible", &Value) == MRI_UPR_SUCCEEDED )
         includeInvisible = (Value.m_Int !=0);
     if( !includeInvisible )
-        _host.trace("%s:%d] Discarding invisible gprims.", _pluginName, __LINE__);
+        _pluginHosts->geoReaderHost.trace("%s:%d] Discarding invisible gprims.", _pluginName, __LINE__);
 
     // detect if we want to create face selection groups
-    if( _host.getAttribute(Entity, "Create Face Selection Group per mesh", &Value) ==
-        MRI_UPR_SUCCEEDED )
+    if(_pluginHosts->geoReaderHost.getAttribute(Entity, "Create Face Selection Group per mesh", &Value) == MRI_UPR_SUCCEEDED )
         createFaceSelectionGroups = (Value.m_Int !=0);
 
     if( createFaceSelectionGroups )
-        _host.trace("%s:%d] Will create face selection groups.", _pluginName, __LINE__);
+        _pluginHosts->geoReaderHost.trace("%s:%d] Will create face selection groups.", _pluginName, __LINE__);
 }
 
 void
@@ -961,15 +945,13 @@ UsdReader::_SaveMetadata(
 {
     MriAttributeValue Value;
     Value.m_Type = MRI_ATTR_STRING;
-    map<string, string> metadata = modelData.GetMetadata();
-    map<string, string>::iterator it;
-    _host.trace("%s:%d] Using metadata setAttribute (>2.0)", _pluginName, __LINE__);
-    for (it = metadata.begin(); it!=metadata.end();++it)
+    std::map<std::string, std::string> metadata = modelData.GetMetadata();
+    _pluginHosts->geoReaderHost.trace("%s:%d] Using metadata setAttribute (>2.0)", _pluginName, __LINE__);
+    for (auto it = metadata.begin(); it!=metadata.end();++it)
     {
         Value.m_pString = it->second.c_str();
-        _host.trace("%s:%d] setting metadata %s to %s", _pluginName, __LINE__, 
-            it->first.c_str(), it->second.c_str());
-        _host.setAttribute(Entity, it->first.c_str(), &Value);
+        _pluginHosts->geoReaderHost.trace("%s:%d] setting metadata %s to %s", _pluginName, __LINE__, it->first.c_str(), it->second.c_str());
+        _pluginHosts->geoReaderHost.setAttribute(Entity, it->first.c_str(), &Value);
     }
 }
 

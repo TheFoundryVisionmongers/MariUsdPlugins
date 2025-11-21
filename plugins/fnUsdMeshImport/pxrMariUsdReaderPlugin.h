@@ -37,16 +37,11 @@
 #include <stdlib.h>
 #include <string>
 
+#include "Defines.h"
 #include "MariHostConfig.h"
 
 /// Returns the list of plug-ins in this library
-extern "C"
-#ifdef _WIN32
-__declspec(dllexport)
-#else
-__attribute__((visibility("default")))
-#endif
-FnPlugin *getPlugins(unsigned int *pNumPlugins);
+extern "C" USD_PLUGIN_EXPORT_SYMBOL FnPlugin *getPlugins(unsigned int *pNumPlugins);
 
 
 /// Loads a geometry file
@@ -67,14 +62,3 @@ const void *getPluginSuite();
 /// Cleans up the plug-in
 void flushPluginSuite();
 
-///< The host structure, which contains functions that the plug-in can call
-MriGeoReaderHost host;
-
-/// The plug-in structure, to provide to the host so it can call functions 
-/// when needed
-MriGeoReaderPluginV1 pluginSuite =
-{
-    &load,
-    &getSettings,
-    &supportedFormats
-};

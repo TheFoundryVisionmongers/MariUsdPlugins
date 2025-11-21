@@ -580,11 +580,21 @@ class EditSelectionGroupDialog(widgets.QDialog):
         layout.addWidget(widgets.QLabel("Material Selection Groups"), 0, 2)
 
         self.project_selection_groups_list = widgets.QListWidget(self)
-        self.project_selection_groups_list.setSelectionMode(self.project_selection_groups_list.ExtendedSelection)
+        if QT_VERSION == 'PySide6':
+            self.project_selection_groups_list.setSelectionMode(
+                self.project_selection_groups_list.SelectionMode.ExtendedSelection)
+        else:
+            self.project_selection_groups_list.setSelectionMode(
+                self.project_selection_groups_list.ExtendedSelection)
         layout.addWidget(self.project_selection_groups_list, 1, 0)
 
         self.material_selection_groups_list = widgets.QListWidget(self)
-        self.material_selection_groups_list.setSelectionMode(self.material_selection_groups_list.ExtendedSelection)
+        if QT_VERSION == 'PySide6':
+            self.material_selection_groups_list.setSelectionMode(
+                self.material_selection_groups_list.SelectionMode.ExtendedSelection)
+        else:
+            self.material_selection_groups_list.setSelectionMode(
+                self.material_selection_groups_list.ExtendedSelection)
         layout.addWidget(self.material_selection_groups_list, 1, 2)
 
         button_layout = widgets.QVBoxLayout()
@@ -676,7 +686,10 @@ class SelectionGroupListWidget(widgets.QListWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(widgets.QAbstractItemView.DropOnly)
 
-        self.setSelectionMode(self.ExtendedSelection)
+        if QT_VERSION == 'PySide6':
+            self.setSelectionMode(self.SelectionMode.ExtendedSelection)
+        else:
+            self.setSelectionMode(self.ExtendedSelection)
 
     def supportedDropActions(self):
         return core.Qt.CopyAction | core.Qt.MoveAction
@@ -848,9 +861,10 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.view.horizontalHeader().setSectionResizeMode(widgets.QHeaderView.Stretch)
         if QT_VERSION == 'PySide6':
             self.view.setSelectionBehavior(self.view.SelectionBehavior.SelectRows)
+            self.view.setSelectionMode(self.view.SelectionMode.ExtendedSelection)
         else:
             self.view.setSelectionBehavior(self.view.SelectRows)
-        self.view.setSelectionMode(self.view.ExtendedSelection)
+            self.view.setSelectionMode(self.view.ExtendedSelection)
         self.view.setItemDelegate(ShaderAssignment_Item_Delegate(parent=self))
         self.view.initialize()
         middle_layout.addWidget(self.view, 3)

@@ -75,14 +75,14 @@ public:
                 bool readerIsUpY,
                 bool keepCentered,
                 PXR_NS::UsdPrim const &model,
-                const MriGeoReaderHost& host,
+                const PluginHosts* pluginHosts,
                 std::vector<std::string>& log,
                 bool rightHandedWindingOrder = true);
         
         ~GeoData();
      
         // print content
-        void Log(const MriGeoReaderHost& host);
+        void Log(const PluginHosts* pluginHosts);
                 
         // reset
         void Reset();

@@ -32,7 +32,6 @@
 #include "pxr/base/tf/stringUtils.h"
 #include <sstream>
 
-using namespace std;
 PXR_NAMESPACE_USING_DIRECTIVE
 
 //------------------------------------------------------------------------------
@@ -45,7 +44,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 // ModelData implementation
 //------------------------------------------------------------------------------
 
-ModelData::ModelData(UsdPrim prim, string wantedUvSet)
+ModelData::ModelData(UsdPrim prim, std::string wantedUvSet)
 {
     // this might be in a shot
     fullPath = modelName = instanceName = label = modelPath = prim.GetPath().GetName();
@@ -70,10 +69,10 @@ ModelData::operator = (const ModelData& other)
     return *this;
 }
 
-map<string, string>
+std::map<std::string, std::string>
 ModelData::GetMetadata() const
 {
-    map<string, string> metadata;
+    std::map<std::string, std::string> metadata;
     metadata["instanceName"] = instanceName;
     metadata["fullPath"] = fullPath;
     metadata["label"] = label;
