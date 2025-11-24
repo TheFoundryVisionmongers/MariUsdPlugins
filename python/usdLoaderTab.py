@@ -74,9 +74,6 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
         self.stage = None
 
-        # Prim type filters - Mesh is always enabled
-        self.include_cameras = False
-
         # Show only selected filter
         self.show_selected_only = False
 
@@ -131,14 +128,6 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
         return False
 
-    def set_prim_type_filters(self, include_cameras):
-        """Update which prim types should be included in the tree."""
-        self.include_cameras = include_cameras
-
-        # Repopulate if we have a stage loaded
-        if self.stage is not None:
-            self.populate(self.stage)
-
     def _expand_to_level(self, item, level, target):
         if level <= target or target < 0:
             item.setExpanded(True)
@@ -148,12 +137,24 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             self._expand_to_level(item.child(i), level+1, target)
 
     def _is_prim_supported(self, prim: Usd.Prim) -> bool:
+        if not prim.IsValid():
+            return False
+
         # Mesh is always supported (mandatory)
         if prim.IsA(UsdGeom.Mesh):
             return True
 
-        # Camera support is optional
-        if self.include_cameras and prim.IsA(UsdGeom.Camera):
+        # Cameras are always shown, but remain unchecked by default
+        if prim.IsA(UsdGeom.Camera):
+            return True
+
+        return False
+
+    def _should_auto_check(self, prim: Usd.Prim) -> bool:
+        if not prim.IsValid():
+            return False
+
+        if prim.IsA(UsdGeom.Mesh):
             return True
 
         return False
@@ -179,7 +180,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
 
                 # Determine initial check state based on prim type
                 prim_for_token = stage.GetPrimAtPath(path)
-                should_check = self._is_prim_supported(prim_for_token) if prim_for_token.IsValid() else False
+                should_check = self._should_auto_check(prim_for_token) if prim_for_token.IsValid() else False
 
                 # Set flags - always make checkable, but only enable auto-tristate for leaf nodes
                 # This prevents intermediate hierarchy nodes (Xforms, etc.) from auto-checking
@@ -325,23 +326,8 @@ class UsdLoaderWidget(widgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        # Add prim type filter checkboxes
+        # Add tree control buttons
         filter_layout = widgets.QHBoxLayout()
-        filter_label = widgets.QLabel("Show Prim Types:")
-        filter_layout.addWidget(filter_label)
-
-        self.mesh_checkbox = widgets.QCheckBox("Meshes")
-        self.mesh_checkbox.setChecked(True)
-        self.mesh_checkbox.setEnabled(False)  # Always enabled (mandatory)
-        self.mesh_checkbox.setToolTip("Mesh prims are always included (required)")
-        filter_layout.addWidget(self.mesh_checkbox)
-
-        self.camera_checkbox = widgets.QCheckBox("Cameras")
-        self.camera_checkbox.setChecked(False)
-        self.camera_checkbox.setToolTip("Include camera prims in the tree")
-        self.camera_checkbox.stateChanged.connect(self._on_prim_type_filter_changed)
-        filter_layout.addWidget(self.camera_checkbox)
-
         filter_layout.addStretch(1)
 
         # Add tree control buttons on the right side
@@ -493,11 +479,6 @@ class UsdLoaderWidget(widgets.QWidget):
         mari.app.setGeoPluginAttribute("Load", "Specified Models in Model Names")
         mari.app.setGeoPluginAttribute("Model Names", ",".join(self.tree_widget.selected_leaf_paths()))
         mari.app.setGeoPluginAttribute("Variants", " ".join(self.tree_widget.selected_variants()))
-
-    def _on_prim_type_filter_changed(self):
-        """Called when the user changes which prim types to display."""
-        include_cameras = self.camera_checkbox.isChecked()
-        self.tree_widget.set_prim_type_filters(include_cameras)
 
     def _on_select_all(self):
         """Select all items in the tree."""
