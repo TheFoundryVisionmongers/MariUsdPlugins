@@ -760,7 +760,8 @@ class SelectionGroupListWidget(widgets.QListWidget):
     def editSelectionGroups(self):
         if self.__material:
             dialog = EditSelectionGroupDialog(self.__material.selection_groups)
-            if dialog.exec_() == dialog.Accepted:
+            accepted = widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted
+            if dialog.exec() == accepted:
                 self.__material.selection_groups = dialog.materialSelectionGroups()
                 self.updateSelectionGroups()
 
