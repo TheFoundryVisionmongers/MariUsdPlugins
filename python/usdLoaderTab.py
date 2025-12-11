@@ -182,11 +182,9 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
                 prim_for_token = stage.GetPrimAtPath(path)
                 should_check = self._should_auto_check(prim_for_token) if prim_for_token.IsValid() else False
 
-                # Set flags - always make checkable, but only enable auto-tristate for leaf nodes
-                # This prevents intermediate hierarchy nodes (Xforms, etc.) from auto-checking
-                # when their children are checked
+                # Set flags - make checkable and enable auto-tristate for proper parent state updates
                 item_for_token.setFlags(
-                    item_for_token.flags() | core.Qt.ItemIsUserCheckable
+                    item_for_token.flags() | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsAutoTristate
                 )
 
                 item_for_token.setCheckState(COLUMN_PATH, core.Qt.Checked if should_check else core.Qt.Unchecked)
