@@ -69,70 +69,16 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         self.header().setSectionResizeMode(widgets.QHeaderView.Stretch)
         self.header().setStretchLastSection(False)
 
-        # Connect itemChanged signal to update filter when checkboxes change
-        self.itemChanged.connect(self._on_item_changed)
-
         self.stage = None
-
-        # Show only selected filter
-        self.show_selected_only = False
 
     def populate(self, stage):
         self.clear()
         self._item_map = {}
         self.stage = stage
-        for prim in stage.Traverse():
+        for prim in stage.TraverseAll():
             self._create_tree_node(prim, stage)
 
         self._expand_to_level(self.invisibleRootItem(), 0, 2)
-
-        # Apply selected-only filter if active
-        if self.show_selected_only:
-            self._apply_selected_only_filter()
-
-    def set_show_selected_only(self, enabled):
-        """Toggle the show-only-selected filter."""
-        self.show_selected_only = enabled
-        if self.stage is not None:
-            self._apply_selected_only_filter()
-
-    def _on_item_changed(self, item, column):
-        """Called when an item's check state changes."""
-        if column == COLUMN_PATH and self.show_selected_only:
-            self._apply_selected_only_filter()
-
-    def _apply_selected_only_filter(self):
-        """Hide unchecked items when show_selected_only is enabled."""
-        def filter_item(item):
-            if item == self.invisibleRootItem():
-                return
-
-            if self.show_selected_only:
-                # Show item if it's checked OR if it has any checked descendants
-                # This keeps the parent hierarchy visible for checked children
-                has_checked = self._has_checked_descendant(item)
-                item.setHidden(not has_checked)
-            else:
-                item.setHidden(False)
-
-        self.walk(self.invisibleRootItem(), filter_item)
-
-    def _has_checked_descendant(self, item):
-        """Recursively check if item or any descendant is checked."""
-        if item.checkState(COLUMN_PATH) == core.Qt.Checked:
-            return True
-
-        for i in range(item.childCount()):
-            if self._has_checked_descendant(item.child(i)):
-                return True
-
-        return False
-
-    def _expand_to_level(self, item, level, target):
-        if level <= target or target < 0:
-            item.setExpanded(True)
-        else:
-            item.setExpanded(False)
         for i in range(item.childCount()):
             self._expand_to_level(item.child(i), level+1, target)
 
@@ -345,9 +291,8 @@ class UsdLoaderWidget(widgets.QWidget):
         filter_layout.addWidget(self.select_by_expression_button)
 
         self.show_selected_only_button = widgets.QPushButton(SHOW_SELECTED_ONLY_ICON, "")
-        self.show_selected_only_button.setCheckable(True)
-        self.show_selected_only_button.setToolTip("Show only checked items in the tree")
-        self.show_selected_only_button.clicked.connect(self._on_show_selected_only_toggled)
+        self.show_selected_only_button.setToolTip("Show selected items in a separate view")
+        self.show_selected_only_button.clicked.connect(self._on_show_selected_only)
         filter_layout.addWidget(self.show_selected_only_button)
 
         self.expand_all_button = widgets.QPushButton(EXPAND_ALL_ICON, "")
@@ -555,15 +500,64 @@ class UsdLoaderWidget(widgets.QWidget):
 
     def _on_expand_all(self):
         """Expand all tree nodes."""
-        self.tree_widget._expand_to_level(self.tree_widget.invisibleRootItem(), 0, -1)
+        self.tree_widget.expandAll()
 
     def _on_collapse_all(self):
         """Collapse all tree nodes."""
-        self.tree_widget._expand_to_level(self.tree_widget.invisibleRootItem(), 0, 0)
+        self.tree_widget.collapseAll()
 
-    def _on_show_selected_only_toggled(self):
-        """Toggle the show-only-selected filter."""
-        self.tree_widget.set_show_selected_only(self.show_selected_only_button.isChecked())
+    def _on_show_selected_only(self):
+        """Show selected items in a separate dialog."""
+        dialog = widgets.QDialog(self)
+        dialog.setWindowTitle("Selected Items")
+        dialog.setMinimumSize(600, 400)
+
+        layout = widgets.QVBoxLayout()
+        dialog.setLayout(layout)
+
+        # Create a read-only tree widget
+        tree = widgets.QTreeWidget()
+        tree.setColumnCount(2)
+        tree.setHeaderLabels(["Path", "Type"])
+        tree.header().setSectionResizeMode(widgets.QHeaderView.Stretch)
+        layout.addWidget(tree)
+
+        # Populate with selected items only
+        self._populate_selected_tree(tree.invisibleRootItem(), self.tree_widget.invisibleRootItem())
+        tree.expandAll()
+
+        # Add close button
+        button_layout = widgets.QHBoxLayout()
+        button_layout.addStretch()
+        close_button = widgets.QPushButton("Close")
+        close_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_button)
+        layout.addLayout(button_layout)
+
+        dialog.exec()
+
+    def _populate_selected_tree(self, dest_parent, src_parent):
+        """Recursively copy only checked items to the destination tree."""
+        for i in range(src_parent.childCount()):
+            src_item = src_parent.child(i)
+            check_state = src_item.checkState(COLUMN_PATH)
+
+            # Include item if it's checked or partially checked (has checked descendants)
+            if check_state == core.Qt.Checked or check_state == core.Qt.PartiallyChecked:
+                dest_item = widgets.QTreeWidgetItem()
+                dest_item.setText(0, src_item.text(COLUMN_PATH))
+                dest_item.setText(1, src_item.text(COLUMN_TYPE))
+
+                # Show check state indicator
+                if check_state == core.Qt.Checked:
+                    dest_item.setText(0, "✓ " + src_item.text(COLUMN_PATH))
+                elif check_state == core.Qt.PartiallyChecked:
+                    dest_item.setText(0, "▬ " + src_item.text(COLUMN_PATH))
+
+                dest_parent.addChild(dest_item)
+
+                # Recursively add children
+                self._populate_selected_tree(dest_item, src_item)
 
 
 usd_loader_widget = UsdLoaderWidget()
