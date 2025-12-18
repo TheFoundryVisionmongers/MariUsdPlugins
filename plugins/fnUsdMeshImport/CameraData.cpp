@@ -139,12 +139,12 @@ bool CameraData::MakeEntity(const PluginHosts* pluginHosts, MriUserItemHandle pa
         return false;
     }
     
-    if (pCamera->setNear(pCamera, frame, m_clippingRange[0] * 10.0f) != MRI_SCENE_BUILDER_SUCCEEDED)
+    if (pCamera->setNear(pCamera, frame, m_clippingRange[0]) != MRI_SCENE_BUILDER_SUCCEEDED)
     {
         return false;
     }
     
-    if (pCamera->setFar(pCamera, frame, m_clippingRange[1] * 10.0f) != MRI_SCENE_BUILDER_SUCCEEDED)
+    if (pCamera->setFar(pCamera, frame, m_clippingRange[1]) != MRI_SCENE_BUILDER_SUCCEEDED)
     {
         return false;
     }
