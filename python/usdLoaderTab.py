@@ -79,6 +79,12 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             self._create_tree_node(prim, stage)
 
         self._expand_to_level(self.invisibleRootItem(), 0, 2)
+
+    def _expand_to_level(self, item, level, target):
+        if level <= target or target < 0:
+            item.setExpanded(True)
+        else:
+            item.setExpanded(False)
         for i in range(item.childCount()):
             self._expand_to_level(item.child(i), level+1, target)
 
