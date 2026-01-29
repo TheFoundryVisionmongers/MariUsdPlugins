@@ -38,7 +38,11 @@
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/xformCache.h"
 #include "pxr/usd/usdGeom/primvarsAPI.h"
+#include "pxr/usd/sdf/path.h"
+#include "pxr/usd/sdf/payload.h"
+#include "pxr/usd/sdf/reference.h"
 
+#include <algorithm>
 #include <float.h>
 
 PXR_NAMESPACE_USING_DIRECTIVE
@@ -629,12 +633,100 @@ void GeoData::SetRightHandedWindingOrder(bool rightHandedWindingOrder)
     m_isRightHandWindingOrder = rightHandedWindingOrder;
 }
 
-// Pre-scan the UsdStage to see what uv sets are included.
-void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
+//------------------------------------------------------------------------------
+/// Helper function to check if an asset path references an Alembic file
+static bool IsAlembicAssetPath(const std::string& AssetPath)
 {
-    UsdGeomGprim   gprim(prim);
+    if (AssetPath.length() < 4)
+    {
+        return false;
+    }
+
+    std::string Extension = AssetPath.substr(AssetPath.length() - 4);
+    // Case-insensitive comparison for .abc extension
+    std::transform(Extension.begin(), Extension.end(), Extension.begin(), ::tolower);
+    return Extension == ".abc";
+}
+
+//------------------------------------------------------------------------------
+/// Helper function to detect if a prim or its ancestors reference an Alembic file
+static bool HasAlembicPayload(UsdPrim const &Prim)
+{
+    // Check the prim and walk up the hierarchy to find any Alembic payloads/references
+    UsdPrim CurrentPrim = Prim;
+
+    while (CurrentPrim)
+    {
+        // Check for payloads using composition query
+        if (CurrentPrim.HasPayload())
+        {
+            // Try all list op types
+            SdfPayloadListOp PayloadListOp;
+            if (CurrentPrim.GetMetadata(SdfFieldKeys->Payload, &PayloadListOp))
+            {
+                std::vector<SdfPayloadVector> AllPayloads = {
+                    PayloadListOp.GetExplicitItems(),
+                    PayloadListOp.GetAddedItems(),
+                    PayloadListOp.GetPrependedItems(),
+                    PayloadListOp.GetAppendedItems()
+                };
+
+                for (const auto& PayloadList : AllPayloads)
+                {
+                    for (const auto& Payload : PayloadList)
+                    {
+                        if (IsAlembicAssetPath(Payload.GetAssetPath()))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for references
+        if (CurrentPrim.HasAuthoredReferences())
+        {
+            SdfReferenceListOp ReferenceListOp;
+            if (CurrentPrim.GetMetadata(SdfFieldKeys->References, &ReferenceListOp))
+            {
+                std::vector<SdfReferenceVector> AllReferences = {
+                    ReferenceListOp.GetExplicitItems(),
+                    ReferenceListOp.GetAddedItems(),
+                    ReferenceListOp.GetPrependedItems(),
+                    ReferenceListOp.GetAppendedItems()
+                };
+
+                for (const auto& ReferenceList : AllReferences)
+                {
+                    for (const auto& Reference : ReferenceList)
+                    {
+                        if (IsAlembicAssetPath(Reference.GetAssetPath()))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Move up to parent
+        CurrentPrim = CurrentPrim.GetParent();
+    }
+
+    return false;
+}
+
+//------------------------------------------------------------------------------
+// Pre-scan the UsdStage to see what uv sets are included.
+void GeoData::GetUvSets(UsdPrim const &Prim, UVSet &retval)
+{
+    UsdGeomGprim   gprim(Prim);
     if (not gprim)
         return;
+
+    // Check if this prim or any ancestor references an Alembic file
+    bool IsAlembicPayload = HasAlembicPayload(Prim);
 
     UsdGeomPrimvarsAPI gPrimApi(gprim);
 
@@ -665,6 +757,14 @@ void GeoData::GetUvSets(UsdPrim const &prim, UVSet &retval)
                 mapName = name.GetString();
             }
             if (mapName.length()) {
+                // For Alembic payloads, only include the "st" UV set to avoid redundancy.
+                // The usdAbc plugin creates both "st" (USD standard) and the original
+                // Alembic UV set names, which reference the same data.
+                if (IsAlembicPayload && mapName != "st")
+                {
+                    continue;
+                }
+
                 UVSet::iterator it = retval.find(mapName);
                 if (it == retval.end())
                     retval[mapName] = 1;
