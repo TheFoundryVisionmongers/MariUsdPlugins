@@ -40,6 +40,8 @@ for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
 else:
     raise ImportError("Neither PySide6 nor PySide2 is available")
 
+QAction = gui.QAction if hasattr(gui, 'QAction') else widgets.QAction
+
 # When unifying usdExportManagerTab to this usdMultiShaderExportDialog, these implementation should be moved over
 FileBrowseWidget = usdExportManagerTab.FileBrowseWidget
 load_paths = usdExportManagerTab.USDExportWidget.load_paths
@@ -300,7 +302,7 @@ class ShaderAssignment_Item_Delegate(widgets.QStyledItemDelegate):
         editor = self.sender()
         if isinstance(editor, widgets.QComboBox):
             self.commitData.emit(editor)
-            self.closeEditor.emit(editor, self.NoHint)
+            self.closeEditor.emit(editor, widgets.QAbstractItemDelegate.NoHint)
             return
         widgets.QStyledItemDelegate.finishEdit(self)
 
@@ -1039,7 +1041,7 @@ class MultiShaderExportWidget(widgets.QWidget):
                 setup_export_item_callback = usdShadeExport.functionCallbackForShader(
                     shader_model.id(), usdShadeExport.CALLBACK_NAME_SETUP_EXPORT_ITEM)
                 if setup_export_item_callback is not None:
-                    for export_item, _ in getExportItems(shader):
+                    for export_item, _ in getExportItems(material, shader):
                         setup_export_item_callback(export_item)
 
     def exportRootPath(self):
@@ -1227,10 +1229,10 @@ class EditShaderInputsDialog(widgets.QDialog):
         self.export_item_view = export_item_view
 
         context_menu_actions = []
-        action = widgets.QAction("Check Selected")
+        action = QAction("Check Selected")
         action.triggered.connect(export_item_view.checkSelected)
         context_menu_actions.append(action)
-        action = widgets.QAction("Uncheck Selected")
+        action = QAction("Uncheck Selected")
         action.triggered.connect(export_item_view.uncheckSelected)
         context_menu_actions.append(action)
         export_item_view.setContextMenuActions(context_menu_actions)
