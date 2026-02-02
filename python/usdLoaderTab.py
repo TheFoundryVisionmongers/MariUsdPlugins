@@ -228,8 +228,8 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             path = item.data(COLUMN_PATH, USER_ROLE_PATH)
             layout = widget.layout()
             for row in range(layout.rowCount()):
-                label = layout.itemAt(row, layout.LabelRole).widget()
-                combobox = layout.itemAt(row, layout.FieldRole).widget()
+                label = layout.itemAt(row, widgets.QFormLayout.LabelRole).widget()
+                combobox = layout.itemAt(row, widgets.QFormLayout.FieldRole).widget()
                 path_with_variant = path+"{"+label.text()+"="+combobox.currentText()+"}"
                 result.append(path_with_variant)
 
