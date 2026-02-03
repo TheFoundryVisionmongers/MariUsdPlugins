@@ -124,7 +124,8 @@ bool CameraData::MakeEntity(const PluginHosts* pluginHosts, MriUserItemHandle pa
         pCamera->addTransform(pCamera, frame, matrix);
     }
 
-    if (pCamera->setLookAt(pCamera, frame, m_forward[0], m_forward[1], m_forward[2]) != MRI_SCENE_BUILDER_SUCCEEDED)
+    GfVec3f lookAt = m_xform.GetRow3(3) + m_forward; // Camera position + forward vector
+    if (pCamera->setLookAt(pCamera, frame, lookAt[0], lookAt[1], lookAt[2]) != MRI_SCENE_BUILDER_SUCCEEDED)
     {
         return false;
     }
