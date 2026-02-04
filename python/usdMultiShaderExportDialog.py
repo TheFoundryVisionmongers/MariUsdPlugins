@@ -1241,9 +1241,11 @@ class EditShaderInputsDialog(widgets.QDialog):
         export_item_view.horizontalHeader().setStretchLastSection(True)
         if QT_VERSION == 'PySide6':
             export_item_view.setSelectionBehavior(export_item_view.SelectionBehavior.SelectRows)
+            export_item_view.setSelectionMode(export_item_view.SelectionMode.ExtendedSelection)
         else:
             export_item_view.setSelectionBehavior(export_item_view.SelectRows)
-        export_item_view.setSelectionMode(export_item_view.ExtendedSelection)
+            export_item_view.setSelectionMode(export_item_view.ExtendedSelection)
+
         export_item_view.horizontalHeader().setHighlightSections(False)
         export_item_view.setModel(self.export_item_filter_model)
         export_item_view.setRootIndex(self.export_item_filter_model.mapFromSource(export_item_model.index(0, 0)))
