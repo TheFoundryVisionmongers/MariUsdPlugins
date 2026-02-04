@@ -177,7 +177,7 @@ class ShaderAssignment_ItemDelegate(widgets.QStyledItemDelegate):
         editor = self.sender()
         if isinstance(editor, widgets.QComboBox):
             self.commitData.emit(editor)
-            self.closeEditor.emit(editor, self.NoHint)
+            self.closeEditor.emit(editor, widgets.QAbstractItemDelegate.NoHint)
 
 
 class ShaderAssignment_Model(gui.QStandardItemModel):
@@ -517,7 +517,7 @@ class ExportItem_ItemDelegate(widgets.QStyledItemDelegate):
         editor = self.sender()
         if isinstance(editor, widgets.QComboBox):
             self.commitData.emit(editor)
-            self.closeEditor.emit(editor, self.NoHint)
+            self.closeEditor.emit(editor, widgets.QAbstractItemDelegate.NoHint)
 
 
 class ExportItem_Model(gui.QStandardItemModel):
