@@ -31,9 +31,11 @@
 #include "pxrMariUsdReaderPlugin.h"
 
 #include "UsdReader.h"
+#include "CameraAdapter.h"
 
 #include "pxr/base/tf/stringUtils.h"
 #include <boost/shared_ptr.hpp>
+#include <cstring>
 #include <string>
 #include <time.h>
 #include <sstream>
@@ -49,6 +51,13 @@ namespace
         &supportedFormats
     };
 
+    MriCameraReaderPluginV2 cameraPluginSuite =
+    {
+        &loadCamera,
+        &supportedFormatsCamera,
+        &frameRangeCamera
+    };
+
     PluginHosts pluginHosts;
 }
 
@@ -57,6 +66,7 @@ namespace
 //-----------------------------------------------------------------------------
 
 std::string sUsdLog;
+std::string sCameraLog;
 
 MriGeoPluginResult load(MriGeoEntityHandle Entity, 
         const char *pFileName, 
@@ -230,23 +240,137 @@ FnPluginStatus setHost(const FnPluginHost* fnPluginHost)
 }
 
 //------------------------------------------------------------------------------
+// Camera reader plugin functions
+//------------------------------------------------------------------------------
+
+namespace
+{
+    bool isValidUsdCameraExtension(const char* pFileName)
+    {
+        return TfStringEndsWith(pFileName, ".usd") ||
+               TfStringEndsWith(pFileName, ".usda") ||
+               TfStringEndsWith(pFileName, ".usdc") ||
+               TfStringEndsWith(pFileName, ".usdz");
+    }
+}
+
+MriCameraPluginResult loadCamera(MriCameraHandle CameraHandle,
+        const char *pFileName,
+        const char **ppMessagesOut)
+{
+    // Check the extension
+    if (!isValidUsdCameraExtension(pFileName))
+    {
+        pluginHosts.cameraReaderHost.trace("[UsdCameraPlugin] Unrecognized extension. Failed to load camera from %s\n", pFileName);
+        return MRI_CAM_FAILED;
+    }
+
+    pluginHosts.cameraReaderHost.trace("[UsdCameraPlugin] Load camera from %s\n", pFileName);
+
+    MriCameraPluginResult result = CameraAdapter::LoadFromFile(CameraHandle, pFileName, &pluginHosts.cameraReaderHost, sCameraLog);
+    *ppMessagesOut = sCameraLog.c_str();
+
+    return result;
+}
+
+//------------------------------------------------------------------------------
+
+MriFileFormatDesc *supportedFormatsCamera(int *pNumFormatsOut)
+{
+    static MriFileFormatDesc formats[4] = {
+        {"usd", "USD camera file (ASCII or binary)."},
+        {"usda", "ASCII USD camera file."},
+        {"usdc", "binary USD camera file."},
+        {"usdz", "zipped USD camera file."}
+    };
+    *pNumFormatsOut = 4;
+    return formats;
+}
+
+//------------------------------------------------------------------------------
+
+MriCameraPluginResult frameRangeCamera(const char *pFileName,
+        const char *pTake,
+        int *pStartFrameOut,
+        int *pEndFrameOut,
+        const char **ppMessagesOut)
+{
+    // Check the extension
+    if (!isValidUsdCameraExtension(pFileName))
+    {
+        pluginHosts.cameraReaderHost.trace("[UsdCameraPlugin] Unrecognized extension. Failed to get frame range from %s\n", pFileName);
+        return MRI_CAM_FAILED;
+    }
+
+    pluginHosts.cameraReaderHost.trace("[UsdCameraPlugin] Get frame range from %s\n", pFileName);
+
+    MriCameraPluginResult result = CameraAdapter::GetFrameRange(pFileName, pStartFrameOut, pEndFrameOut, sCameraLog);
+    *ppMessagesOut = sCameraLog.c_str();
+
+    return result;
+}
+
+//------------------------------------------------------------------------------
+
+const void *getCameraPluginSuite()
+{
+    return &cameraPluginSuite;
+}
+
+//------------------------------------------------------------------------------
+
+void flushCameraPluginSuite()
+{
+}
+
+//------------------------------------------------------------------------------
+
+FnPluginStatus setCameraHost(const FnPluginHost* fnPluginHost)
+{
+    if (fnPluginHost == NULL)
+        return FnPluginStatusError;
+
+    pluginHosts.pFnPluginHost = fnPluginHost;
+    const void* pHostSuite = pluginHosts.pFnPluginHost->getSuite(MRI_CAMERA_READER_API_NAME, MRI_CAMERA_READER_API_VERSION);
+
+    if (pHostSuite == NULL)
+        return FnPluginStatusError;
+
+    pluginHosts.cameraReaderHost = *(MriCameraReaderHost *)pHostSuite;
+    pluginHosts.cameraReaderHost.trace("[UsdCameraPlugin] Camera plug-in connected to host '%s' version '%s'" "(%u)",
+        pluginHosts.pFnPluginHost->name, pluginHosts.pFnPluginHost->versionStr, pluginHosts.pFnPluginHost->versionInt);
+    return FnPluginStatusOK;
+}
+
+//------------------------------------------------------------------------------
 
 extern "C"
 {
     FnPlugin *getPlugins(unsigned int *pNumPlugins)
     {
-        static FnPlugin s_Plugin;
+        static FnPlugin s_Plugins[2];
+
+        // Geo Reader Plugin
+        s_Plugins[0].name = "USD importer";
+        s_Plugins[0].pluginVersionMajor = 1;
+        s_Plugins[0].pluginVersionMinor = 0;
+        s_Plugins[0].apiName = MRI_GEO_READER_API_NAME;
+        s_Plugins[0].apiVersion = 5004;
+        s_Plugins[0].setHost = &setHost;
+        s_Plugins[0].getSuite = &getPluginSuite;
+        s_Plugins[0].flush = &flushPluginSuite;
         
-        s_Plugin.name = "Usd importer";
-        s_Plugin.pluginVersionMajor = 1;
-        s_Plugin.pluginVersionMinor = 0;
-        s_Plugin.apiName = MRI_GEO_READER_API_NAME;
-        s_Plugin.apiVersion = 5004;
-        s_Plugin.setHost = &setHost;
-        s_Plugin.getSuite = &getPluginSuite;
-        s_Plugin.flush = &flushPluginSuite;
+        // Camera Reader Plugin
+        s_Plugins[1].name = "USD camera importer";
+        s_Plugins[1].pluginVersionMajor = 1;
+        s_Plugins[1].pluginVersionMinor = 0;
+        s_Plugins[1].apiName = MRI_CAMERA_READER_API_NAME;
+        s_Plugins[1].apiVersion = MRI_CAMERA_READER_API_VERSION;
+        s_Plugins[1].setHost = &setCameraHost;
+        s_Plugins[1].getSuite = &getCameraPluginSuite;
+        s_Plugins[1].flush = &flushCameraPluginSuite;
         
-        *pNumPlugins = 1;
-        return &s_Plugin;
+        *pNumPlugins = 2;
+        return s_Plugins;
     }
 }

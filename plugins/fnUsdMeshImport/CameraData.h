@@ -28,6 +28,19 @@ public:
     /// \return true on success; false otherwise.
     bool MakeEntity(const PluginHosts* pluginHosts, MriUserItemHandle parentEntity) const;
 
+    // Getters for camera properties
+    std::string GetName() const { return m_name; }
+    PXR_NS::TfToken GetProjection() const { return m_projection; }
+    PXR_NS::GfVec3f GetPosition() const { return m_xform.GetRow3(3); }
+    PXR_NS::GfVec3f GetForward() const { return m_forward; }
+    PXR_NS::GfVec3f GetUp() const { return m_up; }
+    float GetFocalLength() const { return m_focalLength; }
+    float GetHorizontalAperture() const { return m_horizontalAperture; }
+    float GetVerticalAperture() const { return m_verticalAperture; }
+    float GetFovX() const { return m_fovX; }
+    float GetFovY() const { return m_fovY; }
+    PXR_NS::GfVec2f GetClippingRange() const { return m_clippingRange; }
+
 private:
     PXR_NS::UsdPrim                 m_prim;
     PXR_NS::TfToken                 m_projection;
