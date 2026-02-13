@@ -96,9 +96,9 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         if prim.IsA(UsdGeom.Mesh):
             return True
 
-        # Cameras are always shown, but remain unchecked by default
+        # Cameras are shown only when Mari provides the right attribute
         if prim.IsA(UsdGeom.Camera):
-            return True
+            return mari.app.getGeoPluginAttribute("SupportUSDCamera") == "True"
 
         return False
 
