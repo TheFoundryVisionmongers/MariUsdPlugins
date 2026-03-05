@@ -29,6 +29,7 @@ for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
         core = importlib.import_module(f'{base_module}.QtCore')
         gui = importlib.import_module(f'{base_module}.QtGui')
         widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        QT_VERSION = base_module
         break
     except (ImportError, ModuleNotFoundError):
         continue
@@ -455,7 +456,7 @@ class UsdLoaderWidget(widgets.QWidget):
             'Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n'
             ' e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.'
         )
-        if dialog.exec() == dialog.Accepted:
+        if dialog.exec() == widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted:
             # Check validity and sort checking and unchecking
             paths = dialog.textValue().split(",")
             check_paths = []
