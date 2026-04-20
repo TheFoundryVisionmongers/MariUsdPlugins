@@ -53,9 +53,9 @@ COL_EXPORT_DEPTH = 3
 COL_EXPORT_FORMAT = 4
 
 BIT_DEPTHS = {
-    mari.Image.DEPTH_BYTE: "8bit  (Byte)",
-    mari.Image.DEPTH_HALF: "16bit (Half)",
-    mari.Image.DEPTH_FLOAT: "32bit (Float)"
+    mari.Image.Depth.DEPTH_BYTE: "8bit  (Byte)",
+    mari.Image.Depth.DEPTH_HALF: "16bit (Half)",
+    mari.Image.Depth.DEPTH_FLOAT: "32bit (Float)"
 }
 
 EXPORT_OVERRIDES = [None] * 5
@@ -1190,7 +1190,7 @@ class USDExportWidget(widgets.QWidget):
 
         # Verify file formats are valid for bit depths
         formats_for_bit_depth = {}
-        for bit_depth in (mari.Image.DEPTH_BYTE, mari.Image.DEPTH_HALF, mari.Image.DEPTH_FLOAT):
+        for bit_depth in (mari.Image.Depth.DEPTH_BYTE, mari.Image.Depth.DEPTH_HALF, mari.Image.Depth.DEPTH_FLOAT):
             formats_for_bit_depth[int(bit_depth)] = mari.images.supportedWriteFormats(
                 mari.Image.depthAsInternalFormat(bit_depth)
             )

@@ -108,7 +108,7 @@ def getExportItems(material, shader):
             export_item.setSourceNode(shader_input)
             template = (shader_node.name().replace(" ", "_") + "." +
                         shader_model_input_name.replace(" ", "_") + ".$UDIM.png")
-            if template.endswith(".png") and shader_input.depth() != mari.Image.DEPTH_BYTE:
+            if template.endswith(".png") and shader_input.depth() != mari.Image.Depth.DEPTH_BYTE:
                 template = template[:-4] + ".exr"
             export_item.setFileTemplate(template)
             export_item.setMetadata("_SHADER", shader_node.uuid())
