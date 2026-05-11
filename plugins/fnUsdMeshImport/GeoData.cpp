@@ -89,7 +89,7 @@ GeoData::GeoData(UsdPrim const &prim,
     m_isRightHandWindingOrder = rightHandedWindingOrder;
 
     UsdGeomMesh mesh(prim);
-    if (not mesh)
+    if (!mesh)
     {
         pluginHosts->geoReaderHost.trace("[GeoData:%d] Invalid non-mesh prim %s (type %s)", __LINE__, prim.GetPath().GetText(), prim.GetTypeName().GetText());
         log.push_back("** Invalid non-mesh prim " + std::string(prim.GetPath().GetText()) + " of type " + std::string(prim.GetTypeName().GetText()));
@@ -155,7 +155,7 @@ GeoData::GeoData(UsdPrim const &prim,
                 SdfValueTypeName typeName      = uvPrimvar.GetTypeName();
                 TfToken          interpolation = uvPrimvar.GetInterpolation();
 
-                if ((interpolation == UsdGeomTokens->faceVarying or interpolation == UsdGeomTokens->vertex) and (typeName == SdfValueTypeNames->TexCoord2fArray or (GeoData::ReadFloat2AsUV() and typeName == SdfValueTypeNames->Float2Array)))
+                if ((interpolation == UsdGeomTokens->faceVarying || interpolation == UsdGeomTokens->vertex) && (typeName == SdfValueTypeNames->TexCoord2fArray || (GeoData::ReadFloat2AsUV() && typeName == SdfValueTypeNames->Float2Array)))
                 {
                     VtVec2fArray values;
                     VtIntArray indices;
@@ -622,7 +622,7 @@ GeoData::operator bool()
 // Static - Sanity test to see if the usd prim is something we can use.
 bool GeoData::IsValidNode(UsdPrim const &prim)
 {
-    if (not prim.IsA<UsdGeomMesh>())
+    if (!prim.IsA<UsdGeomMesh>())
         return false;
     else
         return TestPath( prim.GetPath().GetText());
@@ -722,7 +722,7 @@ static bool HasAlembicPayload(UsdPrim const &Prim)
 void GeoData::GetUvSets(UsdPrim const &Prim, UVSet &retval)
 {
     UsdGeomGprim   gprim(Prim);
-    if (not gprim)
+    if (!gprim)
         return;
 
     // Check if this prim or any ancestor references an Alembic file
@@ -740,13 +740,13 @@ void GeoData::GetUvSets(UsdPrim const &Prim, UVSet &retval)
         primvar->GetDeclarationInfo(&name, &typeName, 
                                      &interpolation, &elementSize);
         
-        if (interpolation == UsdGeomTokens->vertex or
-             interpolation == UsdGeomTokens->faceVarying)
+        if (interpolation == UsdGeomTokens->vertex || 
+            interpolation == UsdGeomTokens->faceVarying)
         {
             std::string prefix = name.GetString().substr(0,2);
             std::string mapName("");
         
-            if ((prefix == "v_" || prefix == "u_") and
+            if ((prefix == "v_" || prefix == "u_") && 
                 (typeName == SdfValueTypeNames->FloatArray))
             {
                 mapName = name.GetString().substr(2);

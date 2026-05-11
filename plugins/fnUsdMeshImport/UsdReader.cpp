@@ -254,7 +254,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             }
         }
 
-        if (not loadThisModel) 
+        if (!loadThisModel) 
         {
             // this is not a model the user opted in.
             continue;
@@ -276,7 +276,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             continue;
         }
 
-        if (not GeoData::IsValidNode(*primIt)) 
+        if (!GeoData::IsValidNode(*primIt)) 
         {
             // not even a gprim.
             continue;
@@ -381,7 +381,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                     TfToken gprimHandleIdToken ("__gprimHandleid");
                     UsdGeomPrimvarsAPI gprimApi(gprim);
                     UsdGeomPrimvar primvar = gprimApi.GetPrimvar(gprimHandleIdToken);
-                    if (not primvar) {
+                    if (!primvar)
+                    {
                         TfToken handleIdToken("__handleId");
                         primvar = gprimApi.GetPrimvar(handleIdToken);
                     }
@@ -418,7 +419,7 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
 
     MriGeoPluginResult result = MRI_GPR_SUCCEEDED;
 
-    if (modelDataList.size()==0 or modelCount == 0)
+    if (modelDataList.size()==0 || modelCount == 0)
     {
         _pluginHosts->geoReaderHost.trace("[%s:%d] No valid geometry found in %s", _pluginName, __LINE__, _fileName);
         _log.push_back("> No valid geometry found in " + std::string(_fileName));
