@@ -20,11 +20,22 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
+"""Core USD shader export framework for the Mari USD plugins.
+
+Defines the container classes used to describe a Mari shader/material
+as USD source data (:class:`UsdShaderSource`, :class:`UsdMaterialSource`,
+:class:`UsdExportParameters`), registration helpers for per-renderer
+export plugins (:func:`registerRendererExportPlugin`), and the main
+entry point :func:`exportUsdShadeLook` that writes a Mari project to a
+USD ``Lookfile`` (and optional assembly stage).
+"""
+
 import datetime
 import os
 
+from fnpxr import Sdf, Tf, Usd, UsdGeom, UsdShade
+
 import mari
-from fnpxr import Sdf, Usd, UsdShade, Tf, UsdGeom
 
 USD_SHADER_EXPORT_FUNCTIONS = {}
 MARI_TO_USD_SHADER_MAPPING = {}
@@ -37,10 +48,10 @@ CALLBACK_NAME_EXPORT_EXPORT_ITEM = "ExportExportItem"
 
 
 class UsdShadeExportError(Exception):
-    """Custom Exception for known errors hit when exporting to UsdShade
-    """
+    """Custom exception for known errors hit when exporting to UsdShade."""
 
     def __init__(self, title, message, details=None):
+        """Store the human-readable ``title`` and ``message`` plus optional ``details``."""
         super(UsdShadeExportError, self).__init__()
 
         self.title = title
@@ -48,17 +59,19 @@ class UsdShadeExportError(Exception):
         self.details = details
 
     def __repr__(self):
+        """Return a developer-friendly representation including title and message."""
         return "UsdShadeExportError({0}:{1})".format(self.title, self.message)
 
     def __str__(self):
+        """Return ``title:message`` as the user-facing string form."""
         return "{0}:{1}".format(self.title, self.message)
 
 
 class UsdShaderSource(object):
-    """Container class for all Mari Entity instances required to author a UsdShade network for a
-    specific render target context.
-    """
+    """Container for Mari entities required to author a UsdShade network for a render target."""
+
     def __init__(self, source_shader):
+        """Initialise the container from a Mari source ``source_shader``."""
         super(UsdShaderSource, self).__init__()
 
         self._source_shader = source_shader
@@ -66,7 +79,7 @@ class UsdShaderSource(object):
         self._uv_set_name = "st"
 
     def to_dict(self):
-        """ Returns the contents of the class instance as a dictionary.
+        """Return the contents of the class instance as a dictionary.
 
         Returns:
             dict: Dictionary representation of data
@@ -82,7 +95,7 @@ class UsdShaderSource(object):
 
     @classmethod
     def from_dict(cls, usd_shader_source_data):
-        """Generates a UsdShaderSource instance from the given data dictionary.
+        """Generate a UsdShaderSource instance from the given data dictionary.
 
         The dictionary needs to match the following structure::
             {
@@ -107,7 +120,7 @@ class UsdShaderSource(object):
         return usd_shader_source
 
     def shaderModel(self):
-        """Convenience function to return Shader Model of source Shader
+        """Return Shader Model of source Shader.
 
         Returns:
             mari.ShaderModel: Shader Model of source Shader
@@ -115,7 +128,7 @@ class UsdShaderSource(object):
         return self._source_shader.shaderModel()
 
     def sourceShader(self):
-        """ Returns the contained source shader.
+        """Return the contained source shader.
 
         Returns:
             mari.Shader: Source shader
@@ -123,7 +136,7 @@ class UsdShaderSource(object):
         return self._source_shader
 
     def setInputExportItem(self, shader_input_name, export_item):
-        """ Sets the export item for the specified shader input.
+        """Set the export item for the specified shader input.
 
         Args:
             shader_input_name (str): Shader input name.
@@ -142,7 +155,7 @@ class UsdShaderSource(object):
         self._export_items[shader_input_name] = export_item
 
     def getInputExportItem(self, shader_input_name):
-        """ Returns the export item for the specified shader input.
+        """Return the export item for the specified shader input.
 
         Args:
             shader_input_name (str): Shader input name.
@@ -153,7 +166,7 @@ class UsdShaderSource(object):
         return self._export_items.get(shader_input_name)
 
     def uvSetName(self):
-        """ Returns the UV set name.
+        """Return the UV set name.
 
         Returns:
             str. UV set name
@@ -161,7 +174,7 @@ class UsdShaderSource(object):
         return self._uv_set_name
 
     def setUvSetName(self, uv_set_name):
-        """ Sets the container's UV set name.
+        """Set the container's UV set name.
 
         Args:
             uv_set_name (str): Material binding locations
@@ -170,9 +183,10 @@ class UsdShaderSource(object):
 
 
 class UsdMaterialSource(object):
-    """Container class for all Mari Entity instances required to author a UsdShade Look
-    """
+    """Container for Mari entities required to author a single UsdShade Look."""
+
     def __init__(self, name):
+        """Initialise an empty material source named ``name``."""
         super(UsdMaterialSource, self).__init__()
 
         self._name = name
@@ -181,7 +195,7 @@ class UsdMaterialSource(object):
         self._selection_groups = []
 
     def to_dict(self):
-        """ Returns the contents of the class instance as a dictionary.
+        """Return the contents of the class instance as a dictionary.
 
         Returns:
             dict: Dictionary representation of data
@@ -199,7 +213,7 @@ class UsdMaterialSource(object):
 
     @classmethod
     def from_dict(cls, usd_material_source_data):
-        """Generates a UsdMaterialSource instance from the given data dictionary.
+        """Generate a UsdMaterialSource instance from the given data dictionary.
 
         The dictionary needs to match the following structure::
             {
@@ -233,7 +247,7 @@ class UsdMaterialSource(object):
         return usd_material_source
 
     def name(self):
-        """ Returns name of Usd Material
+        """Return name of Usd Material.
 
         Returns:
             str. Name of Usd Material
@@ -241,7 +255,8 @@ class UsdMaterialSource(object):
         return self._name
 
     def shaderSource(self, mari_shader_type_name):
-        """ Returns the source Mari Shader of the specified shader type.
+        """Return the source Mari Shader of the specified shader type.
+
         Args:
             mari_shader_type_name (str): Mari Shader type name.
 
@@ -251,7 +266,7 @@ class UsdMaterialSource(object):
         return self._shader_sources.get(mari_shader_type_name)
 
     def setShaderSource(self, mari_shader_type_name, shader_source):
-        """ Populates the given shader source container into the specified shader type
+        """Populate the given shader source container into the specified shader type.
 
         Args:
             mari_shader_type_name (str): Mari Shader type name.
@@ -265,7 +280,7 @@ class UsdMaterialSource(object):
         self._shader_sources[mari_shader_type_name] = shader_source
 
     def shaderSourceList(self):
-        """ Returns the list of contained Usd Shader source containers
+        """Return the list of contained Usd Shader source containers.
 
         Returns:
             list of UsdShaderSource: Usd Shader source containers
@@ -273,7 +288,7 @@ class UsdMaterialSource(object):
         return list(self._shader_sources.values())
 
     def bindingLocations(self):
-        """ Returns the material binding locations
+        """Return the material binding locations.
 
         Returns:
             list of str. Material binding locations
@@ -281,7 +296,7 @@ class UsdMaterialSource(object):
         return self._binding_locations
 
     def setBindingLocations(self, binding_locations):
-        """ Sets the container's material binding locations.
+        """Set the container's material binding locations.
 
         Args:
             binding_locations (list of str): Material binding locations
@@ -289,7 +304,7 @@ class UsdMaterialSource(object):
         self._binding_locations = binding_locations
 
     def selectionGroups(self):
-        """ Returns the UUID strings of selection groups.
+        """Return the UUID strings of selection groups.
 
         Returns:
             list of str. UUI strings of selection groups.
@@ -297,7 +312,7 @@ class UsdMaterialSource(object):
         return self._selection_groups
 
     def setSelectionGroups(self, selection_groups):
-        """ Sets the UUID strings of selection groups.
+        """Set the UUID strings of selection groups.
 
         Args:
             selection_groups (list of str): UUID strings of selection groups.
@@ -306,10 +321,10 @@ class UsdMaterialSource(object):
 
 
 class UsdExportParameters(object):
-    """Container class for all parameters necessary for exporting Mari project data to UsdShade Looks.
-    """
+    """Container for all parameters required to export Mari project data as a UsdShade Look."""
 
     def __init__(self):
+        """Initialise default export parameters with an empty root path."""
         super(UsdExportParameters, self).__init__()
 
         self._export_root_path = ""
@@ -320,7 +335,7 @@ class UsdExportParameters(object):
         self._export_overrides = {}
 
     def setExportRootPath(self, export_root_path):
-        """ Sets the export root path location
+        """Set the export root path location.
 
         Args:
             export_root_path (str): Export root path
@@ -342,7 +357,7 @@ class UsdExportParameters(object):
         return False
 
     def exportRootPath(self):
-        """ Returns the set export root path
+        """Return the set export root path.
 
         Returns:
             str. Export root path
@@ -350,7 +365,7 @@ class UsdExportParameters(object):
         return os.path.normpath(self._export_root_path)
 
     def setExportOverrides(self, export_overrides):
-        """ Sets the export overrides mapping for mari.exports.exportTextures()
+        """Set the export overrides mapping for mari.exports.exportTextures().
 
         Args:
             export_overrides (dict): The map of export settings
@@ -358,14 +373,13 @@ class UsdExportParameters(object):
         Returns:
             bool. Export override map has changed
         """
-
         if export_overrides != self._export_overrides:
             self._export_overrides = export_overrides
             return True
         return False
 
     def exportOverrides(self):
-        """ Returns the map of export overrides
+        """Return the map of export overrides.
 
         Returns:
             dict. Export overrides
@@ -373,7 +387,7 @@ class UsdExportParameters(object):
         return self._export_overrides
 
     def setLookfileTargetFilename(self, lookfile_target_filename):
-        """ Sets the filename for the Lookfile export target
+        """Set the filename for the Lookfile export target.
 
         Args:
             lookfile_target_filename (str): Lookfile target filename
@@ -409,7 +423,7 @@ class UsdExportParameters(object):
             return False
 
     def lookfileTargetFilename(self):
-        """ Returns the set Lookfile target filename
+        """Return the set Lookfile target filename.
 
         Returns:
             str. Lookfile target filename
@@ -417,7 +431,7 @@ class UsdExportParameters(object):
         return self._lookfile_target_filename
 
     def lookfileTargetPath(self):
-        """ Returns the set Lookfile target path
+        """Return the set Lookfile target path.
 
         Returns:
             str. Lookfile target path
@@ -429,7 +443,7 @@ class UsdExportParameters(object):
         return os.path.normpath(looks_path)
 
     def setAssemblyTargetFilename(self, assembly_target_filename):
-        """ Sets the filename for the Assembly export target
+        """Set the filename for the Assembly export target.
 
         Args:
             assembly_target_filename (str): Assembly target filename
@@ -464,7 +478,7 @@ class UsdExportParameters(object):
             return False
 
     def assemblyTargetFilename(self):
-        """ Returns the set Assembly target filename
+        """Return the set Assembly target filename.
 
         Returns:
             str. Assembly target filename
@@ -472,7 +486,7 @@ class UsdExportParameters(object):
         return self._assembly_target_filename
 
     def assemblyTargetPath(self):
-        """ Returns the set Assembly target path
+        """Return the set Assembly target path.
 
         Returns:
             str. Assembly target path
@@ -489,7 +503,7 @@ class UsdExportParameters(object):
         return os.path.normpath(assembly_path)
 
     def setPayloadSourcePath(self, payload_source_path):
-        """ Sets the path of the payload file
+        """Set the path of the payload file.
 
         Args:
             payload_source_path (str): Payload source path
@@ -522,7 +536,7 @@ class UsdExportParameters(object):
             return False
 
     def payloadSourcePath(self):
-        """ Returns the set payload source path
+        """Return the set payload source path.
 
         Returns:
             str. Payload source path
@@ -530,7 +544,7 @@ class UsdExportParameters(object):
         return self._payload_source_path
 
     def setStageRootPath(self, stage_root_path):
-        """ Validates and sets the root path of the Stage to be created
+        """Validate and sets the root path of the Stage to be created.
 
         Args:
             stage_root_path (str): Stage root path
@@ -563,7 +577,7 @@ class UsdExportParameters(object):
             return False
 
     def stageRootPath(self):
-        """ Returns the set stage root path name
+        """Return the set stage root path name.
 
         Returns:
             str. Stage root path name
@@ -571,7 +585,7 @@ class UsdExportParameters(object):
         return self._stage_root_path
 
     def stageSdfRootPath(self):
-        """ Returns the set payload source path
+        """Return the set payload source path.
 
         Returns:
             Sdf.Path. Stage root path
@@ -581,7 +595,8 @@ class UsdExportParameters(object):
 
 def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_input_export_func,
                                  material_terminal_name, material_surface_context, function_callbacks=None):
-    """Registers mappings for renderer specific UsdShade export functions.
+    """Register mappings for renderer specific UsdShade export functions.
+
     The callback function for exporting a shader input will be called with the following arguments:
 
         Usd.Stage: Stage to write to
@@ -629,6 +644,11 @@ def registerRendererExportPlugin(mari_shader_type_name, usd_shader_id, shader_in
 
 
 def shaderIDsWithFunctionCallbacks(callback_name=None):
+    """Return the registered Mari shader-model IDs that expose the given function callback.
+
+    If ``callback_name`` is ``None``, return every shader-model ID that has any
+    registered callback table.
+    """
     if callback_name is None:
         return USD_FUNCTION_CALLBACKS.keys()
 
@@ -641,23 +661,27 @@ def shaderIDsWithFunctionCallbacks(callback_name=None):
 
 
 def functionCallbacksForShader(mari_shader_model_id):
+    """Return the callback table registered for ``mari_shader_model_id`` (empty dict if none)."""
     return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {})
 
 
 def functionCallbackForShader(mari_shader_model_id, callback_name):
+    """Return the named callback registered for ``mari_shader_model_id`` or ``None``."""
     return USD_FUNCTION_CALLBACKS.get(mari_shader_model_id, {}).get(callback_name, None)
 
 
 def _sanitize(location_path):
+    """Return ``location_path`` with spaces replaced by underscores to form a valid USD identifier."""
     return location_path.replace(" ", "_")
 
 
 def _debuglog(message):
-    """Wrap message in a USD Export specific log message"""
+    """Wrap message in a USD Export specific log message."""
     mari.app.log("USD Export: %s" % message)
 
 
 def _create_new_stage(file_path, root_prim_name):
+    """Create and return a new USD stage at ``file_path`` with ``root_prim_name`` as the default prim."""
     _debuglog("Creating Stage at %s" % file_path)
     stage = Usd.Stage.CreateNew(file_path)
     now = datetime.datetime.now()
@@ -671,7 +695,7 @@ def _create_new_stage(file_path, root_prim_name):
 
 
 def hasExportItemBeenExported(export_item, export_root_path):
-    """Checks whether any of the export item files have been exported to the specified export path.
+    """Check whether any of the export item files have been exported to the specified export path.
 
     Args:
         export_item (mari.ExportItem): Export Item to inspect
@@ -688,8 +712,7 @@ def hasExportItemBeenExported(export_item, export_root_path):
 
 
 def getNodeOutputNameConnectedToNodeInputPort(src_node, dst_target_node, dst_target_port_name):
-    """Returns the output port name that is connecting the source node to the destination node and
-    input port.
+    """Return the source node's output port name that drives ``dst_target_node.dst_target_port_name``.
 
     Args:
         src_node (mari.Node): Source node
@@ -713,8 +736,7 @@ def getNodeOutputNameConnectedToNodeInputPort(src_node, dst_target_node, dst_tar
 
 
 def getExportItemForShaderInput(mari_shader, shader_model_input):
-    """Returns the Export Item for the specified Mari shader and input if one can be found
-    directly connected to the Shader
+    """Return the Export Item directly connected to ``shader_model_input`` on ``mari_shader``.
 
     Args:
         mari_shader (mari.Shader): Shader to walk upstream from
@@ -744,13 +766,13 @@ def getExportItemForShaderInput(mari_shader, shader_model_input):
 
 
 def getInputExportItems(mari_shader):
-    """Yields a tuple of the shader model input and source image set based input node of the
-    specified Mari shader.
+    """Yield ``(shader_model_input, export_item)`` pairs for the inputs of ``mari_shader``.
 
     Args:
         mari_shader (mari.Shader): Shader to extract source nodes from
-    Returns:
-        (mari.ShaderModelInput, mari.Node): Shader model input and source image set based node pair
+
+    Yields:
+        (mari.ShaderModelInput, mari.ExportItem): Shader model input and its source export item
     """
     mari_shader_model = mari_shader.shaderModel()
     for shader_model_input in list(mari_shader_model.inputs().values()):
@@ -760,7 +782,7 @@ def getInputExportItems(mari_shader):
 
 
 def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
-    """Exports a Mari Shader as a UsdShade look file.
+    """Export a Mari Shader as a UsdShade look file.
 
     Args:
         usd_export_parameters (UsdExportParameters): Container of export parameters
@@ -948,7 +970,7 @@ def exportUsdShadeLook(usd_export_parameters, usd_material_sources):
 
 
 def payloadDefaultRootName(payload_file_path):
-    """Returns the default root name of the given payload file path.
+    """Return the default root name of the given payload file path.
 
     Args:
         payload_file_path (str): File path of the payload file
@@ -970,7 +992,7 @@ def payloadDefaultRootName(payload_file_path):
 
 
 def payloadDefaultUvSetName():
-    """Returns the default UV set name of the current GeoEntity.
+    """Return the default UV set name of the current GeoEntity.
 
     Returns:
         (str): The default UV set name of the currentGeoEntity.
@@ -982,6 +1004,7 @@ def payloadDefaultUvSetName():
 
 
 def colorComponentForType(sdf_type):
+    """Return the texture output component name (``r`` or ``rgb``) for the given Sdf value type."""
     if sdf_type in (Sdf.ValueTypeNames.Float, Sdf.ValueTypeNames.Int, Sdf.ValueTypeNames.Bool):
         return "r"
 
@@ -989,6 +1012,7 @@ def colorComponentForType(sdf_type):
 
 
 def isValueDefault(input_value, default_color):
+    """Return ``True`` if ``input_value`` equals the shader input's ``default_color``."""
     if isinstance(input_value, mari.Color):
         if input_value.rgb() != default_color.rgb():
             return False
@@ -1012,6 +1036,7 @@ def isValueDefault(input_value, default_color):
 
 
 def valueAsShaderParameter(input_value, sdf_type):
+    """Convert a Mari ``input_value`` into the Python object expected for an Sdf parameter of ``sdf_type``."""
     if sdf_type == Sdf.ValueTypeNames.Color3f:
         return sdf_type.type.pythonClass(input_value.rgb())
     elif sdf_type == Sdf.ValueTypeNames.Vector3f:

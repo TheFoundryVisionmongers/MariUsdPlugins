@@ -20,9 +20,17 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""Register the USD Preview Surface custom shader with Mari.
+
+Loaded at startup to register the GLSL shader code and XML shader
+description for the ``USD Preview Surface`` standalone shader exposed by
+this plugin.
+"""
+
 import os
 import pathlib
+
+import mari
 
 
 if mari.app.isRunning():

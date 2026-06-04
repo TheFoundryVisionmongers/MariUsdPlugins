@@ -20,12 +20,23 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""Arnold Standard Surface shader writer for the Mari USD export pipeline.
+
+Provides :func:`writeArnoldStandardSurface`, which serialises a Mari
+shader network as an Arnold ``standard_surface`` shading graph, along
+with the Arnold-specific export settings widget and export-item setup
+callbacks registered with the USD export framework.
+"""
+
+import importlib
 import os
 import re
-import importlib
-from . import usdShadeExport
+
 from fnpxr import Sdf, UsdShade
+
+import mari
+
+from . import usdShadeExport
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
@@ -45,6 +56,7 @@ ARNOLD_DEFAULT_SETTINGS = {
 
 
 def colorsFuzzyEqual(color0, color1):
+    """Return ``True`` if all four RGBA components of two colors match within a small tolerance."""
     for i in range(4):
         if abs(color0[i] - color1[i]) > 0.003:
             return False
@@ -52,6 +64,7 @@ def colorsFuzzyEqual(color0, color1):
 
 
 def colorComponentForType(sdf_type):
+    """Return the Arnold texture output component name to read for the given Sdf type."""
     if sdf_type == Sdf.ValueTypeNames.Color3f:
         return "out"
     elif sdf_type == Sdf.ValueTypeNames.Normal3f:
@@ -62,7 +75,7 @@ def colorComponentForType(sdf_type):
 
 
 def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to an ArnoldStandardSurface shader.
+    """Write the USD shading nodes for the inputs of an Arnold ``standard_surface`` shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to
@@ -271,7 +284,10 @@ def writeArnoldStandardSurface(looks_stage, usd_shader, usd_export_parameters, u
 
 
 class Arnold_SettingsWidget(widgets.QWidget):
+    """Settings widget exposing Arnold-specific USD export options in Mari's UI."""
+
     def __init__(self, parent=None):
+        """Build the widget, loading the persisted post-process command from settings."""
         widgets.QWidget.__init__(self, parent)
 
         settings = mari.Settings()
@@ -294,6 +310,7 @@ class Arnold_SettingsWidget(widgets.QWidget):
         self.setLayout(main_layout)
 
     def onPostProcessCommandEdited(self):
+        """Persist the user-edited default post-process command back to Mari settings."""
         settings = mari.Settings()
         settings.beginGroup(ARNOLD_SETTINGS_GROUP)
         value = self.post_process_editbox.text()
@@ -302,10 +319,12 @@ class Arnold_SettingsWidget(widgets.QWidget):
 
 
 def Arnold_Callback_SettingsWidget():
+    """Return a new Arnold export settings widget for the USD export UI."""
     return Arnold_SettingsWidget()
 
 
 def Arnold_Callback_SetupExportItem(export_item):
+    """Apply the configured Arnold post-process command and ``.tx`` template to ``export_item``."""
     if not isinstance(export_item, mari.ExportItem):
         print("Invalid Export Item received for Arnold SetupExportItem callback.")
         return
