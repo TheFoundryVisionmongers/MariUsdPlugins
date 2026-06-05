@@ -20,12 +20,23 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""Disney Principled BRDF shader writer for the Mari USD export pipeline.
+
+Provides :func:`writePrincipledBRDFSurface`, which serialises a Mari
+shader network as a ``PxrDisney``/Principled BRDF shading graph, along
+with the Principled BRDF-specific export settings widget and
+export-item setup callbacks registered with the USD export framework.
+"""
+
+import importlib
 import os
 import re
-import importlib
-from . import usdShadeExport
+
 from fnpxr import Sdf, UsdShade
+
+import mari
+
+from . import usdShadeExport
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
@@ -45,6 +56,7 @@ PRINCIPLED_BRDF_DEFAULT_SETTINGS = {
 
 
 def colorComponentForType(sdf_type):
+    """Return the PxrTexture output component name to read for the given Sdf type."""
     if sdf_type == Sdf.ValueTypeNames.Color3f:
         return "resultRGB"
     elif sdf_type == Sdf.ValueTypeNames.Normal3f:
@@ -55,7 +67,7 @@ def colorComponentForType(sdf_type):
 
 
 def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
+    """Write the USD shading nodes for the inputs of a Disney Principled BRDF (``PxrDisney``) shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to
@@ -154,9 +166,9 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
                 manifold.CreateIdAttr("PxrManifold2D")
                 manifold.CreateInput("name_uvSet", Sdf.ValueTypeNames.String).Set(usd_shader_source.uvSetName())
                 texture_sampler.CreateInput("manifold", Sdf.ValueTypeNames.Token).ConnectToSource(
-                        manifold.ConnectableAPI(),
-                        "result"
-                    )
+                    manifold.ConnectableAPI(),
+                    "result"
+                )
 
             export_items.append(export_item)
         else:
@@ -213,7 +225,10 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
 
 
 class Principled_BRDF_SettingsWidget(widgets.QWidget):
+    """Settings widget exposing Principled BRDF-specific USD export options in Mari's UI."""
+
     def __init__(self, parent=None):
+        """Build the widget, loading the persisted post-process command from settings."""
         widgets.QWidget.__init__(self, parent)
 
         settings = mari.Settings()
@@ -236,6 +251,7 @@ class Principled_BRDF_SettingsWidget(widgets.QWidget):
         self.setLayout(main_layout)
 
     def onPostProcessCommandEdited(self):
+        """Persist the user-edited default post-process command back to Mari settings."""
         settings = mari.Settings()
         settings.beginGroup(PRINCIPLED_BRDF_SETTINGS_GROUP)
         value = self.post_process_editbox.text()
@@ -244,10 +260,12 @@ class Principled_BRDF_SettingsWidget(widgets.QWidget):
 
 
 def Principled_BRDF_Callback_SettingsWidget():
+    """Return a new Principled BRDF export settings widget for the USD export UI."""
     return Principled_BRDF_SettingsWidget()
 
 
 def Principled_BRDF_Callback_SetupExportItem(export_item):
+    """Apply the configured Principled BRDF post-process command and ``.tex`` template to ``export_item``."""
     if not isinstance(export_item, mari.ExportItem):
         print("Invalid Export Item received for Principled BRDF SetupExportItem callback.")
         return

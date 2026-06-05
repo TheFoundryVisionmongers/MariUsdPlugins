@@ -20,24 +20,31 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-from . import usdShadeExport
+"""Mari USD Plugins Python package.
+
+Aggregates the Python-side functionality for the Mari USD plugin
+collection, including USD shader export back-ends, the USD loader and
+export manager UI tabs, and the multi-shader export dialog.
+"""
+
 from . import usdExportManagerTab
-from . import usdShader
-from . import usdShadeExport_UsdPreview
+from . import usdLoaderTab
+from . import usdMultiShaderExportDialog
+from . import usdShadeExport
 from . import usdShadeExport_Arnold
 from . import usdShadeExport_PRMan
 from . import usdShadeExport_PrincipledBRDF
-from . import usdMultiShaderExportDialog
-from . import usdLoaderTab
+from . import usdShadeExport_UsdPreview
+from . import usdShader
 
 __all__ = [
-    'usdShadeExport',
     'usdExportManagerTab',
-    'usdShader',
-    'usdShadeExport_UsdPreview',
+    'usdLoaderTab',
+    'usdMultiShaderExportDialog',
+    'usdShadeExport',
     'usdShadeExport_Arnold',
     'usdShadeExport_PRMan',
     'usdShadeExport_PrincipledBRDF',
-    'usdMultiShaderExportDialog',
-    'usdLoaderTab',
+    'usdShadeExport_UsdPreview',
+    'usdShader',
 ]

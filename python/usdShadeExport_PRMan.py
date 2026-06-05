@@ -20,12 +20,23 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""PRMan (PxrSurface) shader writer for the Mari USD export pipeline.
+
+Provides :func:`writePrManSurface`, which serialises a Mari shader
+network as a RenderMan ``PxrSurface`` shading graph, along with the
+PRMan-specific export settings widget and export-item setup callbacks
+registered with the USD export framework.
+"""
+
+import importlib
 import os
 import re
-import importlib
-from . import usdShadeExport
+
 from fnpxr import Sdf, UsdShade
+
+import mari
+
+from . import usdShadeExport
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
@@ -45,6 +56,7 @@ PRMAN_DEFAULT_SETTINGS = {
 
 
 def colorComponentForType(sdf_type):
+    """Return the PxrTexture output component name to read for the given Sdf type."""
     if sdf_type == Sdf.ValueTypeNames.Color3f:
         return "resultRGB"
     elif sdf_type == Sdf.ValueTypeNames.Normal3f:
@@ -55,7 +67,7 @@ def colorComponentForType(sdf_type):
 
 
 def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to an PxrSurface shader.
+    """Write the USD shading nodes for the inputs of a RenderMan ``PxrSurface`` shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to
@@ -291,9 +303,9 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
                 manifold.CreateIdAttr("PxrManifold2D")
                 manifold.CreateInput("name_uvSet", Sdf.ValueTypeNames.String).Set(usd_shader_source.uvSetName())
                 texture_sampler.CreateInput("manifold", Sdf.ValueTypeNames.Token).ConnectToSource(
-                        manifold.ConnectableAPI(),
-                        "result"
-                    )
+                    manifold.ConnectableAPI(),
+                    "result"
+                )
 
             export_items.append(export_item)
         else:
@@ -350,7 +362,10 @@ def writePrManSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader
 
 
 class PRMan_SettingsWidget(widgets.QWidget):
+    """Settings widget exposing PRMan-specific USD export options in Mari's UI."""
+
     def __init__(self, parent=None):
+        """Build the widget, loading the persisted post-process command from settings."""
         widgets.QWidget.__init__(self, parent)
 
         settings = mari.Settings()
@@ -372,6 +387,7 @@ class PRMan_SettingsWidget(widgets.QWidget):
         self.setLayout(main_layout)
 
     def onPostProcessCommandEdited(self):
+        """Persist the user-edited default post-process command back to Mari settings."""
         settings = mari.Settings()
         settings.beginGroup(PRMAN_SETTINGS_GROUP)
         value = self.post_process_editbox.text()
@@ -380,10 +396,12 @@ class PRMan_SettingsWidget(widgets.QWidget):
 
 
 def PRMan_Callback_SettingsWidget():
+    """Return a new PRMan export settings widget for the USD export UI."""
     return PRMan_SettingsWidget()
 
 
 def PRMan_Callback_SetupExportItem(export_item):
+    """Apply the configured PRMan post-process command and ``.tex`` template to ``export_item``."""
     if not isinstance(export_item, mari.ExportItem):
         print("Invalid Export Item received for PRMax SetupExportItem callback.")
         return

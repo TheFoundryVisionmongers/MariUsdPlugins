@@ -20,15 +20,25 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""USD Preview Surface shader writer for the Mari USD export pipeline.
+
+Provides :func:`writeUsdPreviewSurface`, which serialises a Mari shader
+network as the equivalent ``UsdPreviewSurface`` shading graph, and
+registers the writer with the USD export framework on import.
+"""
+
 import os
 import re
-from . import usdShadeExport
+
 from fnpxr import Sdf, UsdShade
+
+import mari
+
+from . import usdShadeExport
 
 
 def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_shader_source):
-    """Function to write out the Usd shading nodes for an input to a UsdPreviewSurface shader.
+    """Write the USD shading nodes for the inputs of a ``UsdPreviewSurface`` shader.
 
     Args:
         looks_stage (Usd.Stage): Stage to write to

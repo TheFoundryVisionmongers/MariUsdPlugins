@@ -20,9 +20,19 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
-import mari
+"""USD geometry loader UI tab for Mari.
+
+Provides :class:`UsdLoaderTreeWidget` and :class:`UsdLoaderWidget`, the
+Qt widgets that drive the USD model import dialog and feed the user's
+choice of prims, variants and loader options back into the Mari
+C++ geo-loader plugin via ``mari.app.setGeoPluginAttribute``.
+"""
+
 import importlib
+
 from fnpxr import Sdf, Usd, UsdGeom
+
+import mari
 
 for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
     try:
@@ -58,8 +68,10 @@ SHOW_SELECTED_ONLY_ICON = mari.resources.createIcon("SelectVisible.png")
 
 
 class UsdLoaderTreeWidget(widgets.QTreeWidget):
+    """Tree widget that displays a USD stage's prim hierarchy with per-prim variant selectors."""
 
     def __init__(self, Parent=None):
+        """Initialise the tree, configure its columns, and clear any cached stage."""
         widgets.QTreeWidget.__init__(self, Parent)
 
         self.setColumnCount(3)
@@ -73,6 +85,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         self.stage = None
 
     def populate(self, stage):
+        """Repopulate the tree from ``stage``, expanding the first two levels by default."""
         self.clear()
         self._item_map = {}
         self.stage = stage
@@ -170,6 +183,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             tree_item = item_for_token
 
     def onVariantComboboxCurrentIndexChanged(self, index):
+        """Apply the user's variant selection to the stage and refresh the tree."""
         if self.stage is None:
             return
         combobox = self.sender()
@@ -194,6 +208,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return result
 
     def selected_leaf_paths(self):
+        """Return the prim paths of all fully checked leaf items in the tree."""
         return self._get_selected_leaf_paths(self.invisibleRootItem())
 
     def _get_selected_paths(self, item):
@@ -211,6 +226,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             return result
 
     def selected_paths(self):
+        """Return the shortest set of prim paths whose subtrees are fully selected."""
         result = []
         root_item = self.invisibleRootItem()
         for i in range(root_item.childCount()):
@@ -240,6 +256,7 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return result
 
     def selected_variants(self):
+        """Return the list of ``path{variantSet=variant}`` strings selected in the tree."""
         result = []
         root_item = self.invisibleRootItem()
         for i in range(root_item.childCount()):
@@ -247,11 +264,13 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
         return result
 
     def walk(self, item, func):
+        """Apply ``func`` to ``item`` and every descendant in a post-order traversal."""
         for i in range(item.childCount()):
             self.walk(item.child(i), func)
         func(item)
 
     def visit(self, item, path_tokens, func, leaf_func):
+        """Walk down ``item`` following ``path_tokens`` and apply ``leaf_func``/``func`` along the way."""
         if len(path_tokens) == 0:
             if leaf_func:
                 leaf_func(item)
@@ -266,11 +285,15 @@ class UsdLoaderTreeWidget(widgets.QTreeWidget):
             func(item)
 
     def is_path_valid(self, path):
+        """Return ``True`` if ``path`` corresponds to a known prim in the loaded tree."""
         return path in self._item_map
 
 
 class UsdLoaderWidget(widgets.QWidget):
+    """Top-level widget hosting the USD prim tree, loader options and selection controls."""
+
     def __init__(self, parent=None):
+        """Build the loader UI: tree, option controls and selection toolbar."""
         widgets.QWidget.__init__(self, parent=parent)
 
         layout = widgets.QFormLayout()
@@ -382,6 +405,7 @@ class UsdLoaderWidget(widgets.QWidget):
         options_layout.addLayout(checkbox_layout, 2, 0, 4, 0)
 
     def showEvent(self, event):
+        """Populate option combos from Mari and load the current USD stage into the tree."""
         attr = mari.app.getGeoPluginAttribute("Merge Type")
         self.merge_type_box.clear()
         self.merge_type_box.addItems(attr.splitlines())
@@ -413,6 +437,7 @@ class UsdLoaderWidget(widgets.QWidget):
         self.tree_widget.populate(stage)
 
     def hideEvent(self, event):
+        """Push the user's option values and tree selection back to the Mari geo loader."""
         mari.app.setGeoPluginAttribute("Merge Type", self.merge_type_box.currentText())
         mari.app.setGeoPluginAttribute("UV Set", self.uv_set_box.currentText())
         mari.app.setGeoPluginAttribute("Mapping Scheme", self.mapping_scheme_box.currentText())
@@ -456,7 +481,9 @@ class UsdLoaderWidget(widgets.QWidget):
             'Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n'
             ' e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.'
         )
-        if dialog.exec() == widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted:
+        if dialog.exec() == (
+            widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted
+        ):
             # Check validity and sort checking and unchecking
             paths = dialog.textValue().split(",")
             check_paths = []
