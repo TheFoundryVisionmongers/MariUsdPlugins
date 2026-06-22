@@ -37,11 +37,11 @@ import mari
 
 from . import usdShadeExport as usd_shade_export
 
-for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+for base_module in ["PySide6", "PySide2"]:  # Dual Qt6/Qt5 support.
     try:
-        core = importlib.import_module(f'{base_module}.QtCore')
-        gui = importlib.import_module(f'{base_module}.QtGui')
-        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        core = importlib.import_module(f"{base_module}.QtCore")
+        gui = importlib.import_module(f"{base_module}.QtGui")
+        widgets = importlib.import_module(f"{base_module}.QtWidgets")
         break
     except (ImportError, ModuleNotFoundError):
         continue
@@ -344,7 +344,7 @@ class ShaderAssignment_View(widgets.QTableView):
 def split_ext(path):
     """Return ``(stem, lowercase_extension_without_dot)`` from ``path``."""
     file_name, file_ext = os.path.splitext(path)
-    file_ext = file_ext[1:].lower() if len(file_ext) > 0 and file_ext[0] == '.' else file_ext.lower()
+    file_ext = file_ext[1:].lower() if len(file_ext) > 0 and file_ext[0] == "." else file_ext.lower()
     return file_name, file_ext
 
 

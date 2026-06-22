@@ -34,11 +34,11 @@ from fnpxr import Sdf, Usd, UsdGeom
 
 import mari
 
-for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+for base_module in ["PySide6", "PySide2"]:  # Dual Qt6/Qt5 support.
     try:
-        core = importlib.import_module(f'{base_module}.QtCore')
-        gui = importlib.import_module(f'{base_module}.QtGui')
-        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        core = importlib.import_module(f"{base_module}.QtCore")
+        gui = importlib.import_module(f"{base_module}.QtGui")
+        widgets = importlib.import_module(f"{base_module}.QtWidgets")
         QT_VERSION = base_module
         break
     except (ImportError, ModuleNotFoundError):
@@ -477,12 +477,12 @@ class UsdLoaderWidget(widgets.QWidget):
         dialog.setTextValue("")
         line_edit = dialog.children()[1]
         line_edit.setToolTip(
-            'Enter a list of comma-delimited prim paths to be selected for loading. '
-            'Use "!" to exclude prims from the list by prefixing the path with an exclamation mark "!"\n'
-            ' e.g. "/root/group, !/root/group/sphere" will select all prims in /root/group except for sphere.'
+            "Enter a list of comma-delimited prim paths to be selected for loading. "
+            "Use '!' to exclude prims from the list by prefixing the path with an exclamation mark '!'\n"
+            " e.g. '/root/group, !/root/group/sphere' will select all prims in /root/group except for sphere."
         )
         if dialog.exec() == (
-            widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted
+            widgets.QDialog.DialogCode.Accepted if QT_VERSION == "PySide6" else widgets.QDialog.Accepted
         ):
             # Check validity and sort checking and unchecking
             paths = dialog.textValue().split(",")

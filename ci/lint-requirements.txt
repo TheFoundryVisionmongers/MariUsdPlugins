@@ -1,0 +1,10 @@
+#
+# Copyright(c) 2026 The Foundry Visionmongers Ltd. All Rights Reserved.
+#
+
+--index-url https://packages.thefoundry.co.uk/simple
+
+flake8==7.3.0
+flake8-docstrings==1.7.0
+flake8-gl-codeclimate==0.2.1
+flake8-quotes==3.4.0

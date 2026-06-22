@@ -37,11 +37,11 @@ import mari
 
 from . import usdExportManagerTab, usdShadeExport
 
-for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+for base_module in ["PySide6", "PySide2"]:  # Dual Qt6/Qt5 support.
     try:
-        core = importlib.import_module(f'{base_module}.QtCore')
-        gui = importlib.import_module(f'{base_module}.QtGui')
-        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        core = importlib.import_module(f"{base_module}.QtCore")
+        gui = importlib.import_module(f"{base_module}.QtGui")
+        widgets = importlib.import_module(f"{base_module}.QtWidgets")
         QT_VERSION = base_module
         break
     except (ImportError, ModuleNotFoundError):
@@ -49,7 +49,7 @@ for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
 else:
     raise ImportError("Neither PySide6 nor PySide2 is available")
 
-QAction = gui.QAction if hasattr(gui, 'QAction') else widgets.QAction
+QAction = gui.QAction if hasattr(gui, "QAction") else widgets.QAction
 
 # When unifying usdExportManagerTab to this usdMultiShaderExportDialog, these implementation should be moved over
 FileBrowseWidget = usdExportManagerTab.FileBrowseWidget
@@ -64,7 +64,7 @@ SELECTION_GROUP_COLUMN = 0
 MATERIAL_COLUMN = 1
 SHADER_COLUMN = 2
 
-SHADER_ERROR_PIXMAP = gui.QPixmap(mari.resources.path(mari.resources.ICONS) + '/ShaderError.svg')
+SHADER_ERROR_PIXMAP = gui.QPixmap(mari.resources.path(mari.resources.ICONS) + "/ShaderError.svg")
 
 FACE_SELECTION_GROUP_MIMETYPE = "faceselectiongroup_uuid"
 
@@ -359,7 +359,7 @@ class Material_Model(core.QAbstractItemModel):
 
         self.__selection_group_icon = mari.resources.createIcon("SelectionSet.png")
         self.__selection_group_history_icon = gui.QIcon(
-            mari.resources.path(mari.resources.ICONS) + '/SelectionGroupsHistory.svg')
+            mari.resources.path(mari.resources.ICONS) + "/SelectionGroupsHistory.svg")
         self.__shader_error_icon = gui.QIcon(SHADER_ERROR_PIXMAP)
 
     @property
@@ -651,7 +651,7 @@ class EditSelectionGroupDialog(widgets.QDialog):
         layout.addWidget(widgets.QLabel("Material Selection Groups"), 0, 2)
 
         self.project_selection_groups_list = widgets.QListWidget(self)
-        if QT_VERSION == 'PySide6':
+        if QT_VERSION == "PySide6":
             self.project_selection_groups_list.setSelectionMode(
                 self.project_selection_groups_list.SelectionMode.ExtendedSelection)
         else:
@@ -660,7 +660,7 @@ class EditSelectionGroupDialog(widgets.QDialog):
         layout.addWidget(self.project_selection_groups_list, 1, 0)
 
         self.material_selection_groups_list = widgets.QListWidget(self)
-        if QT_VERSION == 'PySide6':
+        if QT_VERSION == "PySide6":
             self.material_selection_groups_list.setSelectionMode(
                 self.material_selection_groups_list.SelectionMode.ExtendedSelection)
         else:
@@ -766,7 +766,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(widgets.QAbstractItemView.DropOnly)
 
-        if QT_VERSION == 'PySide6':
+        if QT_VERSION == "PySide6":
             self.setSelectionMode(self.SelectionMode.ExtendedSelection)
         else:
             self.setSelectionMode(self.ExtendedSelection)
@@ -826,7 +826,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
     def dropMimeData(self, index, data, action):
         """Append the dropped face-selection-group UUID to the active material."""
         if data.hasFormat(FACE_SELECTION_GROUP_MIMETYPE):
-            faceselectiongroup_uuid = str(data.data(FACE_SELECTION_GROUP_MIMETYPE), 'utf-8')
+            faceselectiongroup_uuid = str(data.data(FACE_SELECTION_GROUP_MIMETYPE), "utf-8")
             for selection_group in mari.selection_groups.list():
                 if selection_group.uuid() == faceselectiongroup_uuid:
                     if self.__material:
@@ -848,7 +848,7 @@ class SelectionGroupListWidget(widgets.QListWidget):
         """Open :class:`EditSelectionGroupDialog` to bulk-edit the material's groups."""
         if self.__material:
             dialog = EditSelectionGroupDialog(self.__material.selection_groups)
-            accepted = widgets.QDialog.DialogCode.Accepted if QT_VERSION == 'PySide6' else widgets.QDialog.Accepted
+            accepted = widgets.QDialog.DialogCode.Accepted if QT_VERSION == "PySide6" else widgets.QDialog.Accepted
             if dialog.exec() == accepted:
                 self.__material.selection_groups = dialog.materialSelectionGroups()
                 self.updateSelectionGroups()
@@ -956,7 +956,7 @@ class MultiShaderExportWidget(widgets.QWidget):
         self.view = Material_View(self)
         self.view.setModel(self.model)
         self.view.horizontalHeader().setSectionResizeMode(widgets.QHeaderView.Stretch)
-        if QT_VERSION == 'PySide6':
+        if QT_VERSION == "PySide6":
             self.view.setSelectionBehavior(self.view.SelectionBehavior.SelectRows)
             self.view.setSelectionMode(self.view.SelectionMode.ExtendedSelection)
         else:
@@ -1348,7 +1348,7 @@ class EditShaderInputsDialog(widgets.QDialog):
 
         export_item_view.setItemDelegate(mari.system.batch_export_dialog.ComboBoxDelegate(parent=self))
         export_item_view.horizontalHeader().setStretchLastSection(True)
-        if QT_VERSION == 'PySide6':
+        if QT_VERSION == "PySide6":
             export_item_view.setSelectionBehavior(export_item_view.SelectionBehavior.SelectRows)
             export_item_view.setSelectionMode(export_item_view.SelectionMode.ExtendedSelection)
         else:
@@ -1433,7 +1433,7 @@ class EditShaderInputsDialog(widgets.QDialog):
         for child in tree_root:
             loaded_item = mari.ExportItem()
 
-            loaded_item.deserializeFromString(etree.tostring(child, encoding='unicode'))
+            loaded_item.deserializeFromString(etree.tostring(child, encoding="unicode"))
 
             for export_item in self.exportItems:
                 if (loaded_item.hasMetadata("_STREAM") and export_item.hasMetadata("_STREAM") and

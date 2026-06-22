@@ -1,0 +1,12 @@
+#
+# Copyright (c) 2026 The Foundry Visionmongers Ltd. All Rights Reserved.
+#
+
+[flake8]
+max-line-length = 120
+inline-quotes = double
+multiline-quotes = double
+docstring-quotes = double
+
+exclude =
+    .git
