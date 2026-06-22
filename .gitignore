@@ -1,0 +1,9 @@
+#
+# Copyright (c) 2026 The Foundry Visionmongers Ltd. All Rights Reserved.
+#
+
+# Directories:
+__pycache__/
+
+# Files:
+test-results.junit.xml

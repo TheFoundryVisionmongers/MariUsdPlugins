@@ -1,0 +1,62 @@
+#
+# Copyright (c) 2026 The Foundry Visionmongers Ltd. All Rights Reserved.
+#
+
+stages:
+  - test
+
+workflow:
+  name: '$PIPELINE_NAME'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        PIPELINE_NAME: 'MR pipeline: $CI_MERGE_REQUEST_TITLE'
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      variables:
+        PIPELINE_NAME: 'Branch pipeline: $CI_COMMIT_BRANCH'
+
+variables:
+  PIP_INDEX_URL: https://packages.thefoundry.co.uk/simple
+  QT_QPA_PLATFORM: offscreen
+
+default:
+  image: python:3.12
+  tags:
+    - docker-run
+
+.test:
+  stage: test
+  interruptible: true
+  variables:
+    PY_COLORS: '1'
+    COLUMNS: '120'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - pip install --quiet --upgrade pip wheel setuptools
+    - pip install tox
+    - pip list
+
+code-style:
+  extends: .test
+  script:
+    - tox -e style
+
+test:
+  extends: .test
+  parallel:
+    matrix:
+      - IMAGE: python:3.10
+      - IMAGE: python:3.11
+      - IMAGE: python:3.12
+  image: $IMAGE
+  script:
+    - pip install -e .
+    - pytest tests/ -v --tb=short --junit-xml=test-results.junit.xml
+  artifacts:
+    when: always
+    expire_in: 30 days
+    reports:
+      junit: test-results.junit.xml
