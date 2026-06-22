@@ -38,13 +38,13 @@ from . import usdShadeExport_UsdPreview
 from . import usdShader
 
 __all__ = [
-    'usdExportManagerTab',
-    'usdLoaderTab',
-    'usdMultiShaderExportDialog',
-    'usdShadeExport',
-    'usdShadeExport_Arnold',
-    'usdShadeExport_PRMan',
-    'usdShadeExport_PrincipledBRDF',
-    'usdShadeExport_UsdPreview',
-    'usdShader',
+    "usdExportManagerTab",
+    "usdLoaderTab",
+    "usdMultiShaderExportDialog",
+    "usdShadeExport",
+    "usdShadeExport_Arnold",
+    "usdShadeExport_PRMan",
+    "usdShadeExport_PrincipledBRDF",
+    "usdShadeExport_UsdPreview",
+    "usdShader",
 ]

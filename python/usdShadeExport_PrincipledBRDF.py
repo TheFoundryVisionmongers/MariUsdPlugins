@@ -38,9 +38,9 @@ import mari
 
 from . import usdShadeExport
 
-for base_module in ['PySide6', 'PySide2']:  # Dual Qt6/Qt5 support.
+for base_module in ["PySide6", "PySide2"]:  # Dual Qt6/Qt5 support.
     try:
-        widgets = importlib.import_module(f'{base_module}.QtWidgets')
+        widgets = importlib.import_module(f"{base_module}.QtWidgets")
         break
     except (ImportError, ModuleNotFoundError):
         continue
@@ -76,21 +76,21 @@ def writePrincipledBRDFSurface(looks_stage, usd_shader, usd_export_parameters, u
         usd_shader_source (UsdShaderSource): Container of source Shader and Export Item instances
     """
     mari_to_usd_input_map = {
-        "BaseColor": ('baseColor', Sdf.ValueTypeNames.Color3f),
-        "EmissiveColor": ('emitColor', Sdf.ValueTypeNames.Color3f),
-        "subsurface": ('subsurface', Sdf.ValueTypeNames.Float),
+        "BaseColor": ("baseColor", Sdf.ValueTypeNames.Color3f),
+        "EmissiveColor": ("emitColor", Sdf.ValueTypeNames.Color3f),
+        "subsurface": ("subsurface", Sdf.ValueTypeNames.Float),
         # "subsurfaceColor": ('subsurfaceColor', Sdf.ValueTypeNames.Color3f),
-        "metallic": ('metallic', Sdf.ValueTypeNames.Float),
-        "specular": ('specular', Sdf.ValueTypeNames.Float),
-        "specularTint": ('specularTint', Sdf.ValueTypeNames.Float),
-        "roughness": ('roughness', Sdf.ValueTypeNames.Float),
-        "anisotropic": ('anisotropic', Sdf.ValueTypeNames.Float),
-        "sheen": ('sheen', Sdf.ValueTypeNames.Float),
-        "sheenTint": ('sheenTint', Sdf.ValueTypeNames.Float),
-        "clearcoat": ('clearcoat', Sdf.ValueTypeNames.Float),
-        "clearcoatGloss": ('clearcoatGloss', Sdf.ValueTypeNames.Float),
-        "Bump": ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
-        "Normal": ('bumpNormal', Sdf.ValueTypeNames.Normal3f),
+        "metallic": ("metallic", Sdf.ValueTypeNames.Float),
+        "specular": ("specular", Sdf.ValueTypeNames.Float),
+        "specularTint": ("specularTint", Sdf.ValueTypeNames.Float),
+        "roughness": ("roughness", Sdf.ValueTypeNames.Float),
+        "anisotropic": ("anisotropic", Sdf.ValueTypeNames.Float),
+        "sheen": ("sheen", Sdf.ValueTypeNames.Float),
+        "sheenTint": ("sheenTint", Sdf.ValueTypeNames.Float),
+        "clearcoat": ("clearcoat", Sdf.ValueTypeNames.Float),
+        "clearcoatGloss": ("clearcoatGloss", Sdf.ValueTypeNames.Float),
+        "Bump": ("bumpNormal", Sdf.ValueTypeNames.Normal3f),
+        "Normal": ("bumpNormal", Sdf.ValueTypeNames.Normal3f),
         # "shadowBumpTerminator": ('shadowBumpTerminator', Sdf.ValueTypeNames.Int),
         # "presence": ('presence', Sdf.ValueTypeNames.Float),
         # "inputAOV": ('inputAOV', Sdf.ValueTypeNames.Int),

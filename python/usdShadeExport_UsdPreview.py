@@ -85,7 +85,7 @@ def writeUsdPreviewSurface(looks_stage, usd_shader, usd_export_parameters, usd_s
             st_reader = UsdShade.Shader.Get(looks_stage, st_reader_path)
             if st_reader.GetPath().isEmpty:
                 st_reader = UsdShade.Shader.Define(looks_stage, st_reader_path)
-                st_reader.CreateIdAttr('UsdPrimvarReader_float2')
+                st_reader.CreateIdAttr("UsdPrimvarReader_float2")
                 st_reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set(usd_shader_source.uvSetName())
 
             # TODO: Implement a override option for export that gets passed into this function
