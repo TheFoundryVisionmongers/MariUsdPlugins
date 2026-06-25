@@ -9,7 +9,6 @@ import types
 
 def test_import_usd_shader_module_without_mari_runtime(monkeypatch):
     """Import ``python.usdShader`` with a minimal ``mari`` stub present."""
-
     mari_stub = types.SimpleNamespace(
         app=types.SimpleNamespace(isRunning=lambda: False)
     )
