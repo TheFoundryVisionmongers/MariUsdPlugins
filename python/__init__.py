@@ -27,15 +27,17 @@ collection, including USD shader export back-ends, the USD loader and
 export manager UI tabs, and the multi-shader export dialog.
 """
 
-from . import usdExportManagerTab
-from . import usdLoaderTab
-from . import usdMultiShaderExportDialog
-from . import usdShadeExport
-from . import usdShadeExport_Arnold
-from . import usdShadeExport_PRMan
-from . import usdShadeExport_PrincipledBRDF
-from . import usdShadeExport_UsdPreview
-from . import usdShader
+from . import (
+    usdExportManagerTab,
+    usdLoaderTab,
+    usdMultiShaderExportDialog,
+    usdShadeExport,
+    usdShadeExport_Arnold,
+    usdShadeExport_PRMan,
+    usdShadeExport_PrincipledBRDF,
+    usdShadeExport_UsdPreview,
+    usdShader,
+)
 
 __all__ = [
     "usdExportManagerTab",
