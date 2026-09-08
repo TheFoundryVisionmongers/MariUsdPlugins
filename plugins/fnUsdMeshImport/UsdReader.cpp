@@ -189,6 +189,11 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     uvSetValue.m_Type = MRI_ATTR_STRING;
     uvSetValue.m_pString = UVSet.c_str();
     _pluginHosts->geoReaderHost.setAttribute(Entity, "UvSetName", &uvSetValue);
+
+    MriAttributeValue mergeGeos;
+    mergeGeos.m_Type = MRI_ATTR_BOOL;
+    mergeGeos.m_Int = (keepSeparate) ? 0 : 1;
+    _pluginHosts->geoReaderHost.setAttribute(Entity, MRI_GEO_READER_ATTR_MERGE_GEO, &mergeGeos);
     
     // variables used to coordinate which model should be loaded
     bool loadThisModel = false;
