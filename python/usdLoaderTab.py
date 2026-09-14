@@ -26,7 +26,7 @@ import PySide2.QtGui as gui
 import PySide2.QtWidgets as widgets
 qt = core.Qt
 
-from fnpxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 USER_ROLE_PATH = qt.UserRole
 
