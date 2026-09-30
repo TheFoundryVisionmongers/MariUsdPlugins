@@ -146,13 +146,16 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
     bool keepCentered = false;
     bool includeInvisible = false;
     bool createFaceSelectionGroups = false;
+    bool createMaterialSelectionGroups = false;
+    bool createCustomSelectionGroups = false;
 
     /////// GET PARAMETERS ////////
     _GetMariAttributes(Entity,
                        loadOption, mergeOption, mappingScheme,
                        frames, frameString, requestedModelNames,
                        requestedGprimNames, UVSet, variantSelections,
-                       conformToMariY, keepCentered, includeInvisible, createFaceSelectionGroups);
+                       conformToMariY, keepCentered, includeInvisible, createFaceSelectionGroups,
+                       createMaterialSelectionGroups, createCustomSelectionGroups);
 
     bool loadFirstOnly = loadOption=="First Found";
     bool loadAll = loadOption=="All Models";
@@ -363,6 +366,9 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
             _host.setEntityName(childEntity, modelData->instanceName.c_str());
 
             entityToPopulate = childEntity; 
+
+            // Selection groups belong to a single entity, so each child starts with its own set
+            _selectionGroups.clear();
         }
 
         bool ValidEntity = false;
@@ -402,7 +408,8 @@ UsdReader::Load(MriGeoEntityHandle &Entity)
                 orientationValue.m_Int = orientation==TfToken("leftHanded");
                 _host.setAttribute(entityToPopulate, "MriGeoEntityReverseOrientation", &orientationValue);
 
-                _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups);
+                _MakeGeoEntity(Geom, entityToPopulate, handle, frames, createFaceSelectionGroups,
+                               createMaterialSelectionGroups, createCustomSelectionGroups);
 
                 ValidEntity = true;
             }
@@ -492,7 +499,7 @@ UsdReader::_GetVariantSelectionsList(const string &variantsString, vector<SdfPat
     }
 }
 
-MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups)
+MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &Entity, string label, const vector<int> &frames, bool createFaceSelectionGroups, bool createMaterialSelectionGroups, bool createCustomSelectionGroups)
 {
     MriGeoDataHandle FaceVertexCounts, Vertices, Normals, VertexIndices, NormalIndices;
     MriGeoDataHandle UVs, UVIndices;
@@ -781,6 +788,25 @@ MriGeoPluginResult UsdReader::_MakeGeoEntity(GeoData &Geom, MriGeoEntityHandle &
         CHECK_RESULT(_host.addFacesToSelectionGroup(Entity, FaceSelection, MeshObject, Geom.GetFaceSelectionIndices(), Geom.GetNumFaceVertexCounts()));
     }
 
+    // 6. Add face selection groups from GeomSubsets.
+    // Groups are shared by name, so a "skin" subset on several meshes ends up in one "skin" group,
+    // and all subsets bound to the same material end up in that material's group.
+    for (const auto& subset : Geom.GetFaceSubsets())
+    {
+        const bool wanted = subset.isMaterialBinding ? createMaterialSelectionGroups : createCustomSelectionGroups;
+        if (!wanted)
+            continue;
+
+        auto group = _selectionGroups.find(subset.groupName);
+        if (group == _selectionGroups.end())
+        {
+            MriSelectionGroupHandle SubsetSelection;
+            CHECK_RESULT(_host.createSelectionGroup(Entity, subset.groupName.c_str(), &SubsetSelection));
+            group = _selectionGroups.emplace(subset.groupName, SubsetSelection).first;
+        }
+        CHECK_RESULT(_host.addFacesToSelectionGroup(Entity, group->second, MeshObject, subset.faces.data(), subset.faces.size()));
+    }
+
     return MRI_GPR_SUCCEEDED;
 }
 
@@ -828,7 +854,9 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
                                     bool& conformToMariY,
                                     bool& keepCentered,
                                     bool& includeInvisible,
-                                    bool& createFaceSelectionGroups)
+                                    bool& createFaceSelectionGroups,
+                                    bool& createMaterialSelectionGroups,
+                                    bool& createCustomSelectionGroups)
 {
     MriAttributeValue Value;
 
@@ -950,6 +978,22 @@ UsdReader::_GetMariAttributes(MriGeoEntityHandle &Entity,
 
     if( createFaceSelectionGroups )
         _host.trace("%s:%d] Will create face selection groups.", _pluginName, __LINE__);
+
+    // detect if we want to create selection groups from material binding GeomSubsets
+    if( _host.getAttribute(Entity, "Create Selection Groups for Material Bindings", &Value) ==
+        MRI_UPR_SUCCEEDED )
+        createMaterialSelectionGroups = (Value.m_Int !=0);
+
+    if( createMaterialSelectionGroups )
+        _host.trace("%s:%d] Will create selection groups for material bindings.", _pluginName, __LINE__);
+
+    // detect if we want to create selection groups from all other GeomSubsets
+    if( _host.getAttribute(Entity, "Create Selection Groups for Custom Geo Subsets", &Value) ==
+        MRI_UPR_SUCCEEDED )
+        createCustomSelectionGroups = (Value.m_Int !=0);
+
+    if( createCustomSelectionGroups )
+        _host.trace("%s:%d] Will create selection groups for custom geo subsets.", _pluginName, __LINE__);
 }
 
 void

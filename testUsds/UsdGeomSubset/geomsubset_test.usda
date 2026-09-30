@@ -1,0 +1,94 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 0.01
+    upAxis = "Y"
+    doc = """Test file for the GeomSubset selection groups in the Mari USD importer.
+    Cube: three plain face subsets (top, bottom, sides).
+    Plane: a "top" subset with the same name as the cube's, plus a few edge cases:
+      bad_indices   - face 42 doesn't exist, the importer should skip it and keep face 3
+      corner_points - a point subset, the importer should ignore it"""
+)
+
+def Xform "World"
+{
+    def Mesh "Cube"
+    {
+        uniform token subdivisionScheme = "none"
+        float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+        point3f[] points = [(-1, -1, 1), (1, -1, 1), (-1, 1, 1), (1, 1, 1), (-1, 1, -1), (1, 1, -1), (-1, -1, -1), (1, -1, -1)]
+        int[] faceVertexCounts = [4, 4, 4, 4, 4, 4]
+        # front, top, back, bottom, right, left
+        int[] faceVertexIndices = [0, 1, 3, 2, 2, 3, 5, 4, 4, 5, 7, 6, 6, 7, 1, 0, 1, 7, 5, 3, 6, 0, 2, 4]
+        texCoord2f[] primvars:st = [
+            (0.025, 0.025), (0.325, 0.025), (0.325, 0.325), (0.025, 0.325),
+            (0.35, 0.025), (0.65, 0.025), (0.65, 0.325), (0.35, 0.325),
+            (0.675, 0.025), (0.975, 0.025), (0.975, 0.325), (0.675, 0.325),
+            (0.025, 0.35), (0.325, 0.35), (0.325, 0.65), (0.025, 0.65),
+            (0.35, 0.35), (0.65, 0.35), (0.65, 0.65), (0.35, 0.65),
+            (0.675, 0.35), (0.975, 0.35), (0.975, 0.65), (0.675, 0.65)
+        ] (
+            interpolation = "faceVarying"
+        )
+
+        def GeomSubset "top"
+        {
+            uniform token elementType = "face"
+            int[] indices = [1]
+        }
+
+        def GeomSubset "bottom"
+        {
+            uniform token elementType = "face"
+            int[] indices = [3]
+        }
+
+        def GeomSubset "sides"
+        {
+            uniform token elementType = "face"
+            int[] indices = [0, 2, 4, 5]
+        }
+    }
+
+    def Mesh "Plane"
+    {
+        uniform token subdivisionScheme = "none"
+        float3[] extent = [(2, -1, -1), (4, -1, 1)]
+        point3f[] points = [(2, -1, 1), (3, -1, 1), (4, -1, 1), (2, -1, 0), (3, -1, 0), (4, -1, 0), (2, -1, -1), (3, -1, -1), (4, -1, -1)]
+        int[] faceVertexCounts = [4, 4, 4, 4]
+        # front left, front right, back left, back right
+        int[] faceVertexIndices = [0, 1, 4, 3, 1, 2, 5, 4, 3, 4, 7, 6, 4, 5, 8, 7]
+        texCoord2f[] primvars:st = [
+            (0, 0), (0.5, 0), (0.5, 0.5), (0, 0.5),
+            (0.5, 0), (1, 0), (1, 0.5), (0.5, 0.5),
+            (0, 0.5), (0.5, 0.5), (0.5, 1), (0, 1),
+            (0.5, 0.5), (1, 0.5), (1, 1), (0.5, 1)
+        ] (
+            interpolation = "faceVarying"
+        )
+
+        def GeomSubset "top"
+        {
+            uniform token elementType = "face"
+            int[] indices = [0, 1, 2, 3]
+        }
+
+        def GeomSubset "left_half"
+        {
+            uniform token elementType = "face"
+            int[] indices = [0, 2]
+        }
+
+        def GeomSubset "bad_indices"
+        {
+            uniform token elementType = "face"
+            int[] indices = [3, 42]
+        }
+
+        def GeomSubset "corner_points"
+        {
+            uniform token elementType = "point"
+            int[] indices = [0]
+        }
+    }
+}

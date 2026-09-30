@@ -97,6 +97,7 @@ target_link_libraries(
     USDImport
     PRIVATE
     usdGeom
+    usdShade
 )
 
 # Bundling

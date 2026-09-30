@@ -38,6 +38,9 @@
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/xformCache.h"
 #include "pxr/usd/usdGeom/primvarsAPI.h"
+#include "pxr/usd/usdGeom/subset.h"
+#include "pxr/usd/usdShade/materialBindingAPI.h"
+#include "pxr/usd/usdShade/tokens.h"
 
 #include <float.h>
 using namespace std;
@@ -131,6 +134,54 @@ GeoData::GeoData(UsdPrim const &prim,
         for(int x = 0; x < m_faceCounts.size(); ++x)
         {
             m_faceSelectionIndices.push_back(x);
+        }
+    }
+
+    // Read face GeomSubsets so they can be turned into selection groups
+    {
+        const int numFaces = m_faceCounts.size();
+        for (const UsdGeomSubset& subset : UsdGeomSubset::GetAllGeomSubsets(mesh))
+        {
+            TfToken elementType;
+            subset.GetElementTypeAttr().Get(&elementType);
+            if (elementType != UsdGeomTokens->face)
+                continue;
+
+            VtIntArray subsetIndicesArray;
+            subset.GetIndicesAttr().Get(&subsetIndicesArray, UsdTimeCode::EarliestTime());
+
+            // Mari rejects the whole call if a single index is out of range, so drop bad ones here
+            std::vector<int> faceIndices;
+            faceIndices.reserve(subsetIndicesArray.size());
+            for (const int index : subsetIndicesArray)
+            {
+                if (index >= 0 && index < numFaces)
+                    faceIndices.push_back(index);
+            }
+            if (faceIndices.size() != subsetIndicesArray.size())
+            {
+                host.trace("[GeoData:%d]\tskipped invalid face indices in subset %s", __LINE__, subset.GetPath().GetText());
+                log.push_back("** Skipped invalid face indices in subset " + subset.GetPath().GetString());
+            }
+
+            // An empty list would make Mari add every face of the mesh, so leave those out
+            if (faceIndices.empty())
+                continue;
+
+            TfToken familyName;
+            subset.GetFamilyNameAttr().Get(&familyName);
+            if (familyName == UsdShadeTokens->materialBind)
+            {
+                // Name the group after the bound material, so every face using it ends up in one group.
+                // Subsets without a material of their own keep the subset name.
+                const SdfPath materialPath = UsdShadeMaterialBindingAPI(subset.GetPrim()).GetDirectBinding().GetMaterialPath();
+                const std::string groupName = materialPath.IsEmpty() ? subset.GetPrim().GetName().GetString() : materialPath.GetName();
+                m_faceSubsets.push_back({groupName, faceIndices, true});
+            }
+            else
+            {
+                m_faceSubsets.push_back({subset.GetPrim().GetName().GetString(), faceIndices, false});
+            }
         }
     }
 
@@ -717,6 +768,7 @@ void GeoData::Reset()
     m_vertexIndices.clear();
     m_faceCounts.clear();
     m_faceSelectionIndices.clear();
+    m_faceSubsets.clear();
 
     m_vertices.clear();
 

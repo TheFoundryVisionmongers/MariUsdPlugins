@@ -50,6 +50,16 @@ public:
 
         typedef std::map<std::string, int> UVSet;
 
+        // A face GeomSubset to turn into a selection group. Material binding subsets are named
+        // after their material, custom subsets after the subset itself.
+        struct FaceSubset
+        {
+            std::string groupName;
+            std::vector<int> faces;
+            bool isMaterialBinding;
+        };
+        typedef std::vector<FaceSubset> FaceSubsets;
+
         static void GetUvSets(PXR_NS::UsdPrim const &prim, UVSet &retval);
 
         // Valid nodes are meshes, and subdivs, included in a "Geom" group
@@ -96,6 +106,8 @@ public:
 
         inline int* GetFaceSelectionIndices() {return &(m_faceSelectionIndices[0]);}
 
+        inline const FaceSubsets& GetFaceSubsets() {return m_faceSubsets;}
+
         float* GetVertices(int frameSample);
         inline int GetNumPoints() {return m_vertices.begin()->second.size();}
 
@@ -141,6 +153,7 @@ protected:
         std::vector<int> m_vertexIndices;
         std::vector<int> m_faceCounts;
         std::vector<int> m_faceSelectionIndices;
+        FaceSubsets m_faceSubsets;
 
         std::map<int, std::vector<float> > m_vertices;
 
